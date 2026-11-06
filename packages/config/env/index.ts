@@ -155,7 +155,7 @@ export const envSchemas = {
   cors: {
     CORS_ORIGINS: z
       .string()
-      .default("http://localhost:3000")
+      .default("http://localhost:3000,http://localhost:3008")
       .transform((val) => val.split(",").map((s) => s.trim())),
   },
 
