@@ -1,0 +1,376 @@
+﻿[FRAME] 13b. Caretaker Dashboard (580:1639)
+  [FRAME] Header - TopNavBar (580:1640)
+    [FRAME] Container (580:1641)
+      [FRAME] Container (580:1642)
+        [RECTANGLE] WhatsApp Image 2026-07-02 at 4.56.19 PM 1 (580:1643)
+        [FRAME] Container (580:1644)
+          [TEXT] Kindertagespflege finden freie Plätze in Deiner Nähe (580:1645) => 'Kindertagespflege finden freie Plätze in Deiner Nähe'
+      [FRAME] Nav (580:1646)
+        [FRAME] Link (580:1647)
+          [TEXT] Dashboard (580:1648) => 'Dashboard'
+        [FRAME] Link (580:1649)
+          [TEXT] Daycare Slots (4) (580:1650) => 'Daycare Slots (4)'
+        [FRAME] Link (580:1651)
+          [TEXT] Parent Inquiries (7) (580:1652) => 'Parent Inquiries (7)'
+        [FRAME] Link (580:1653)
+          [TEXT] Permits & Verification (580:1654) => 'Permits & Verification'
+      [FRAME] Container (580:1655)
+        [FRAME] Profile Dropdown (580:1656)
+          [FRAME] Avatar Placeholder (580:1657)
+          [TEXT] Maria Weber (580:1658) => 'Maria Weber'
+          [FRAME] Chevron Down Icon (580:1659)
+            [VECTOR] Vector (580:1660)
+  [FRAME] Stat Cards Container (580:1661)
+    [FRAME] Stat Card 1 (580:1662)
+      [TEXT] 🎯 PARENT LEAD INQUIRIES (580:1663) => '🎯  PARENT LEAD INQUIRIES'
+      [TEXT] 12 Active Leads (580:1664) => '12 Active Leads'
+      [TEXT] +3 search leads this week (580:1665) => '+3 search leads this week'
+    [FRAME] Stat Card 1 (580:1666)
+      [TEXT] 🗺️ DEMAND REACH RADIUS (580:1667) => '🗺️  DEMAND REACH RADIUS'
+      [TEXT] 3 km Urban (580:1668) => '3 km Urban'
+      [TEXT] Radial shape geocode overlay (580:1669) => 'Radial shape geocode overlay'
+    [FRAME] Stat Card 1 (580:1670)
+      [TEXT] SLOT VACANCIES (580:1671) => ' SLOT VACANCIES'
+      [TEXT] 2 Open / 5 Total (580:1672) => '2 Open / 5 Total'
+      [TEXT] Next vacancy: Oct 1, 2026 (580:1673) => 'Next vacancy: Oct 1, 2026'
+    [FRAME] Stat Card 1 (580:1674)
+      [TEXT] WORK PERMIT COMPLIANCE (580:1675) => ' WORK PERMIT COMPLIANCE'
+      [TEXT] Valid (Verified) (580:1676) => 'Valid (Verified)'
+      [TEXT] Expiry date: Dec 31, 2027 (580:1677) => 'Expiry date: Dec 31, 2027'
+  [FRAME] Footer (580:1678)
+    [FRAME] Container (580:1679)
+      [FRAME] Container (580:1680)
+        [FRAME] Container (580:1681)
+          [FRAME] Kindertagespflege Finden Small Logo (580:1682)
+          [FRAME] Container (580:1683)
+            [TEXT] Kindertagespflege finden freie Plätze in Deiner Nähe (580:1684) => 'Kindertagespflege finden freie Plätze in Deiner Nähe'
+        [FRAME] Container (580:1685)
+          [TEXT] Text (580:1686) => 'Building community, one child at a time.'
+        [FRAME] Container (580:1687)
+          [TEXT] Text (580:1688) => '© 2024 Kindertagespflege Finden GmbH. All rights reserved.'
+      [FRAME] Container (580:1689)
+        [FRAME] Link (580:1690)
+          [TEXT] Text (580:1691) => 'Privacy'
+        [FRAME] Link (580:1692)
+          [TEXT] Text (580:1693) => 'Terms'
+        [FRAME] Link (580:1694)
+          [TEXT] Text (580:1695) => 'Cookies'
+        [FRAME] Link (580:1696)
+          [TEXT] Text (580:1697) => 'Support'
+        [FRAME] Link (580:1698)
+          [TEXT] Text (580:1699) => 'Guidelines'
+  [FRAME] Content (580:1700)
+    [FRAME] Card A - Gantt Booking Calendar (580:1701)
+      [FRAME] Calendar View Card (580:1702)
+        [FRAME] Toolbar Header (580:1703)
+          [FRAME] Left Controls (580:1704)
+            [FRAME] Button Today (580:1705)
+              [FRAME] Icon Calendar (580:1706)
+                [VECTOR] Vector (580:1707)
+                [VECTOR] Vector (580:1708)
+                [VECTOR] Vector (580:1709)
+                [VECTOR] Vector (580:1710)
+              [TEXT] Today (580:1711) => 'Today'
+            [FRAME] Button Prev (580:1712)
+              [FRAME] Icon Chevron Left (580:1713)
+                [VECTOR] Vector (580:1714)
+            [FRAME] Button Next (580:1715)
+              [FRAME] Icon Chevron Right (580:1716)
+                [VECTOR] Vector (580:1717)
+            [TEXT] Aug 1, 2026 – Mar 31, 2028 (580:1718) => 'Aug 1, 2026 – Mar 31, 2028'
+          [FRAME] Right Controls (580:1719)
+            [FRAME] Button Baseline (580:1720)
+              [FRAME] Icon Baseline (580:1721)
+                [VECTOR] Vector (580:1722)
+                [VECTOR] Vector (580:1723)
+                [VECTOR] Vector (580:1724)
+              [TEXT] Baseline (580:1725) => 'Baseline'
+            [FRAME] Button Auto Schedule AI (580:1726)
+              [FRAME] Icon Sparkles (580:1727)
+                [VECTOR] Vector (580:1728)
+                [VECTOR] Vector (580:1729)
+                [VECTOR] Vector (580:1730)
+                [VECTOR] Vector (580:1731)
+                [VECTOR] Vector (580:1732)
+              [TEXT] Auto Schedule (580:1733) => 'Auto Schedule'
+              [FRAME] Badge AI (580:1734)
+                [TEXT] AI (580:1735) => 'AI'
+            [FRAME] Button Export (580:1736)
+              [FRAME] Icon Export (580:1737)
+                [VECTOR] Vector (580:1738)
+                [VECTOR] Vector (580:1739)
+                [VECTOR] Vector (580:1740)
+              [TEXT] Export (580:1741) => 'Export'
+            [FRAME] Button Fullscreen (580:1742)
+              [FRAME] Icon Fullscreen (580:1743)
+                [VECTOR] Vector (580:1744)
+                [VECTOR] Vector (580:1745)
+                [VECTOR] Vector (580:1746)
+                [VECTOR] Vector (580:1747)
+            [FRAME] Button Settings (580:1748)
+              [FRAME] Icon Settings (580:1749)
+                [VECTOR] Vector (580:1750)
+                [VECTOR] Vector (580:1751)
+        [FRAME] Timeline Table Container (580:1752)
+          [FRAME] Table Header Row (580:1753)
+            [TEXT] CARETAKER (580:1754) => 'CARETAKER'
+            [TEXT] PERIOD (580:1755) => 'PERIOD'
+            [FRAME] Months (580:1756)
+              [FRAME] Year Headers (580:1757)
+                [FRAME] 2026 Header (580:1758)
+                  [TEXT] 2026 (580:1759) => '2026'
+                [FRAME] 2027 Header (580:1760)
+                  [TEXT] 2027 (580:1761) => '2027'
+                [FRAME] 2028 Header (580:1762)
+                  [TEXT] 2028 (580:1763) => '2028'
+              [FRAME] Month Headers (580:1764)
+                [FRAME] Cell AUG 26 (580:1765)
+                  [TEXT] AUG (580:1766) => 'AUG'
+                [FRAME] Cell SEP 26 (580:1767)
+                  [TEXT] SEP (580:1768) => 'SEP'
+                [FRAME] Cell OCT 26 (580:1769)
+                  [TEXT] OCT (580:1770) => 'OCT'
+                [FRAME] Cell NOV 26 (580:1771)
+                  [TEXT] NOV (580:1772) => 'NOV'
+                [FRAME] Cell DEC 26 (580:1773)
+                  [TEXT] DEC (580:1774) => 'DEC'
+                [FRAME] Cell JAN 27 (580:1775)
+                  [TEXT] JAN (580:1776) => 'JAN'
+                [FRAME] Cell FEB 27 (580:1777)
+                  [TEXT] FEB (580:1778) => 'FEB'
+                [FRAME] Cell MAR 27 (580:1779)
+                  [TEXT] MAR (580:1780) => 'MAR'
+                [FRAME] Cell APR 27 (580:1781)
+                  [TEXT] APR (580:1782) => 'APR'
+                [FRAME] Cell MAY 27 (580:1783)
+                  [TEXT] MAY (580:1784) => 'MAY'
+                [FRAME] Cell JUN 27 (580:1785)
+                  [TEXT] JUN (580:1786) => 'JUN'
+                [FRAME] Cell JUL 27 (580:1787)
+                  [TEXT] JUL (580:1788) => 'JUL'
+                [FRAME] Cell AUG 27 (580:1789)
+                  [TEXT] AUG (580:1790) => 'AUG'
+                [FRAME] Cell SEP 27 (580:1791)
+                  [TEXT] SEP (580:1792) => 'SEP'
+                [FRAME] Cell OCT 27 (580:1793)
+                  [TEXT] OCT (580:1794) => 'OCT'
+                [FRAME] Cell NOV 27 (580:1795)
+                  [TEXT] NOV (580:1796) => 'NOV'
+                [FRAME] Cell DEC 27 (580:1797)
+                  [TEXT] DEC (580:1798) => 'DEC'
+                [FRAME] Cell JAN 28 (580:1799)
+                  [TEXT] JAN (580:1800) => 'JAN'
+                [FRAME] Cell FEB 28 (580:1801)
+                  [TEXT] FEB (580:1802) => 'FEB'
+                [FRAME] Cell MAR 28 (580:1803)
+                  [TEXT] MAR (580:1804) => 'MAR'
+                [FRAME] Cell MAR 29 (580:1805)
+                  [TEXT] APR (580:1806) => 'APR'
+                [FRAME] Cell MAR 30 (580:1807)
+                  [TEXT] MAY (580:1808) => 'MAY'
+          [FRAME] Header - Current Bookings (580:1809)
+            [FRAME] Icon Chevron Down (580:1810)
+              [VECTOR] Vector (580:1811)
+            [ELLIPSE] Dot (580:1812)
+            [TEXT] CURRENT BOOKINGS (580:1813) => 'CURRENT BOOKINGS'
+          [FRAME] Row - Adam (580:1814)
+            [TEXT] Adam (580:1815) => 'Adam'
+            [TEXT] Aug 2026 – Jun 2027 (580:1816) => 'Aug 2026 – Jun 2027'
+            [FRAME] Bar (580:1817)
+              [TEXT] Aug 2026 - Jun 2027 (580:1818) => 'Aug 2026 - Jun 2027'
+          [FRAME] Row - Benny (580:1819)
+            [TEXT] Benny (580:1820) => 'Benny'
+            [TEXT] Aug 2026 – Jun 2027 (580:1821) => 'Aug 2026 – Jun 2027'
+            [FRAME] Bar (580:1822)
+              [TEXT] Aug 2026 - Jun 2027 (580:1823) => 'Aug 2026 - Jun 2027'
+          [FRAME] Row - Charly (580:1824)
+            [TEXT] Charly (580:1825) => 'Charly'
+            [TEXT] Aug 2026 – Nov 2027 (580:1826) => 'Aug 2026 – Nov 2027'
+            [FRAME] Bar (580:1827)
+              [TEXT] Aug 2026 - Nov 2027 (580:1828) => 'Aug 2026 - Nov 2027'
+          [FRAME] Row - David (580:1829)
+            [TEXT] David (580:1830) => 'David'
+            [TEXT] Aug 2026 – Dec 2027 (580:1831) => 'Aug 2026 – Dec 2027'
+            [FRAME] Bar (580:1832)
+              [TEXT] Aug 2026 - Dec 2027 (580:1833) => 'Aug 2026 - Dec 2027'
+          [FRAME] Row - Egon (580:1834)
+            [TEXT] Egon (580:1835) => 'Egon'
+            [TEXT] Aug 2026 – Feb 2028 (580:1836) => 'Aug 2026 – Feb 2028'
+            [FRAME] Bar (580:1837)
+              [TEXT] Aug 2026 - Feb 2028 (580:1838) => 'Aug 2026 - Feb 2028'
+          [FRAME] Header - Future Bookings (580:1839)
+            [FRAME] Icon Chevron Down (580:1840)
+              [VECTOR] Vector (580:1841)
+            [ELLIPSE] Dot (580:1842)
+            [TEXT] FUTURE BOOKINGS (580:1843) => 'FUTURE BOOKINGS'
+          [FRAME] Row - Fritz (580:1844)
+            [TEXT] Fritz (580:1845) => 'Fritz'
+            [TEXT] Jun 2027 – Apr 2029 (580:1846) => 'Jun 2027 – Apr 2029'
+            [FRAME] Bar (580:1847)
+              [TEXT] Jun 2027 - Apr 2029 (580:1848) => 'Jun 2027 - Apr 2029'
+              [TEXT] Booked (580:1849) => 'Booked'
+              [FRAME] Icon Arrow Right (580:1850)
+                [VECTOR] Vector (580:1851)
+                [VECTOR] Vector (580:1852)
+          [FRAME] Row - Gustav (580:1853)
+            [TEXT] Gustav (580:1854) => 'Gustav'
+            [TEXT] Jul 2027 – Apr 2029 (580:1855) => 'Jul 2027 – Apr 2029'
+            [FRAME] Bar (580:1856)
+              [TEXT] Jul 2027 - Apr 2029 (580:1857) => 'Jul 2027 - Apr 2029'
+              [TEXT] Booked (580:1858) => 'Booked'
+              [FRAME] Icon Arrow Right (580:1859)
+                [VECTOR] Vector (580:1860)
+                [VECTOR] Vector (580:1861)
+          [FRAME] Header - Fitting Inquiries (580:1862)
+            [FRAME] Left Title Group (580:1863)
+              [FRAME] Icon Chevron Down (580:1864)
+                [VECTOR] Vector (580:1865)
+              [ELLIPSE] Dot (580:1866)
+              [TEXT] FITTING INQUIRIES (580:1867) => 'FITTING INQUIRIES'
+              [FRAME] Badge Inquiries Count (580:1868)
+                [TEXT] 20 inquiries (580:1869) => '20 inquiries'
+          [FRAME] Inquiries Scroll Container (580:1870)
+            [FRAME] Inquiries Rows List (580:1871)
+              [FRAME] Row - Hans (580:1872)
+                [TEXT] Hans (580:1873) => 'Hans'
+                [TEXT] Dec 2027 (580:1874) => 'Dec 2027'
+                [FRAME] Bar (580:1875)
+                  [TEXT] ±1 mo (580:1876) => '±1 mo'
+                  [TEXT] 65% (580:1877) => '65%'
+                [FRAME] Icon Drag Grip (580:1878)
+                  [VECTOR] Vector (580:1879)
+                  [VECTOR] Vector (580:1880)
+                  [VECTOR] Vector (580:1881)
+                  [VECTOR] Vector (580:1882)
+                  [VECTOR] Vector (580:1883)
+                  [VECTOR] Vector (580:1884)
+              [FRAME] Row - Inquiry 2 (580:1885)
+                [TEXT] Inquiry #2 (580:1886) => 'Inquiry #2'
+                [TEXT] Jan 2028 (580:1887) => 'Jan 2028'
+                [FRAME] Bar (580:1888)
+                  [TEXT] ±1 mo (580:1889) => '±1 mo'
+                  [TEXT] 50% (580:1890) => '50%'
+                [FRAME] Icon Drag Grip (580:1891)
+                  [VECTOR] Vector (580:1892)
+                  [VECTOR] Vector (580:1893)
+                  [VECTOR] Vector (580:1894)
+                  [VECTOR] Vector (580:1895)
+                  [VECTOR] Vector (580:1896)
+                  [VECTOR] Vector (580:1897)
+              [FRAME] Row - Inquiry 3 (580:1898)
+                [TEXT] Inquiry #3 (580:1899) => 'Inquiry #3'
+                [TEXT] Feb 2028 (580:1900) => 'Feb 2028'
+                [FRAME] Bar (580:1901)
+                  [TEXT] ±1 mo (580:1902) => '±1 mo'
+                  [TEXT] 45% (580:1903) => '45%'
+                [FRAME] Icon Drag Grip (580:1904)
+                  [VECTOR] Vector (580:1905)
+                  [VECTOR] Vector (580:1906)
+                  [VECTOR] Vector (580:1907)
+                  [VECTOR] Vector (580:1908)
+                  [VECTOR] Vector (580:1909)
+                  [VECTOR] Vector (580:1910)
+              [FRAME] Row - Inquiry 4 (580:1911)
+                [TEXT] Inquiry #4 (580:1912) => 'Inquiry #4'
+                [TEXT] Mar 2028 (580:1913) => 'Mar 2028'
+                [FRAME] Bar (580:1914)
+                  [TEXT] ±1 mo (580:1915) => '±1 mo'
+                  [TEXT] 40% (580:1916) => '40%'
+                [FRAME] Icon Drag Grip (580:1917)
+                  [VECTOR] Vector (580:1918)
+                  [VECTOR] Vector (580:1919)
+                  [VECTOR] Vector (580:1920)
+                  [VECTOR] Vector (580:1921)
+                  [VECTOR] Vector (580:1922)
+                  [VECTOR] Vector (580:1923)
+            [FRAME] Scrollbar Track (580:1924)
+              [RECTANGLE] Scrollbar Thumb (580:1925)
+          [FRAME] timeline (580:1926)
+            [RECTANGLE] Today Indicator Line (580:1927)
+            [FRAME] Badge Today (580:1928)
+              [TEXT] Today (580:1929) => 'Today'
+      [FRAME] Task Details Panel (580:1930)
+        [FRAME] Panel Header Row (580:1931)
+          [TEXT] Inquiry Details (580:1932) => 'Inquiry Details'
+          [FRAME] Icon Close (580:1933)
+            [VECTOR] Vector (580:1934)
+            [VECTOR] Vector (580:1935)
+        [FRAME] Title and Badge Section (580:1936)
+          [FRAME] Frame 25 (580:1937)
+            [FRAME] Title Row (580:1938)
+              [ELLIPSE] Dot (580:1939)
+              [TEXT] Hans (580:1940) => 'Hans'
+            [FRAME] Status Badge (580:1941)
+              [TEXT] New (580:1942) => 'New'
+              [FRAME] Icon Chevron Down (580:1943)
+                [VECTOR] Vector (580:1944)
+          [FRAME] Category Badge (580:1945)
+            [TEXT] FITTING INQUIRY • 65% MATCH (580:1946) => 'FITTING INQUIRY • 65% MATCH'
+        [FRAME] Slot Match Card (580:1947)
+          [FRAME] Header Row (580:1948)
+            [TEXT] RECOMMENDED ALLOCATION (580:1949) => 'RECOMMENDED ALLOCATION'
+            [FRAME] Badge Vacancy (580:1950)
+              [TEXT] 0 vacant mos (580:1951) => '0 vacant mos'
+          [TEXT] Allocates to Slot 4 (follows David) (580:1952) => 'Allocates to Slot 4 (follows David)'
+          [TEXT] David leaves Dec 2027 • Hans starts Dec 2027 (580:1953) => 'David leaves Dec 2027 • Hans starts Dec 2027'
+        [FRAME] Properties Section (580:1954)
+          [FRAME] Row Child Info (580:1955)
+            [TEXT] Date of Birth (580:1956) => 'Date of Birth'
+            [FRAME] Card Start Date (580:1957)
+              [TEXT] mm/dd/yyyy (580:1958) => 'mm/dd/yyyy'
+              [FRAME] Icon Calendar (580:1959)
+                [VECTOR] Vector (580:1960)
+                [VECTOR] Vector (580:1961)
+                [VECTOR] Vector (580:1962)
+                [VECTOR] Vector (580:1963)
+          [FRAME] Row Start Date (580:1964)
+            [TEXT] DESIRED START (580:1965) => 'DESIRED START'
+            [FRAME] Card Start Date (580:1966)
+              [TEXT] Jan 2028 (±1 mo) (580:1967) => 'Jan 2028 (±1 mo)'
+              [FRAME] Icon Calendar (580:1968)
+                [VECTOR] Vector (580:1969)
+                [VECTOR] Vector (580:1970)
+                [VECTOR] Vector (580:1971)
+                [VECTOR] Vector (580:1972)
+          [FRAME] Row Due Date (580:1973)
+            [TEXT] EST. TRANSITION (580:1974) => 'EST. TRANSITION'
+            [FRAME] Card Due Date (580:1975)
+              [TEXT] Aug 2029 (age 3) (580:1976) => 'Aug 2029 (age 3)'
+              [FRAME] Icon Calendar (580:1977)
+                [VECTOR] Vector (580:1978)
+                [VECTOR] Vector (580:1979)
+                [VECTOR] Vector (580:1980)
+                [VECTOR] Vector (580:1981)
+          [FRAME] Row Schedule (580:1982)
+            [TEXT] CARE HOURS (580:1983) => 'CARE HOURS'
+            [TEXT] Mon – Fri • 08:00 – 15:00 (35h) (580:1984) => 'Mon – Fri • 08:00 – 15:00 (35h)'
+          [FRAME] Row Preferences (580:1985)
+            [TEXT] PREFERENCES (580:1986) => 'PREFERENCES'
+            [TEXT] Female • Self-cooked • Pets OK (580:1987) => 'Female • Self-cooked • Pets OK'
+          [FRAME] Row Location (580:1988)
+            [TEXT] LOCATION SEARCH (580:1989) => 'LOCATION SEARCH'
+            [TEXT] 1.4 km away (within 3km) (580:1990) => '1.4 km away (within 3km)'
+        [FRAME] Parent Contact Section (580:1991)
+          [TEXT] PARENT CONTACT & NOTE (580:1992) => 'PARENT CONTACT & NOTE'
+          [FRAME] Contact Card (580:1993)
+            [TEXT] Katharina & Jonas Meyer (580:1994) => 'Katharina & Jonas Meyer'
+            [FRAME] Phone Row (580:1995)
+              [FRAME] Frame (580:1996)
+                [VECTOR] Vector (580:1997)
+              [TEXT] +49 30 8923451 (580:1998) => '+49 30 8923451'
+            [FRAME] Email Row (580:1999)
+              [FRAME] Frame (580:2000)
+                [VECTOR] Vector (580:2001)
+                [VECTOR] Vector (580:2002)
+              [TEXT] meyer.family@example.de (580:2003) => 'meyer.family@example.de'
+            [TEXT] “Looking for childcare for Hans starting Dec 2027. Flexible by ±1 mo. Self-cooked food preferred.” (580:2004) => '“Looking for childcare for Hans starting Dec 2027. Flexible by ±1 mo. Self-cooked food preferred.”'
+        [FRAME] Drawer Actions (580:2005)
+          [FRAME] Button Assign Slot (580:2006)
+            [FRAME] Icon Check (580:2007)
+              [VECTOR] Vector (580:2008)
+            [TEXT] Mark As Booked (580:2009) => 'Mark As Booked'
+          [FRAME] Button Contact Parents (580:2010)
+            [FRAME] Icon Mail (580:2011)
+              [VECTOR] Vector (580:2012)
+              [VECTOR] Vector (580:2013)
+            [TEXT] Contact Parents (580:2014) => 'Contact Parents'

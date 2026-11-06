@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+:root {
+  --font-plus-jakarta: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-dm-sans: 'DM Sans', system-ui, -apple-system, sans-serif;
+}
+
+body {
+  font-family: var(--font-dm-sans);
+  background-color: #FAF7F2;
+  color: #1E1B18;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-plus-jakarta);
+}
+
+/* Custom scrollbar for Kita list matching Figma */
+.kita-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+.kita-scrollbar::-webkit-scrollbar-track {
+  background: #F3ECE2;
+  border-radius: 9999px;
+}
+.kita-scrollbar::-webkit-scrollbar-thumb {
+  background: #855C1B;
+  border-radius: 9999px;
+}
+.kita-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #6B4914;
+}
+
+/* Global scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #F3ECE2;
+}
+::-webkit-scrollbar-thumb {
+  background: #D5C8B8;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #BBA996;
+}
+
