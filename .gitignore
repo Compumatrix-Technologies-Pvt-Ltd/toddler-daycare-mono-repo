@@ -20,7 +20,7 @@ out/
 .env.development.local
 .env.test.local
 .env.production.local
-.env.example
+
 
 # Local migration / audit backups (may contain PII)
 apps/backups/
