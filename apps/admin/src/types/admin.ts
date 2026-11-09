@@ -7,8 +7,8 @@ export interface AdminUser {
   name: string;
   email: string;
   role: AdminRole;
-  avatarUrl: string;
-  status: "online" | "away" | "offline";
+  avatarUrl?: string;
+  status?: "online" | "away" | "offline";
   permissions?: string[];
 }
 

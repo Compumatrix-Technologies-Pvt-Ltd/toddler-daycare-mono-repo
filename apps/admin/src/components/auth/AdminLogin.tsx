@@ -7,6 +7,7 @@ import {
   EyeOffIcon,
   ShieldCheckIcon,
 } from "../icons/AdminIcons";
+import { adminAuthService } from "../../services/adminAuthService";
 import { AdminRole, AdminUser } from "../../types/admin";
 import { useLanguage } from "../../context/LanguageContext";
 
@@ -40,7 +41,7 @@ export function AdminLogin({
     }
   };
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
 
@@ -55,40 +56,18 @@ export function AdminLogin({
 
     setIsLoading(true);
 
-    // Simulate authentication with Laravel REST backend
-    setTimeout(() => {
+    try {
+      const user = await adminAuthService.login(email.trim(), password);
+      onLoginSuccess(user);
+    } catch (error: any) {
+      const backendMessage =
+        error.response?.data?.message ||
+        t.admin.auth.errors.invalidCredentials ||
+        "Login failed";
+      setErrorMessage(backendMessage);
+    } finally {
       setIsLoading(false);
-
-      if (password.length < 4) {
-        setErrorMessage(t.admin.auth.errors.invalidCredentials);
-        return;
-      }
-
-      const authenticatedUser: AdminUser =
-        selectedRole === "super-admin"
-          ? {
-              id: "super-admin-1",
-              name: "Sarah Jenkins",
-              email,
-              role: "super-admin",
-              avatarUrl:
-                "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=256&q=80",
-              status: "online",
-              permissions: ["*"],
-            }
-          : {
-              id: "admin-reviewer-2",
-              name: "Marco Becker",
-              email,
-              role: "admin",
-              avatarUrl:
-                "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80",
-              status: "online",
-              permissions: ["applications:read", "applications:verify"],
-            };
-
-      onLoginSuccess(authenticatedUser);
-    }, 650);
+    }
   };
 
   return (
@@ -144,22 +123,20 @@ export function AdminLogin({
             <button
               type="button"
               onClick={() => handleQuickFill("super-admin")}
-              className={`py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer min-h-[40px] ${
-                selectedRole === "super-admin"
+              className={`py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer min-h-[40px] ${selectedRole === "super-admin"
                   ? "bg-[#A12D3A] text-white shadow-2xs"
                   : "text-[#5C4C3E] hover:text-[#1E1B18]"
-              }`}
+                }`}
             >
               {t.admin.auth.roles.superAdmin}
             </button>
             <button
               type="button"
               onClick={() => handleQuickFill("admin")}
-              className={`py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer min-h-[40px] ${
-                selectedRole === "admin"
+              className={`py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer min-h-[40px] ${selectedRole === "admin"
                   ? "bg-[#1E1B18] text-white shadow-2xs"
                   : "text-[#5C4C3E] hover:text-[#1E1B18]"
-              }`}
+                }`}
             >
               {t.admin.auth.roles.admin}
             </button>

@@ -1,50 +1,33 @@
-import express, { Request, Response } from "express";
+import express from "express";
+import { adminRouter } from "@/routes/admin.routes";
+import { caretaterRouter } from "@/routes/caretakers.routes";
+import { daycareRouter } from "./routes/daycares.routes";
 import cors from "cors";
-import apiRouter from "./routes/index.js";
-import { errorHandler } from "./middlewares/errorHandler.js";
+
 
 const app = express();
 
-// Middleware
-app.use(
-  cors({
-    origin: process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(",") : true,
-    credentials: true,
-  })
-);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cors());
+app.use(
+  "/uploads",
+  express.static("src/uploads")
+);
 
-// Root welcome status endpoint
-app.get("/", (_req: Request, res: Response) => {
+//Health Check
+app.get("/", (req, res) => {
   res.json({
-    name: "Toddler Daycare REST Backend",
-    version: "1.0.0",
-    engine: "Node.js Express",
-    status: "online",
-    endpoints: {
-      health: "/api/health",
-      daycares: "/api/v1/daycares",
-      inquiries: "/api/v1/inquiries",
-      caretakers: "/api/v1/caretakers/profile",
-      admin: "/api/v1/admin/dashboard",
-    },
-  });
-});
+    sccess: true,
+    message: "toddler daycare api is running"
+  })
+})
 
-// Mount /api routes
-app.use("/api", apiRouter);
-
-// 404 catch-all
-app.use((_req: Request, res: Response) => {
-  res.status(404).json({
-    message: "Endpoint not found",
-    errors: { route: ["The requested REST API route does not exist."] },
-  });
-});
-
-// Global error handler
-app.use(errorHandler);
+//admin routes
+app.use("/api", adminRouter)
+//caretaker routes
+app.use("/api/caretaker/auth", caretaterRouter);
+//daycare routes
+app.use("/api/caretaker/daycare", daycareRouter);
 
 export default app;
-

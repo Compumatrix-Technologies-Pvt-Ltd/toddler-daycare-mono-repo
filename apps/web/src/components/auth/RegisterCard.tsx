@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { useCaretaker } from "../../context/CaretakerContext";
+import { caretakerApi } from "../../utils/caretakerApi";
 
 export function RegisterCard() {
   const { t } = useLanguage();
@@ -20,7 +21,7 @@ export function RegisterCard() {
   const [isRegistering, setIsRegistering] = useState(false);
   const [registerSuccess, setRegisterSuccess] = useState(false);
 
-  const handleRegisterSubmit = (e: React.FormEvent) => {
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setRegisterError("");
 
@@ -38,8 +39,8 @@ export function RegisterCard() {
     }
 
     setIsRegistering(true);
-    setTimeout(() => {
-      setIsRegistering(false);
+    try {
+      await caretakerApi.register(registerEmail, registerPassword);
       setRegisterSuccess(true);
       updateProfile({
         email: registerEmail,
@@ -50,7 +51,11 @@ export function RegisterCard() {
       setTimeout(() => {
         router.push("/caretaker/profile?from=register");
       }, 900);
-    }, 600);
+    } catch (error: any) {
+      setRegisterError(error.message || "Registration failed");
+    } finally {
+      setIsRegistering(false);
+    }
   };
 
   return (

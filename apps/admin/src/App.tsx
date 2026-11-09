@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { LanguageProvider } from "./context/LanguageContext";
+import { useEffect, useState } from "react";
+import { LanguageProvider, useLanguage } from "./context/LanguageContext";
 import { AdminHeader } from "./components/layout/AdminHeader";
 import { AdminSidebar } from "./components/layout/AdminSidebar";
 import { DashboardView } from "./components/dashboard/DashboardView";
@@ -8,22 +8,13 @@ import { LogoutModal } from "./components/modals/LogoutModal";
 import { ApplicationDetailModal } from "./components/modals/ApplicationDetailModal";
 import { AdminLogin } from "./components/auth/AdminLogin";
 import { AdminForgotPassword } from "./components/auth/AdminForgotPassword";
+import { adminAuthService } from "./services/adminAuthService";
 import {
   AdminTab,
   AdminUser,
   DaycareApplication,
   PlatformSettings,
 } from "./types/admin";
-
-const MOCK_SUPER_ADMIN: AdminUser = {
-  id: "super-admin-1",
-  name: "Sarah Jenkins",
-  email: "s.jenkins@toddler-governance.berlin",
-  role: "super-admin",
-  avatarUrl: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=256&q=80",
-  status: "online",
-  permissions: ["*"],
-};
 
 const INITIAL_APPLICATIONS: DaycareApplication[] = [
   {
@@ -97,7 +88,9 @@ const INITIAL_SETTINGS: PlatformSettings = {
 };
 
 function AdminPortalInner() {
-  const [currentUser, setCurrentUser] = useState<AdminUser | null>(MOCK_SUPER_ADMIN);
+  const { t } = useLanguage();
+  const [currentUser, setCurrentUser] = useState<AdminUser | null>(null);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [authScreen, setAuthScreen] = useState<"login" | "forgot-password">("login");
 
   const [activeTab, setActiveTab] = useState<AdminTab>("dashboard");
@@ -109,6 +102,24 @@ function AdminPortalInner() {
     useState<DaycareApplication[]>(INITIAL_APPLICATIONS);
   const [settings, setSettings] = useState<PlatformSettings>(INITIAL_SETTINGS);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Restore authenticated session on page load
+  useEffect(() => {
+    const token = localStorage.getItem("admin_token");
+    if (!token) {
+      setIsCheckingAuth(false);
+      return;
+    }
+
+    adminAuthService
+      .getProfile()
+      .then((user) => setCurrentUser(user))
+      .catch(() => {
+        adminAuthService.logout();
+        setCurrentUser(null);
+      })
+      .finally(() => setIsCheckingAuth(false));
+  }, []);
 
   const handleUpdateStatus = (id: string, newStatus: "approved" | "rejected") => {
     setApplications((prev) =>
@@ -124,12 +135,22 @@ function AdminPortalInner() {
   };
 
   const handleLogout = () => {
+    adminAuthService.logout();
     setLogoutModalOpen(false);
     setCurrentUser(null);
     setAuthScreen("login");
   };
 
   const pendingCount = applications.filter((a) => a.status === "pending").length;
+
+  // Initial Auth Check Spinner
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#FAF7F2]">
+        <div className="w-9 h-9 border-3 border-[#A12D3A] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   // Unauthenticated Flow: Login & Forgot Password
   if (!currentUser) {
@@ -140,62 +161,58 @@ function AdminPortalInner() {
         />
       );
     }
-
     return (
       <AdminLogin
         onLoginSuccess={(user) => {
           setCurrentUser(user);
-          setToastMessage(`Signed in as ${user.name} (${user.role === "super-admin" ? "Super Admin" : "Standard Admin"}).`);
-          setTimeout(() => setToastMessage(null), 4000);
+          setAuthScreen("login");
         }}
         onNavigateToForgotPassword={() => setAuthScreen("forgot-password")}
       />
     );
   }
 
-  // Authenticated Admin Console Flow
+  // Authenticated Dashboard Layout
   return (
-    <div className="min-h-screen bg-[#FAF7F2] text-[#1E1B18] flex flex-col font-sans antialiased overflow-x-clip">
-      {/* Top Header - Rule 3 Desktop Sizing & Header Standards */}
+    <div className="min-h-screen bg-[#FAF7F2] text-[#1E1B18] flex flex-col antialiased selection:bg-[#FDE8E8] selection:text-[#A12D3A]">
+      {/* Top Navbar */}
       <AdminHeader
         user={currentUser}
         unreadNotificationsCount={pendingCount}
-        onToggleMobileSidebar={() => setMobileSidebarOpen(true)}
+        onToggleMobileSidebar={() => setMobileSidebarOpen((prev) => !prev)}
       />
 
-      {/* Main Container - Responsive Flex Layout with min-w-0 (Rule 3) */}
-      <div className="flex-1 w-full max-w-[1440px] mx-auto flex">
-        {/* Left Side Sidebar */}
+      {/* Main Container */}
+      <div className="flex-1 w-full max-w-[1440px] mx-auto flex overflow-hidden">
+        {/* Sidebar */}
         <AdminSidebar
           activeTab={activeTab}
-          onSelectTab={setActiveTab}
+          onSelectTab={(tab) => {
+            setActiveTab(tab);
+            setMobileSidebarOpen(false);
+          }}
           onLogoutClick={() => setLogoutModalOpen(true)}
           mobileOpen={mobileSidebarOpen}
           onCloseMobile={() => setMobileSidebarOpen(false)}
           pendingCount={pendingCount}
         />
 
-        {/* Main Work Area */}
-        <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-5">
-          {/* Action Feedback Toast */}
+        {/* Content Area */}
+        <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 overflow-y-auto">
+          {/* Toast Notification */}
           {toastMessage && (
-            <div className="p-3.5 rounded-xl bg-[#F0FDF4] border border-[#BBF7D0] text-[#15803D] text-xs sm:text-sm font-semibold flex items-center justify-between shadow-2xs animate-in fade-in">
-              <div className="flex items-center gap-2">
-                <span>✓</span>
-                <span>{toastMessage}</span>
-              </div>
+            <div className="mb-4 sm:mb-6 p-4 rounded-xl bg-[#DCFCE7] border border-[#86EFAC] text-[#166534] text-xs sm:text-sm font-semibold flex items-center justify-between shadow-2xs animate-in fade-in slide-in-from-top-2">
+              <span>{toastMessage}</span>
               <button
                 type="button"
                 onClick={() => setToastMessage(null)}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-[#15803D] hover:bg-[#DCFCE7] cursor-pointer"
-                aria-label="Dismiss message"
+                className="text-[#166534] hover:text-[#14532D] text-xs font-bold uppercase tracking-wider ml-4 cursor-pointer"
               >
-                ✕
+                {t.admin.dashboard.detailModal.close}
               </button>
             </div>
           )}
 
-          {/* Screen Switcher */}
           {activeTab === "dashboard" && (
             <DashboardView
               applications={applications}
@@ -207,26 +224,31 @@ function AdminPortalInner() {
           {activeTab === "settings" && (
             <SettingsView
               initialSettings={settings}
-              onSave={(updated) => setSettings(updated)}
+              onSave={(newSettings) => setSettings(newSettings)}
               currentUserRole={currentUser.role}
             />
           )}
         </main>
       </div>
 
-      {/* Application Inspection Modal */}
-      <ApplicationDetailModal
-        application={selectedApp}
-        onClose={() => setSelectedApp(null)}
-        onApprove={(id) => handleUpdateStatus(id, "approved")}
-        onReject={(id) => handleUpdateStatus(id, "rejected")}
-      />
-
-      {/* Sign Out Confirmation Modal */}
+      {/* Modals */}
       <LogoutModal
         isOpen={logoutModalOpen}
         onClose={() => setLogoutModalOpen(false)}
         onConfirm={handleLogout}
+      />
+
+      <ApplicationDetailModal
+        application={selectedApp}
+        onClose={() => setSelectedApp(null)}
+        onApprove={(id) => {
+          handleUpdateStatus(id, "approved");
+          setSelectedApp(null);
+        }}
+        onReject={(id) => {
+          handleUpdateStatus(id, "rejected");
+          setSelectedApp(null);
+        }}
       />
     </div>
   );

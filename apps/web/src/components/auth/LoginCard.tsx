@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { useCaretaker } from "../../context/CaretakerContext";
+import { caretakerApi } from "../../utils/caretakerApi";
 
 export function LoginCard() {
   const { t } = useLanguage();
@@ -18,46 +19,36 @@ export function LoginCard() {
   const [isLoading, setIsLoading] = useState(false);
   const [notice, setNotice] = useState<{ title: string; desc: string; type: "incomplete" | "awaiting" | "success" } | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setNotice(null);
 
-    setTimeout(() => {
-      setIsLoading(false);
-      const redirectInfo = checkLoginRedirect();
+    try {
+      //call backend login api
+      await caretakerApi.login(email.trim(), password);
 
-      if (redirectInfo.shouldRedirectToProfile) {
-        if (redirectInfo.reason === "incomplete") {
-          setNotice({
-            title: `${t.caretakerProfile.loginNotice.incompleteTitle} (${completionPercentage}%)`,
-            desc: t.caretakerProfile.loginNotice.incompleteDesc,
-            type: "incomplete",
-          });
-        } else {
-          setNotice({
-            title: t.caretakerProfile.loginNotice.awaitingTitle,
-            desc: t.caretakerProfile.loginNotice.awaitingDesc,
-            type: "awaiting",
-          });
-        }
-        // Redirect to profile settings page as requested
-        setTimeout(() => {
-          router.push(`/caretaker/profile?from=login&reason=${redirectInfo.reason}`);
-        }, 800);
-      } else {
-        // Fully approved and complete -> go to home
-        setNotice({
-          title: "Login Successful",
-          desc: t.caretakerProfile.loginNotice.loginSuccessMessage,
-          type: "success",
-        });
-        setTimeout(() => {
-          router.push("/?login=success");
-        }, 700);
-      }
-    }, 600);
-  };
+      //showsuccess
+      setNotice({
+        title: "login successful",
+        desc: t.caretakerProfile.loginNotice.loginSuccessMessage,
+        type: "success",
+      });
+
+      //navigate to caretaker profile setup or dashboard
+      setTimeout(() => {
+        router.push("/caretaker/profile");
+      }, 700);
+    } catch (error: any) {
+      setNotice({
+        title: "Login Failed",
+        desc: error.message || "Invalid email or password",
+        type: "incomplete",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   return (
     <div className="bg-white rounded-[24px] border border-[#E5DDD2] shadow-[0_4px_24px_rgba(0,0,0,0.04)] px-6 sm:px-8 py-7 sm:py-9 transition-all w-full">
@@ -78,13 +69,12 @@ export function LoginCard() {
         {/* Dynamic Caretaker Redirect Notice */}
         {notice && (
           <div
-            className={`p-4 rounded-xl border text-[13px] leading-relaxed flex items-start gap-3 animate-in fade-in ${
-              notice.type === "success"
-                ? "bg-[#F0FDF4] border-[#BBF7D0] text-[#14532D]"
-                : notice.type === "incomplete"
+            className={`p-4 rounded-xl border text-[13px] leading-relaxed flex items-start gap-3 animate-in fade-in ${notice.type === "success"
+              ? "bg-[#F0FDF4] border-[#BBF7D0] text-[#14532D]"
+              : notice.type === "incomplete"
                 ? "bg-[#FFF1F2] border-[#FECDD3] text-[#9F1239]"
                 : "bg-[#FEF3C7] border-[#FDE68A] text-[#92400E]"
-            }`}
+              }`}
           >
             <span className="shrink-0 mt-0.5">
               {notice.type === "success" ? (
