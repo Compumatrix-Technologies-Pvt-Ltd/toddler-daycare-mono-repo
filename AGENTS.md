@@ -129,13 +129,13 @@
 
 ---
 
-## 8. Next.js Backend Architecture & API Contract (Mandatory Standard)
-- **Unified Next.js REST Backend**:
-  - The application backend is powered by **Next.js** (`apps/backend` utilizing Next.js App Router Route Handlers).
-  - Both client applications — **`apps/web`** (public family search, daycare booking, and caretaker portal) and **`apps/admin`** (administrative control, caretaker verification, work permit approval, and platform governance) — are built to integrate seamlessly with this Next.js REST API backend.
+## 8. Node.js Express Backend Architecture & API Contract (Mandatory Standard)
+- **Unified Node.js Express REST Backend**:
+  - The application backend is powered by **Node.js + Express** (`apps/backend` utilizing modular Express router architecture).
+  - Both client applications — **`apps/web`** (public family search, daycare booking, and caretaker portal) and **`apps/admin`** (administrative control, caretaker verification, work permit approval, and platform governance) — are built to integrate seamlessly with this Node.js Express REST API backend.
 - **Contract & Integration Standards for AI Agents**:
-  1. **Next.js RESTful API Conventions**:
-     - Follow standard REST API resource routes using Next.js App Router Route Handlers (`src/app/api/v1/.../route.ts`):
+  1. **RESTful API Conventions**:
+     - Follow standard REST API resource routes using modular Express routers (`/api/v1/...`):
        - `GET /api/v1/...` for queries with standard pagination (`page`, `per_page`, `sort`, `filter`).
        - `POST /api/v1/...` for resource creation (with `Accept: application/json` and `Content-Type: application/json`).
        - `PUT` / `PATCH /api/v1/...` for updates.
@@ -147,8 +147,8 @@
      - Use `Authorization: Bearer <token>` or secure HTTP-only cookie sessions for authenticated requests.
      - Differentiate permissions between Admin roles (`admin:access`, permit approval, platform settings) and Caretaker/Parent roles using shared constants and RBAC from `@repo/shared`.
   3. **Centralized Schemas & Endpoints in `@repo/shared`**:
-     - All shared endpoints (`packages/shared/src/constants/api-routes.ts`), permissions (`permissions.ts`), types (`types/`), and Zod schemas (`schemas/`) must mirror the Next.js API route handlers, data models, and request validations to ensure 100% type safety and zero contract drift.
+     - All shared endpoints (`packages/shared/src/constants/api-routes.ts`), permissions (`permissions.ts`), types (`types/`), and Zod schemas (`schemas/`) must mirror the Express API route handlers, data models, and request validations to ensure 100% type safety and zero contract drift.
   4. **Resilient Data Layer & Mock Fallbacks**:
      - Use `@tanstack/react-query` / Axios / `fetch` for server-state caching, optimistic updates, and error handling.
-     - Maintain comprehensive mock fixtures and seeded route handlers mirroring Next.js JSON resources so UI screens in both `apps/web` and `apps/admin` remain fully testable, demonstrable, and interactive during development.
+     - Maintain comprehensive mock fixtures and seeded route handlers mirroring JSON resources so UI screens in both `apps/web` and `apps/admin` remain fully testable, demonstrable, and interactive during development.
 
