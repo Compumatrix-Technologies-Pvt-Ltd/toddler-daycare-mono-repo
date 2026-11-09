@@ -30,7 +30,7 @@ const deleteUploadedFiles = async (files: UploadedFiles) => {
     );
 };
 
-//cerate daycare
+//create daycare
 export const createDaycareService = async (req: Request) => {
     const files = (req.files || {}) as UploadedFiles;
 
@@ -63,21 +63,10 @@ export const createDaycareService = async (req: Request) => {
             throw new Error("Daycare already exists for this caretaker");
         }
 
-        //Parse multipart JSON fields
-        const parseField = (field: string) => {
-            try {
-                return typeof req.body[field] === "string"
-                    ? JSON.parse(req.body[field])
-                    : req.body[field];
-            } catch {
-                throw new Error(`Failed to parse ${field} field`);
-            }
-        };
-
-        const operations = parseField("operations");
-        const contact = parseField("contact");
-        const additionalDetails = parseField("additionalDetails");
-        const location = parseField("location");
+        const operations = parseField(req.body.operations);
+        const contact = parseField(req.body.contact);
+        const additionalDetails = parseField(req.body.additionalDetails);
+        const location = parseField(req.body.location);
 
         const daycareData = {
             caretakerId,
@@ -118,15 +107,15 @@ export const getDaycareService = async (req: Request) => {
 
     if (!caretakerId) {
         throw new Error("Caretaker authentication required");
-
-        const daycare = await Daycare.findOne({ caretakerId });
-        if (!daycare) {
-            throw new Error("Daycare not Found");
-        }
-
-        return daycare;
     }
-}
+
+    const daycare = await Daycare.findOne({ caretakerId });
+    if (!daycare) {
+        throw new Error("Daycare not found");
+    }
+
+    return daycare;
+};
 
 //Update daycare
 export const updatedDaycareService = async (req: Request) => {
