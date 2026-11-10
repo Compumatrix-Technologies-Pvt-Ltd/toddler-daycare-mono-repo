@@ -1,5 +1,6 @@
 export interface Kita {
   id: string;
+  caretakerId?: string;
   name: string;
   location: string;
   slots: number;
@@ -17,6 +18,8 @@ export interface Kita {
   coordinates: {
     top: string;
     left: string;
+    lat?: number;
+    lng?: number;
   };
   caretaker?: string;
   caretakerDe?: string;
@@ -29,6 +32,22 @@ export interface Kita {
   petsPolicyDe?: string;
   vacancyDate?: string;
   vacancyDateDe?: string;
+  gender?: "female" | "male" | "other" | string;
+  openingFrom?: string;
+  openingUntil?: string;
+}
+
+export interface FilterState {
+  childrenCount: string; // "1" | "2" | "3"
+  startMonth: string; // "0" - "11"
+  startYear: string; // e.g. "2026", "2027", "2028"
+  monthTolerance: number; // 0 (exact), 1 (±1 month), 2 (±2 months), 3 (±3 months)
+  openingFrom: string; // e.g. "07:30"
+  openingUntil: string; // e.g. "16:30"
+  caretakerGender: "all" | "female" | "male";
+  foodPreference: "any" | "self-cooked" | "delivered";
+  pets: "any" | "allowed" | "not-allowed";
+  radiusKm: number; // catchment radius in km
 }
 
 export type Language = "de" | "en";

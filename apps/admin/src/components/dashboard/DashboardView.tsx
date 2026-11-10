@@ -13,12 +13,14 @@ import { useLanguage } from "../../context/LanguageContext";
 
 interface DashboardViewProps {
   applications: DaycareApplication[];
+  isLoading?: boolean;
   onUpdateStatus: (id: string, status: "approved" | "rejected") => void;
   onOpenDetails: (application: DaycareApplication) => void;
 }
 
 export function DashboardView({
   applications,
+  isLoading = false,
   onUpdateStatus,
   onOpenDetails,
 }: DashboardViewProps) {
@@ -63,7 +65,7 @@ export function DashboardView({
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="space-y-0.5 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-lg sm:text-xl font-extrabold text-[#1E1B18] tracking-tight">
+              <h1 className="text-base sm:text-lg lg:text-xl font-extrabold text-[#1E1B18] tracking-tight">
                 {t.admin.dashboard.welcome}
               </h1>
               <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-[#DCFCE7] text-[#166534] text-[10px] font-bold uppercase tracking-wider shrink-0">
@@ -75,8 +77,8 @@ export function DashboardView({
             </p>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="px-3 py-1.5 rounded-lg bg-white border border-[#E5DDD2] text-[11px] font-semibold text-[#5C4C3E] shadow-2xs">
+          <div className="flex items-center gap-2 shrink-0 self-start sm:self-center">
+            <span className="px-3 py-1.5 rounded-lg bg-white border border-[#E5DDD2] text-[11px] font-semibold text-[#5C4C3E] shadow-2xs whitespace-nowrap">
               {t.admin.regionNotice}
             </span>
           </div>
@@ -86,9 +88,9 @@ export function DashboardView({
       {/* KPI Overview Metrics Cards - Rule 3 exact scaling */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Total Daycares */}
-        <div className="bg-white rounded-xl border border-[#E5DDD2] p-3 sm:p-3.5 lg:p-4 shadow-2xs hover:shadow-xs transition-shadow">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-[#7A6E62]">
+        <div className="bg-white rounded-xl border border-[#E5DDD2] p-3 sm:p-3.5 lg:p-4 shadow-2xs hover:shadow-xs transition-shadow flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-[#7A6E62] truncate">
               {t.admin.dashboard.kpi.totalDaycares}
             </span>
             <div className="w-8 h-8 rounded-lg bg-[#FAF7F2] border border-[#E5DDD2] flex items-center justify-center text-[#5C4C3E] shrink-0">
@@ -96,17 +98,17 @@ export function DashboardView({
             </div>
           </div>
           <div className="text-[18px] sm:text-[20px] xl:text-[22px] font-bold text-[#1E1B18] my-1 sm:my-1.5">
-            {applications.length + 21}
+            {applications.length}
           </div>
-          <div className="text-[11px] font-medium text-[#16A34A]">
-            {t.admin.dashboard.kpi.totalDaycaresChange}
+          <div className="text-[11px] font-medium text-[#16A34A] truncate">
+            {applications.length > 0 ? `${applications.length} registered` : "No registered daycares"}
           </div>
         </div>
 
         {/* Pending Permits */}
-        <div className="bg-white rounded-xl border border-[#E5DDD2] p-3 sm:p-3.5 lg:p-4 shadow-2xs hover:shadow-xs transition-shadow">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-[#7A6E62]">
+        <div className="bg-white rounded-xl border border-[#E5DDD2] p-3 sm:p-3.5 lg:p-4 shadow-2xs hover:shadow-xs transition-shadow flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-[#7A6E62] truncate">
               {t.admin.dashboard.kpi.pendingPermits}
             </span>
             <div className="w-8 h-8 rounded-lg bg-[#FEF3C7] border border-[#FDE68A] flex items-center justify-center text-[#92400E] shrink-0">
@@ -116,15 +118,15 @@ export function DashboardView({
           <div className="text-[18px] sm:text-[20px] xl:text-[22px] font-bold text-[#D97706] my-1 sm:my-1.5">
             {pendingCount}
           </div>
-          <div className="text-[11px] font-medium text-[#92400E]">
-            {t.admin.dashboard.kpi.pendingPermitsDesc}
+          <div className="text-[11px] font-medium text-[#92400E] truncate">
+            {pendingCount > 0 ? `${pendingCount} awaiting review` : "All reviewed"}
           </div>
         </div>
 
         {/* Verified Caretakers */}
-        <div className="bg-white rounded-xl border border-[#E5DDD2] p-3 sm:p-3.5 lg:p-4 shadow-2xs hover:shadow-xs transition-shadow">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-[#7A6E62]">
+        <div className="bg-white rounded-xl border border-[#E5DDD2] p-3 sm:p-3.5 lg:p-4 shadow-2xs hover:shadow-xs transition-shadow flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-[#7A6E62] truncate">
               {t.admin.dashboard.kpi.verifiedCaretakers}
             </span>
             <div className="w-8 h-8 rounded-lg bg-[#DCFCE7] border border-[#BBF7D0] flex items-center justify-center text-[#166534] shrink-0">
@@ -132,17 +134,17 @@ export function DashboardView({
             </div>
           </div>
           <div className="text-[18px] sm:text-[20px] xl:text-[22px] font-bold text-[#16A34A] my-1 sm:my-1.5">
-            {approvedCount + 19}
+            {approvedCount}
           </div>
-          <div className="text-[11px] font-medium text-[#16A34A]">
-            {t.admin.dashboard.kpi.verifiedCaretakersDesc}
+          <div className="text-[11px] font-medium text-[#16A34A] truncate">
+            {approvedCount > 0 ? `${approvedCount} approved active` : "0 approved"}
           </div>
         </div>
 
         {/* Demand Inquiries */}
-        <div className="bg-white rounded-xl border border-[#E5DDD2] p-3 sm:p-3.5 lg:p-4 shadow-2xs hover:shadow-xs transition-shadow">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-[#7A6E62]">
+        <div className="bg-white rounded-xl border border-[#E5DDD2] p-3 sm:p-3.5 lg:p-4 shadow-2xs hover:shadow-xs transition-shadow flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-[#7A6E62] truncate">
               {t.admin.dashboard.kpi.demandInquiries}
             </span>
             <div className="w-8 h-8 rounded-lg bg-[#EFF6FF] border border-[#BFDBFE] flex items-center justify-center text-[#1D4ED8] shrink-0">
@@ -150,64 +152,67 @@ export function DashboardView({
             </div>
           </div>
           <div className="text-[18px] sm:text-[20px] xl:text-[22px] font-bold text-[#1E1B18] my-1 sm:my-1.5">
-            142
+            {applications.reduce((acc, curr) => acc + (curr.capacity || 0), 0)}
           </div>
-          <div className="text-[11px] font-medium text-[#5C4C3E]">
-            {t.admin.dashboard.kpi.demandInquiriesDesc}
+          <div className="text-[11px] font-medium text-[#5C4C3E] truncate">
+            {applications.length > 0 ? "Total registered capacity spots" : "0 total spots"}
           </div>
         </div>
       </div>
 
       {/* Main Table Card */}
-      <div className="bg-white rounded-2xl border border-[#E5DDD2] shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-[#E5DDD2] shadow-sm overflow-hidden flex flex-col">
         {/* Table Controls Header */}
-        <div className="p-3.5 sm:p-4 border-b border-[#E5DDD2] flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
+        <div className="p-3.5 sm:p-4 border-b border-[#E5DDD2] flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4">
           <div className="min-w-0">
             <h2 className="text-sm sm:text-base font-bold text-[#1E1B18] truncate">
               {t.admin.dashboard.table.title}
             </h2>
-            <p className="text-[11px] sm:text-xs text-[#7A6E62] mt-0.5">
+            <p className="text-[11px] sm:text-xs text-[#7A6E62] mt-0.5 truncate">
               {t.admin.dashboard.table.subtitle}
             </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 shrink-0">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 w-full lg:w-auto shrink-0">
             {/* Filter Tabs */}
-            <div className="flex items-center gap-1 bg-[#FAF7F2] p-1 rounded-xl border border-[#E5DDD2]">
+            <div className="flex items-center gap-1 bg-[#FAF7F2] p-1 rounded-xl border border-[#E5DDD2] overflow-x-auto max-w-full shrink-0">
               <button
                 type="button"
                 onClick={() => setActiveTab("all")}
-                className={`h-7.5 sm:h-8 px-2.5 sm:px-3 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap min-h-[36px] sm:min-h-[32px] ${activeTab === "all"
+                className={`h-8 sm:h-8.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap min-h-[34px] sm:min-h-[32px] ${
+                  activeTab === "all"
                     ? "bg-[#1E1B18] text-white shadow-2xs"
                     : "text-[#7A6E62] hover:text-[#1E1B18]"
-                  }`}
+                }`}
               >
                 {t.admin.dashboard.table.all} ({applications.length})
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab("pending")}
-                className={`h-7.5 sm:h-8 px-2.5 sm:px-3 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap min-h-[36px] sm:min-h-[32px] ${activeTab === "pending"
+                className={`h-8 sm:h-8.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap min-h-[34px] sm:min-h-[32px] ${
+                  activeTab === "pending"
                     ? "bg-[#D97706] text-white shadow-2xs"
                     : "text-[#92400E] hover:bg-[#FEF3C7]/60"
-                  }`}
+                }`}
               >
                 {t.admin.dashboard.table.pending} ({pendingCount})
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab("approved")}
-                className={`h-7.5 sm:h-8 px-2.5 sm:px-3 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap min-h-[36px] sm:min-h-[32px] ${activeTab === "approved"
+                className={`h-8 sm:h-8.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap min-h-[34px] sm:min-h-[32px] ${
+                  activeTab === "approved"
                     ? "bg-[#16A34A] text-white shadow-2xs"
                     : "text-[#166534] hover:bg-[#DCFCE7]/60"
-                  }`}
+                }`}
               >
                 {t.admin.dashboard.table.approved} ({approvedCount})
               </button>
             </div>
 
             {/* Search Input */}
-            <div className="relative w-full sm:w-72 lg:w-80 group">
+            <div className="relative w-full sm:w-64 lg:w-72 xl:w-80 group shrink-0 min-w-0">
               <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#8A775C] group-focus-within:text-[#A12D3A] transition-colors">
                 <SearchIcon className="w-4 h-4" />
               </div>
@@ -217,7 +222,7 @@ export function DashboardView({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={t.admin.dashboard.table.searchPlaceholder}
-                className="w-full h-10 sm:h-9.5 pl-10 pr-9 rounded-xl border border-[#E5DDD2] bg-white hover:border-[#D5C9BB] text-xs sm:text-[13px] text-[#1E1B18] placeholder-[#9E9080] shadow-2xs focus:border-[#A12D3A] focus:ring-2 focus:ring-[#A12D3A]/15 focus:outline-hidden transition-all"
+                className="w-full h-10 sm:h-9 pl-10 pr-9 rounded-xl border border-[#E5DDD2] bg-white hover:border-[#D5C9BB] text-xs sm:text-[13px] text-[#1E1B18] placeholder-[#9E9080] shadow-2xs focus:border-[#A12D3A] focus:ring-2 focus:ring-[#A12D3A]/15 focus:outline-hidden transition-all"
               />
               {searchQuery ? (
                 <button
@@ -241,9 +246,9 @@ export function DashboardView({
           </div>
         </div>
 
-        {/* Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+        {/* Table Container with smooth horizontal scrolling */}
+        <div className="overflow-x-auto min-w-full">
+          <table className="w-full min-w-[720px] text-left text-xs">
             <thead className="bg-[#FAF7F2] border-b border-[#E5DDD2] text-[#7A6E62] uppercase tracking-wider font-bold">
               <tr>
                 <th className="py-2.5 px-4 whitespace-nowrap">{t.admin.dashboard.table.colCaretaker}</th>
@@ -256,7 +261,16 @@ export function DashboardView({
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E5DDD2]">
-              {filteredApplications.length === 0 ? (
+              {isLoading ? (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center text-[#7A6E62]">
+                    <div className="flex items-center justify-center gap-2.5">
+                      <div className="w-5 h-5 border-2 border-[#A12D3A] border-t-transparent rounded-full animate-spin" />
+                      <span className="font-medium text-xs">Loading registered daycare applications...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : filteredApplications.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-8 text-center text-[#7A6E62]">
                     {t.admin.dashboard.table.noResults}
@@ -269,11 +283,11 @@ export function DashboardView({
                     className="hover:bg-[#FAF7F2]/60 transition-colors cursor-pointer"
                     onClick={() => onOpenDetails(app)}
                   >
-                    <td className="py-3 px-4">
-                      <div className="font-bold text-[#1E1B18] text-xs sm:text-sm">
+                    <td className="py-3 px-4 max-w-[220px]">
+                      <div className="font-bold text-[#1E1B18] text-xs sm:text-sm truncate">
                         {app.caretakerName}
                       </div>
-                      <div className="text-[#7A6E62] text-[11px] font-medium truncate max-w-[180px]">
+                      <div className="text-[#7A6E62] text-[11px] font-medium truncate">
                         {app.daycareName}
                       </div>
                     </td>
@@ -285,7 +299,7 @@ export function DashboardView({
                     </td>
 
                     <td className="py-3 px-4 text-[#5C4C3E] max-w-[200px]">
-                      <div className="font-semibold text-[#1E1B18]">{app.district}</div>
+                      <div className="font-semibold text-[#1E1B18] truncate">{app.district}</div>
                       <div className="truncate text-[11px] text-[#7A6E62]">{app.location}</div>
                     </td>
 
@@ -299,12 +313,13 @@ export function DashboardView({
 
                     <td className="py-3 px-4 whitespace-nowrap">
                       <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${app.status === "approved"
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                          app.status === "approved"
                             ? "bg-[#DCFCE7] text-[#166534]"
                             : app.status === "pending"
                               ? "bg-[#FEF3C7] text-[#92400E]"
                               : "bg-[#FEE2E2] text-[#991B1B]"
-                          }`}
+                        }`}
                       >
                         {app.status === "approved" ? (
                           <CheckCircleIcon className="w-3 h-3 text-[#16A34A]" />

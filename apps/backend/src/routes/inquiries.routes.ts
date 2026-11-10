@@ -1,39 +1,17 @@
-import { Router, Request, Response } from "express";
+import { Router } from "express";
+import {
+  createInquiry,
+  getInquiries,
+  getInquiryById,
+  updateInquiryStatus,
+} from "../controllers/inquiry/inquiry.js";
 
 const router = Router();
 
-router.post("/inquiries", (req: Request, res: Response) => {
-  const { parentName, email, daycareId, childAge, startDate } = req.body || {};
-
-  if (!parentName || !email || !daycareId) {
-    res.status(422).json({
-      message: "The given data was invalid.",
-      errors: {
-        ...(!parentName ? { parentName: ["Parent name is required."] } : {}),
-        ...(!email ? { email: ["Valid email address is required."] } : {}),
-        ...(!daycareId ? { daycareId: ["Target daycare is required."] } : {}),
-      },
-    });
-    return;
-  }
-
-  const referenceId = `ENQ-${Date.now().toString().slice(-6)}`;
-
-  res.status(201).json({
-    data: {
-      referenceId,
-      status: "pending",
-      daycareId,
-      parentName,
-      childAge: childAge || "2 years",
-      startDate: startDate || "2026-10-01",
-      createdAt: new Date().toISOString(),
-    },
-    meta: {
-      message: "Inquiry successfully dispatched to caretaker.",
-    },
-  });
-});
+// Support both "/" (when mounted at /api/v1/inquiries) and "/inquiries" (when mounted at /api or /api/v1)
+router.post(["/", "/inquiries"], createInquiry);
+router.get(["/", "/inquiries"], getInquiries);
+router.get(["/:id", "/inquiries/:id"], getInquiryById);
+router.patch(["/:id/status", "/inquiries/:id/status"], updateInquiryStatus);
 
 export default router;
-

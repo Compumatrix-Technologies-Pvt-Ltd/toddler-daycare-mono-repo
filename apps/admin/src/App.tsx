@@ -3,77 +3,21 @@ import { LanguageProvider, useLanguage } from "./context/LanguageContext";
 import { AdminHeader } from "./components/layout/AdminHeader";
 import { AdminSidebar } from "./components/layout/AdminSidebar";
 import { DashboardView } from "./components/dashboard/DashboardView";
+import { InquiriesView } from "./components/inquiries/InquiriesView";
 import { SettingsView } from "./components/settings/SettingsView";
 import { LogoutModal } from "./components/modals/LogoutModal";
 import { ApplicationDetailModal } from "./components/modals/ApplicationDetailModal";
 import { AdminLogin } from "./components/auth/AdminLogin";
 import { AdminForgotPassword } from "./components/auth/AdminForgotPassword";
 import { adminAuthService } from "./services/adminAuthService";
+import { adminDaycareService } from "./services/adminDaycareService";
+import { adminSettingsService } from "./services/adminSettingsService";
 import {
   AdminTab,
   AdminUser,
   DaycareApplication,
   PlatformSettings,
 } from "./types/admin";
-
-const INITIAL_APPLICATIONS: DaycareApplication[] = [
-  {
-    id: "app-1",
-    caretakerName: "Maria Weber",
-    daycareName: "Kita Sonnenschein",
-    location: "Stargarder Straße 14, 10437 Berlin",
-    district: "Prenzlauer Berg",
-    permitNumber: "DE-84920-BER",
-    submittedDate: "Oct 20, 2026",
-    status: "approved",
-    capacity: 5,
-    phone: "+49 30 4482910",
-    email: "m.weber@kita-sonnenschein.de",
-    documentsCount: 4,
-  },
-  {
-    id: "app-2",
-    caretakerName: "Hannah Müller",
-    daycareName: "Kleine Entdecker",
-    location: "Kollwitzstraße 42, 10405 Berlin",
-    district: "Prenzlauer Berg",
-    permitNumber: "DE-91024-BER",
-    submittedDate: "Oct 21, 2026",
-    status: "pending",
-    capacity: 4,
-    phone: "+49 30 8829104",
-    email: "hannah@kleine-entdecker-berlin.de",
-    documentsCount: 3,
-  },
-  {
-    id: "app-3",
-    caretakerName: "Lucas Fischer",
-    daycareName: "Waldkinder Prenzlau",
-    location: "Dunckerstraße 8, 10437 Berlin",
-    district: "Pankow",
-    permitNumber: "DE-77319-BER",
-    submittedDate: "Oct 22, 2026",
-    status: "pending",
-    capacity: 5,
-    phone: "+49 30 7731920",
-    email: "lucas@waldkinder-prenzlau.de",
-    documentsCount: 5,
-  },
-  {
-    id: "app-4",
-    caretakerName: "Elena Rostova",
-    daycareName: "Bilingual Nest Berlin",
-    location: "Torstraße 118, 10119 Berlin",
-    district: "Mitte",
-    permitNumber: "DE-66281-BER",
-    submittedDate: "Oct 24, 2026",
-    status: "pending",
-    capacity: 5,
-    phone: "+49 30 6628190",
-    email: "elena@bilingualnest.de",
-    documentsCount: 4,
-  },
-];
 
 const INITIAL_SETTINGS: PlatformSettings = {
   siteName: "Find Toddler Daycare",
@@ -98,8 +42,9 @@ function AdminPortalInner() {
   const [logoutModalOpen, setLogoutModalOpen] = useState(false);
   const [selectedApp, setSelectedApp] = useState<DaycareApplication | null>(null);
 
-  const [applications, setApplications] =
-    useState<DaycareApplication[]>(INITIAL_APPLICATIONS);
+  // Real Daycare Applications from MongoDB (zero mock data)
+  const [applications, setApplications] = useState<DaycareApplication[]>([]);
+  const [isLoadingApplications, setIsLoadingApplications] = useState(false);
   const [settings, setSettings] = useState<PlatformSettings>(INITIAL_SETTINGS);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -121,16 +66,65 @@ function AdminPortalInner() {
       .finally(() => setIsCheckingAuth(false));
   }, []);
 
-  const handleUpdateStatus = (id: string, newStatus: "approved" | "rejected") => {
-    setApplications((prev) =>
-      prev.map((app) => (app.id === id ? { ...app, status: newStatus } : app))
-    );
-    const target = applications.find((a) => a.id === id);
-    if (target) {
-      setToastMessage(
-        `Application for ${target.caretakerName} (${target.daycareName}) has been ${newStatus}.`
-      );
+  // Fetch real registered daycares when authenticated
+  useEffect(() => {
+    if (!currentUser) {
+      setApplications([]);
+      return;
+    }
+
+    setIsLoadingApplications(true);
+    adminDaycareService
+      .getDaycares()
+      .then((data) => {
+        setApplications(data);
+      })
+      .catch((err) => {
+        console.error("Error loading daycares from API:", err);
+      })
+      .finally(() => {
+        setIsLoadingApplications(false);
+      });
+
+    // Also fetch live platform settings (including defaultCatchmentRadiusKm)
+    adminSettingsService
+      .getSettings()
+      .then((data) => {
+        if (data) setSettings(data);
+      })
+      .catch((err) => {
+        console.warn("Could not load platform settings:", err);
+      });
+  }, [currentUser]);
+
+  const handleSaveSettings = async (newSettings: PlatformSettings) => {
+    try {
+      const updated = await adminSettingsService.updateSettings(newSettings);
+      setSettings(updated);
+      setToastMessage(t.admin.settings.savedToast || "Settings saved successfully.");
       setTimeout(() => setToastMessage(null), 3500);
+    } catch (err: any) {
+      setToastMessage(`Failed to save settings: ${err.message || "Server error"}`);
+      setTimeout(() => setToastMessage(null), 4000);
+    }
+  };
+
+  const handleUpdateStatus = async (id: string, newStatus: "approved" | "rejected") => {
+    try {
+      await adminDaycareService.updateStatus(id, newStatus);
+      setApplications((prev) =>
+        prev.map((app) => (app.id === id ? { ...app, status: newStatus } : app))
+      );
+      const target = applications.find((a) => a.id === id);
+      if (target) {
+        setToastMessage(
+          `Application for ${target.caretakerName} (${target.daycareName}) has been ${newStatus}.`
+        );
+        setTimeout(() => setToastMessage(null), 3500);
+      }
+    } catch (err: any) {
+      setToastMessage(`Failed to update status: ${err.message || "Server error"}`);
+      setTimeout(() => setToastMessage(null), 4000);
     }
   };
 
@@ -174,7 +168,7 @@ function AdminPortalInner() {
 
   // Authenticated Dashboard Layout
   return (
-    <div className="min-h-screen bg-[#FAF7F2] text-[#1E1B18] flex flex-col antialiased selection:bg-[#FDE8E8] selection:text-[#A12D3A]">
+    <div className="min-h-screen lg:h-screen bg-[#FAF7F2] text-[#1E1B18] flex flex-col antialiased selection:bg-[#FDE8E8] selection:text-[#A12D3A] overflow-x-hidden">
       {/* Top Navbar */}
       <AdminHeader
         user={currentUser}
@@ -183,7 +177,7 @@ function AdminPortalInner() {
       />
 
       {/* Main Container */}
-      <div className="flex-1 w-full max-w-[1440px] mx-auto flex overflow-hidden">
+      <div className="flex-1 w-full max-w-[1440px] mx-auto flex min-h-0 min-w-0 overflow-hidden">
         {/* Sidebar */}
         <AdminSidebar
           activeTab={activeTab}
@@ -195,13 +189,14 @@ function AdminPortalInner() {
           mobileOpen={mobileSidebarOpen}
           onCloseMobile={() => setMobileSidebarOpen(false)}
           pendingCount={pendingCount}
+          user={currentUser}
         />
 
         {/* Content Area */}
-        <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 overflow-y-auto">
+        <main className="flex-1 min-w-0 h-full overflow-y-auto p-4 sm:p-5 lg:p-6 xl:p-8">
           {/* Toast Notification */}
           {toastMessage && (
-            <div className="mb-4 sm:mb-6 p-4 rounded-xl bg-[#DCFCE7] border border-[#86EFAC] text-[#166534] text-xs sm:text-sm font-semibold flex items-center justify-between shadow-2xs animate-in fade-in slide-in-from-top-2">
+            <div className="mb-4 sm:mb-5 p-3.5 sm:p-4 rounded-xl bg-[#DCFCE7] border border-[#86EFAC] text-[#166534] text-xs sm:text-sm font-semibold flex items-center justify-between shadow-2xs animate-in fade-in slide-in-from-top-2">
               <span>{toastMessage}</span>
               <button
                 type="button"
@@ -216,15 +211,18 @@ function AdminPortalInner() {
           {activeTab === "dashboard" && (
             <DashboardView
               applications={applications}
+              isLoading={isLoadingApplications}
               onUpdateStatus={handleUpdateStatus}
               onOpenDetails={(app) => setSelectedApp(app)}
             />
           )}
 
+          {activeTab === "inquiries" && <InquiriesView />}
+
           {activeTab === "settings" && (
             <SettingsView
               initialSettings={settings}
-              onSave={(newSettings) => setSettings(newSettings)}
+              onSave={handleSaveSettings}
               currentUserRole={currentUser.role}
             />
           )}

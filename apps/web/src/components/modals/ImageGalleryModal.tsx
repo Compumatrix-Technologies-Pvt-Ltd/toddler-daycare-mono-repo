@@ -154,6 +154,8 @@ export function ImageGalleryModal({
             src={photos[currentIndex]}
             alt={`${kita.name} - ${currentPhotoText}`}
             fill
+            sizes="(max-width: 1024px) 100vw, 80vw"
+            unoptimized={true}
             className="object-contain"
             priority
           />
@@ -201,6 +203,8 @@ export function ImageGalleryModal({
                   src={photo}
                   alt={`Thumbnail ${index + 1}`}
                   fill
+                  sizes="64px"
+                  unoptimized={true}
                   className="object-cover"
                 />
               </button>

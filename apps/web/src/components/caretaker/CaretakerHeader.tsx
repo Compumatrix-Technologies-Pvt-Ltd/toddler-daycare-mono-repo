@@ -1,19 +1,62 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { useCaretaker } from "../../context/CaretakerContext";
+import { caretakerApi } from "@/utils/caretakerApi";
+
+// Compute initials dynamically (e.g. "Priya Sharma" -> "PS", "Maria" -> "MA")
+function getInitials(name: string): string {
+  if (!name || !name.trim()) return "CW";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
 
 export function CaretakerHeader() {
   const { t, language, setLanguage } = useLanguage();
-  const { approvalStatus } = useCaretaker();
+  const { profile, approvalStatus } = useCaretaker();
   const pathname = usePathname();
 
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [lockedNotice, setLockedNotice] = useState<string | null>(null);
+
+  // Dynamic caretaker display name
+  const [displayName, setDisplayName] = useState(
+    profile.caregiverName ||
+      profile.daycareName ||
+      (profile.email ? profile.email.split("@")[0] : "Caretaker")
+  );
+
+  // Sync with profile updates and backend daycare record
+  useEffect(() => {
+    if (profile.caregiverName) {
+      setDisplayName(profile.caregiverName);
+    } else if (profile.daycareName) {
+      setDisplayName(profile.daycareName);
+    } else if (profile.email) {
+      setDisplayName(profile.email.split("@")[0]);
+    } else {
+      setDisplayName("Caretaker");
+    }
+
+    const token = caretakerApi.getToken();
+    if (!token) return;
+
+    caretakerApi
+      .getDaycare()
+      .then((data) => {
+        if (data.caregiverName) {
+          setDisplayName(data.caregiverName);
+        } else if (data.daycareName) {
+          setDisplayName(data.daycareName);
+        }
+      })
+      .catch(() => {});
+  }, [profile.caregiverName, profile.daycareName, profile.email]);
 
   const isApproved = approvalStatus === "approved";
 
@@ -155,10 +198,10 @@ export function CaretakerHeader() {
               className="flex items-center gap-1.5 sm:gap-2 bg-white border border-[#E7E5E4] rounded-full pl-1 pr-2 sm:pr-3 py-1 shadow-xs hover:border-[#D5C9B8] transition-all cursor-pointer min-h-[38px] sm:min-h-[40px]"
             >
               <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#AE2F34] text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
-                MW
+                {getInitials(displayName)}
               </div>
-              <span className="text-[13px] xl:text-[14px] font-medium text-[#1C1917] hidden sm:inline-block">
-                {t.caretakerProfile.nav.userName}
+              <span className="text-[13px] xl:text-[14px] font-medium text-[#1C1917] hidden sm:inline-block max-w-[140px] truncate">
+                {displayName}
               </span>
               <svg
                 className={`w-3.5 h-3.5 text-[#7A6E62] transition-transform ${userDropdownOpen ? "rotate-180" : ""
@@ -174,7 +217,22 @@ export function CaretakerHeader() {
 
             {/* Dropdown Menu */}
             {userDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-52 bg-white border border-[#E5DDD2] rounded-2xl shadow-xl py-2 z-50 animate-in fade-in">
+              <div className="absolute right-0 mt-2 w-56 bg-white border border-[#E5DDD2] rounded-2xl shadow-xl py-2 z-50 animate-in fade-in">
+                {/* Profile Card Header */}
+                <div className="px-4 py-2.5 border-b border-[#F2F4F7]">
+                  <p className="text-[11px] font-semibold text-[#7A6E62] uppercase tracking-wider">
+                    Caretaker
+                  </p>
+                  <p className="text-[14px] font-bold text-[#1E1B18] truncate mt-0.5">
+                    {displayName}
+                  </p>
+                  {profile.daycareName && (
+                    <p className="text-[12px] text-[#16A34A] font-medium truncate mt-0.5">
+                      {profile.daycareName}
+                    </p>
+                  )}
+                </div>
+
                 <Link
                   href="/caretaker/profile"
                   onClick={() => setUserDropdownOpen(false)}
@@ -190,13 +248,17 @@ export function CaretakerHeader() {
                   {t.caretakerProfile.nav.dashboard}
                 </Link>
                 <div className="border-t border-[#F2F4F7] my-1" />
-                <Link
-                  href="/login"
-                  onClick={() => setUserDropdownOpen(false)}
-                  className="block px-4 py-2.5 text-sm text-[#A12D3A] hover:bg-[#FAF7F2] font-semibold"
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUserDropdownOpen(false);
+                    caretakerApi.logout();
+                    window.location.href = "/login";
+                  }}
+                  className="w-full text-left block px-4 py-2.5 text-sm text-[#A12D3A] hover:bg-[#FEF2F2] font-semibold cursor-pointer transition-colors"
                 >
                   {t.caretakerProfile.nav.logout}
-                </Link>
+                </button>
               </div>
             )}
           </div>

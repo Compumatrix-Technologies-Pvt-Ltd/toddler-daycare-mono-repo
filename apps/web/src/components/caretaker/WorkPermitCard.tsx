@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { useCaretaker } from "../../context/CaretakerContext";
+import { caretakerApi } from "@/utils/caretakerApi";
 
 export function WorkPermitCard() {
   const { t } = useLanguage();
@@ -11,9 +12,34 @@ export function WorkPermitCard() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
 
   const isApproved = approvalStatus === "approved";
+
+  // Check if work permit and live approval status already exist on backend
+  useEffect(() => {
+    const token = caretakerApi.getToken();
+    if (!token) return;
+
+    caretakerApi
+      .getDaycare()
+      .then((data) => {
+        const liveStatus: "approved" | "pending" | "rejected" =
+          data.status === "approved" ||
+          data.status === "rejected" ||
+          data.status === "pending"
+            ? data.status
+            : "pending";
+
+        updateProfile({
+          approvalStatus: liveStatus,
+          hasUploadedPermit: Boolean(data.workPermit?.fileName || data.workPermit?.url),
+          permitFileName: data.workPermit?.fileName || profile.permitFileName,
+        });
+      })
+      .catch(() => {});
+  }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -21,18 +47,29 @@ export function WorkPermitCard() {
     }
   };
 
-  const handleUpload = (e: React.FormEvent) => {
+  const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedFile) return;
+
     setIsUploading(true);
-    setTimeout(() => {
+    setErrorMessage(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("workPermit", selectedFile);
+      await caretakerApi.updateDaycare(formData);
+
       setIsUploading(false);
       setUploadSuccess(true);
       updateProfile({
         hasUploadedPermit: true,
-        permitFileName: selectedFile ? selectedFile.name : "Pflegeerlaubnis_Maria_Weber.pdf",
+        permitFileName: selectedFile.name,
       });
       setTimeout(() => setUploadSuccess(false), 4000);
-    }, 800);
+    } catch (err: any) {
+      setIsUploading(false);
+      setErrorMessage(err.message || "Failed to upload work permit");
+    }
   };
 
   return (
@@ -208,6 +245,15 @@ export function WorkPermitCard() {
                 {t.caretakerProfile.compliance.dropzoneSubtitle}
               </p>
             </label>
+
+            {errorMessage && (
+              <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-[13px] flex items-center gap-2">
+                <svg className="w-4 h-4 text-red-500 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <span>{errorMessage}</span>
+              </div>
+            )}
 
             <button
               type="submit"

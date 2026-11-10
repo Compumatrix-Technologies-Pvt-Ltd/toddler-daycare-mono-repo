@@ -14,6 +14,7 @@ interface CaretakerProfileDrawerProps {
   onSelectKita?: (id: string) => void;
   onSendInquiry: (kita: Kita) => void;
   onOpenGallery?: (initialIndex?: number) => void;
+  catchmentRadius?: number;
 }
 
 export function CaretakerProfileDrawer({
@@ -24,6 +25,7 @@ export function CaretakerProfileDrawer({
   onSelectKita,
   onSendInquiry,
   onOpenGallery,
+  catchmentRadius = 3,
 }: CaretakerProfileDrawerProps) {
   const { t } = useLanguage();
   const [selectedDateFilter, setSelectedDateFilter] = useState<string>("Oct 1, 2026");
@@ -81,6 +83,7 @@ export function CaretakerProfileDrawer({
             onSelectDateFilter={setSelectedDateFilter}
             onOpenInquiry={() => onSendInquiry(kita)}
             onOpenGallery={onOpenGallery}
+            catchmentRadius={catchmentRadius}
           />
         </div>
       </div>

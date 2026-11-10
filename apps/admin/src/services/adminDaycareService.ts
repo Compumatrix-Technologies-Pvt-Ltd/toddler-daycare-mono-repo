@@ -1,0 +1,89 @@
+import axios from "axios";
+import { DaycareApplication } from "../types/admin";
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1";
+
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
+
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem("admin_token");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Helper to map MongoDB daycare document to DaycareApplication
+export function mapMongoDaycareToApplication(raw: any): DaycareApplication {
+  const loc = raw.location || {};
+  const streetPart = loc.street ? `${loc.street} ${loc.houseNumber || ""}`.trim() : "";
+  const cityPart = loc.postcode ? `${loc.postcode} ${loc.city || ""}`.trim() : loc.city || "";
+  const fullAddress = [streetPart, cityPart].filter(Boolean).join(", ") || "Address not provided";
+
+  const submitted = raw.createdAt
+    ? new Date(raw.createdAt).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "Recently";
+
+  // If permit file name exists or permit is attached
+  const permitName = raw.workPermit?.fileName || (raw.workPermit?.url ? "Document-Uploaded.pdf" : "DE-PENDING");
+
+  const docCount = (raw.workPermit?.url ? 1 : 0) + (Array.isArray(raw.photos) ? raw.photos.length : 0);
+
+  return {
+    id: raw._id?.toString() || raw.id || "",
+    caretakerName: raw.caregiverName || raw.caretakerName || "Registered Caregiver",
+    daycareName: raw.daycareName || "Toddler Daycare",
+    location: fullAddress,
+    district: loc.city || "Daycare Region",
+    permitNumber: permitName,
+    submittedDate: submitted,
+    status: raw.status || (raw.workPermit?.url ? "pending" : "pending"),
+    capacity: raw.operations?.maxCapacity || 5,
+    phone: raw.contact?.phone || "",
+    email: raw.contact?.email || "",
+    documentsCount: Math.max(docCount, 1),
+  };
+}
+
+export const adminDaycareService = {
+  // Fetch real daycares from MongoDB backend
+  async getDaycares(): Promise<DaycareApplication[]> {
+    try {
+      // Try protected admin daycares endpoint first
+      const res = await api.get("/daycares");
+      const list = res.data?.data || res.data || [];
+      if (Array.isArray(list)) {
+        return list.map(mapMongoDaycareToApplication);
+      }
+      return [];
+    } catch {
+      // Fallback to public all daycares endpoint if needed
+      try {
+        const fallbackRes = await api.get("/caretaker/daycare/all");
+        const list = fallbackRes.data?.data || fallbackRes.data || [];
+        if (Array.isArray(list)) {
+          return list.map(mapMongoDaycareToApplication);
+        }
+      } catch {
+        // No daycares available
+      }
+      return [];
+    }
+  },
+
+  // Update status in MongoDB (approved / rejected / pending)
+  async updateStatus(id: string, status: "approved" | "rejected" | "pending"): Promise<any> {
+    const res = await api.patch(`/daycares/${id}/status`, { status });
+    return res.data;
+  },
+};
+

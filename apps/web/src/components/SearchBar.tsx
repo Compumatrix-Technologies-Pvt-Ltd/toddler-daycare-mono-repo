@@ -3,6 +3,7 @@
 import React, { useMemo } from "react";
 import { useLanguage } from "../i18n/LanguageContext";
 import { Dropdown } from "./ui/Dropdown";
+import { FilterState } from "../types";
 
 interface SearchBarProps {
   childrenCount: string;
@@ -12,6 +13,8 @@ interface SearchBarProps {
   selectedYear: string;
   setSelectedYear: (val: string) => void;
   onOpenFilterModal: () => void;
+  filters?: FilterState;
+  activeFiltersCount?: number;
 }
 
 const YEAR_OPTIONS = ["2026", "2027", "2028"];
@@ -24,26 +27,34 @@ export function SearchBar({
   selectedYear,
   setSelectedYear,
   onOpenFilterModal,
+  activeFiltersCount = 0,
 }: SearchBarProps) {
   const { t } = useLanguage();
 
   const childrenOptions = useMemo(
     () => [
+      { value: "", label: t.search.children.any },
       { value: "1", label: t.search.children.one },
       { value: "2", label: t.search.children.two },
-      { value: "3+", label: t.search.children.threePlus },
+      { value: "3", label: t.search.children.threePlus },
     ],
     [t]
   );
 
   const monthOptions = useMemo(
-    () => t.search.months.map((label, index) => ({ value: String(index), label })),
+    () => [
+      { value: "", label: t.search.anyMonth },
+      ...t.search.months.map((label, index) => ({ value: String(index), label })),
+    ],
     [t]
   );
 
   const yearOptions = useMemo(
-    () => YEAR_OPTIONS.map((year) => ({ value: year, label: year })),
-    []
+    () => [
+      { value: "", label: t.search.anyYear },
+      ...YEAR_OPTIONS.map((year) => ({ value: year, label: year })),
+    ],
+    [t]
   );
 
   return (
@@ -60,6 +71,7 @@ export function SearchBar({
             options={childrenOptions}
             onChange={setChildrenCount}
             ariaLabel={t.search.lookingFor}
+            placeholder={t.search.selectChildren}
             className="flex-1 sm:flex-none sm:min-w-[130px] min-w-[110px]"
           />
 
@@ -72,6 +84,7 @@ export function SearchBar({
             options={monthOptions}
             onChange={setSelectedMonth}
             ariaLabel={t.search.from}
+            placeholder={t.search.selectMonth}
             className="flex-1 sm:flex-none sm:min-w-[140px] min-w-[120px]"
           />
 
@@ -80,19 +93,25 @@ export function SearchBar({
             options={yearOptions}
             onChange={setSelectedYear}
             ariaLabel={selectedYear}
+            placeholder={t.search.selectYear}
             className="flex-1 sm:flex-none sm:min-w-[100px] min-w-[90px]"
             menuAlign="right"
           />
         </div>
 
         {/* Right Actions Group */}
-        <div className="flex items-center gap-2.5 w-full lg:w-auto">
+        <div className="flex items-center gap-2.5 w-full lg:w-auto shrink-0">
           <button
+            type="button"
             onClick={onOpenFilterModal}
-            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 text-xs sm:text-sm font-medium text-[#3D3328] hover:text-[#A12D3A] px-3.5 py-2.5 sm:py-2 rounded-xl border border-[#D5C9B8] hover:border-[#A12D3A]/50 transition-colors bg-white shadow-2xs min-h-[42px]"
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 text-xs sm:text-sm font-semibold px-3.5 py-2.5 sm:py-2 rounded-xl border transition-all cursor-pointer shadow-2xs min-h-[42px] ${
+              activeFiltersCount > 0
+                ? "bg-[#FAF7F2] border-[#A12D3A] text-[#A12D3A] shadow-xs"
+                : "border-[#D5C9B8] text-[#3D3328] hover:border-[#A12D3A]/50 bg-white"
+            }`}
           >
             <svg
-              className="w-4 h-4 text-[#7A6E62]"
+              className={`w-4 h-4 ${activeFiltersCount > 0 ? "text-[#A12D3A]" : "text-[#7A6E62]"}`}
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -105,9 +124,18 @@ export function SearchBar({
               />
             </svg>
             <span className="whitespace-nowrap">{t.search.moreFilters}</span>
+            {activeFiltersCount > 0 && (
+              <span className="px-1.5 py-0.5 rounded-full bg-[#A12D3A] text-white text-[10px] font-bold">
+                {activeFiltersCount}
+              </span>
+            )}
           </button>
 
-          <button className="flex-1 sm:flex-initial bg-[#A12D3A] hover:bg-[#88222E] text-white font-medium px-7 py-2.5 sm:py-2 rounded-xl text-xs sm:text-sm transition-all shadow-xs shadow-[#A12D3A]/20 min-h-[42px]">
+          <button
+            type="button"
+            onClick={onOpenFilterModal}
+            className="flex-1 sm:flex-initial bg-[#A12D3A] hover:bg-[#88222E] text-white font-semibold px-6 sm:px-7 py-2.5 sm:py-2 rounded-xl text-xs sm:text-sm transition-all shadow-xs shadow-[#A12D3A]/20 min-h-[42px] cursor-pointer"
+          >
             {t.search.searchButton}
           </button>
         </div>

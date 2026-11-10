@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { AdminRole, PlatformSettings } from "../../types/admin";
 import { useLanguage } from "../../context/LanguageContext";
 import { CheckCircleIcon, ShieldCheckIcon } from "../icons/AdminIcons";
@@ -17,6 +17,10 @@ export function SettingsView({
   const { t } = useLanguage();
   const [settings, setSettings] = useState<PlatformSettings>(initialSettings);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSettings(initialSettings);
+  }, [initialSettings]);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();

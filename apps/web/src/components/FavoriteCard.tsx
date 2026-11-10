@@ -70,6 +70,7 @@ export function FavoriteCard({
           alt={kita.name}
           fill
           sizes="(max-width: 640px) 100vw, 140px"
+          unoptimized={true}
           className="object-cover transition-transform duration-300 group-hover:scale-105"
         />
 

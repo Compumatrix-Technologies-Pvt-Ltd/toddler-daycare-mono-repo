@@ -4,9 +4,11 @@ import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useLanguage } from "../i18n/LanguageContext";
 import { ParentComingSoonModal } from "./modals/ParentComingSoonModal";
+import { useSessionFavorites } from "../utils/favoritesSession";
 
 export function Header() {
   const { t, language, setLanguage, toggleLanguage } = useLanguage();
+  const { favoritesCount } = useSessionFavorites();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [loginDropdownOpen, setLoginDropdownOpen] = useState(false);
   const [isParentModalOpen, setIsParentModalOpen] = useState(false);
@@ -98,6 +100,11 @@ export function Header() {
               <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
             </svg>
             <span>{t.nav.favorites}</span>
+            {favoritesCount > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full bg-[#A12D3A] text-white text-[10px] font-bold">
+                {favoritesCount}
+              </span>
+            )}
           </Link>
           <a
             href="#"
@@ -364,15 +371,22 @@ export function Header() {
           <Link
             href="/favorites"
             onClick={() => setMobileMenuOpen(false)}
-            className="flex items-center gap-2 px-3 py-2.5 text-sm font-medium text-[#4B3E2F] hover:bg-[#F3ECE2] rounded-lg min-h-[44px]"
+            className="flex items-center justify-between px-3 py-2.5 text-sm font-medium text-[#4B3E2F] hover:bg-[#F3ECE2] rounded-lg min-h-[44px]"
           >
-            <svg
-              className="w-4 h-4 text-[#AE2F34] fill-current"
-              viewBox="0 0 24 24"
-            >
-              <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-            </svg>
-            <span>{t.nav.favorites}</span>
+            <div className="flex items-center gap-2">
+              <svg
+                className="w-4 h-4 text-[#AE2F34] fill-current"
+                viewBox="0 0 24 24"
+              >
+                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+              </svg>
+              <span>{t.nav.favorites}</span>
+            </div>
+            {favoritesCount > 0 && (
+              <span className="px-2 py-0.5 rounded-full bg-[#A12D3A] text-white text-[11px] font-bold">
+                {favoritesCount}
+              </span>
+            )}
           </Link>
           <a
             href="#"

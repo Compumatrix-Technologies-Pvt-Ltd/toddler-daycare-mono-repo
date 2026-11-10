@@ -21,18 +21,18 @@ export function ApplicationDetailModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/40 backdrop-blur-xs overflow-y-auto animate-in fade-in">
-      <div className="relative w-full max-w-xl bg-white rounded-2xl shadow-xl border border-[#E5DDD2] my-auto max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+      <div className="relative w-full max-w-xl bg-white rounded-2xl shadow-xl border border-[#E5DDD2] my-auto max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="p-4 sm:p-5 border-b border-[#E5DDD2] flex items-center justify-between bg-[#FAF7F2]">
-          <div className="flex items-center gap-3">
+        <div className="p-4 sm:p-5 border-b border-[#E5DDD2] flex items-center justify-between bg-[#FAF7F2] shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-white border border-[#E5DDD2] flex items-center justify-center text-[#A12D3A] shadow-2xs shrink-0">
               <BuildingIcon className="w-5 h-5 text-[#A12D3A]" />
             </div>
-            <div>
-              <h2 className="text-base font-bold text-[#1E1B18] leading-tight">
+            <div className="min-w-0">
+              <h2 className="text-base font-bold text-[#1E1B18] leading-tight truncate">
                 {application.daycareName}
               </h2>
-              <p className="text-xs text-[#7A6E62]">
+              <p className="text-xs text-[#7A6E62] truncate">
                 {t.admin.dashboard.detailModal.title} • {application.caretakerName}
               </p>
             </div>
@@ -41,7 +41,7 @@ export function ApplicationDetailModal({
           <button
             type="button"
             onClick={onClose}
-            className="w-10 h-10 rounded-xl flex items-center justify-center text-[#7A6E62] hover:text-[#1E1B18] hover:bg-[#EFE7DC] transition-colors cursor-pointer"
+            className="w-10 h-10 rounded-xl flex items-center justify-center text-[#7A6E62] hover:text-[#1E1B18] hover:bg-[#EFE7DC] transition-colors cursor-pointer shrink-0 ml-2"
             aria-label="Close modal"
           >
             <CloseIcon className="w-5 h-5" />
@@ -49,7 +49,7 @@ export function ApplicationDetailModal({
         </div>
 
         {/* Modal Scrollable Body */}
-        <div className="p-4 sm:p-6 overflow-y-auto space-y-4 text-xs sm:text-sm text-[#1E1B18]">
+        <div className="p-4 sm:p-6 overflow-y-auto flex-1 min-h-0 space-y-4 text-xs sm:text-sm text-[#1E1B18]">
           {/* Status Bar */}
           <div className="flex items-center justify-between p-3.5 rounded-xl bg-[#FAF7F2] border border-[#E5DDD2]">
             <div>
@@ -81,7 +81,7 @@ export function ApplicationDetailModal({
                 <span className="text-[#7A6E62] block text-[11px]">
                   {t.admin.dashboard.table.colPermit}
                 </span>
-                <span className="font-mono font-bold text-[#1E1B18]">
+                <span className="font-mono font-bold text-[#1E1B18] break-all">
                   {application.permitNumber}
                 </span>
               </div>
@@ -120,13 +120,13 @@ export function ApplicationDetailModal({
                 <span className="text-[#7A6E62] block text-[11px]">
                   {t.admin.dashboard.detailModal.phone}
                 </span>
-                <span className="font-medium text-[#1E1B18]">{application.phone}</span>
+                <span className="font-medium text-[#1E1B18]">{application.phone || "Not specified"}</span>
               </div>
               <div>
                 <span className="text-[#7A6E62] block text-[11px]">
                   {t.admin.dashboard.detailModal.email}
                 </span>
-                <span className="font-medium text-[#1E1B18]">{application.email}</span>
+                <span className="font-medium text-[#1E1B18] truncate block">{application.email || "Not specified"}</span>
               </div>
             </div>
 
@@ -145,11 +145,11 @@ export function ApplicationDetailModal({
         </div>
 
         {/* Modal Footer Actions */}
-        <div className="p-4 border-t border-[#E5DDD2] bg-[#FAF7F2] flex items-center justify-between gap-3">
+        <div className="p-4 border-t border-[#E5DDD2] bg-[#FAF7F2] flex items-center justify-between gap-3 shrink-0">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-xl border border-[#E5DDD2] bg-white hover:bg-[#FAF7F2] text-xs font-semibold text-[#5C4C3E] transition-colors cursor-pointer min-h-[40px]"
+            className="px-4 py-2 rounded-xl border border-[#E5DDD2] bg-white hover:bg-[#FAF7F2] text-xs font-semibold text-[#5C4C3E] transition-colors cursor-pointer min-h-[38px]"
           >
             {t.admin.dashboard.detailModal.close}
           </button>
@@ -162,7 +162,7 @@ export function ApplicationDetailModal({
                   onReject(application.id);
                   onClose();
                 }}
-                className="px-3 py-2 rounded-xl border border-[#FCA5A5] text-[#DC2626] hover:bg-[#FEF2F2] font-semibold text-xs transition-colors cursor-pointer min-h-[40px]"
+                className="px-3.5 py-2 rounded-xl border border-[#FCA5A5] text-[#DC2626] hover:bg-[#FEF2F2] font-semibold text-xs transition-colors cursor-pointer min-h-[38px]"
               >
                 {t.admin.dashboard.table.reject}
               </button>
@@ -172,7 +172,7 @@ export function ApplicationDetailModal({
                   onApprove(application.id);
                   onClose();
                 }}
-                className="px-4 py-2 rounded-xl bg-[#16A34A] hover:bg-[#15803D] text-white font-semibold text-xs shadow-2xs transition-colors cursor-pointer min-h-[40px]"
+                className="px-4 py-2 rounded-xl bg-[#16A34A] hover:bg-[#15803D] text-white font-semibold text-xs shadow-2xs transition-colors cursor-pointer min-h-[38px]"
               >
                 {t.admin.dashboard.table.approve}
               </button>

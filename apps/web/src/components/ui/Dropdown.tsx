@@ -12,6 +12,7 @@ interface DropdownProps {
   options: readonly DropdownOption[];
   onChange: (value: string) => void;
   ariaLabel: string;
+  placeholder?: string;
   className?: string;
   menuAlign?: "left" | "right";
 }
@@ -21,6 +22,7 @@ export function Dropdown({
   options,
   onChange,
   ariaLabel,
+  placeholder,
   className = "",
   menuAlign = "left",
 }: DropdownProps) {
@@ -30,7 +32,8 @@ export function Dropdown({
   const buttonId = useId();
   const listId = useId();
 
-  const selected = options.find((o) => o.value === value) ?? options[0];
+  const selected = options.find((o) => o.value === value);
+  const displayLabel = selected ? selected.label : (placeholder || options[0]?.label || "");
 
   useEffect(() => {
     if (!open) return;

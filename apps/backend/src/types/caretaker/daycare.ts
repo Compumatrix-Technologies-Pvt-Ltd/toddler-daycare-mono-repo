@@ -47,6 +47,8 @@ export interface IDaycare extends Document {
         fileName?: string;
     };
 
+    status?: "pending" | "approved" | "rejected";
+
     ratings: {
         parentId: Types.ObjectId;
         review: string;

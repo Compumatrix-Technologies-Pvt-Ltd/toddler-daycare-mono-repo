@@ -12,6 +12,7 @@ interface KitaListProps {
   onToggleFavorite: (id: string, e: React.MouseEvent) => void;
   onOpenInquiry: (id: string, e: React.MouseEvent) => void;
   onOpenGallery?: (kita: Kita) => void;
+  catchmentRadius?: number;
 }
 
 export function KitaList({
@@ -22,6 +23,7 @@ export function KitaList({
   onToggleFavorite,
   onOpenInquiry,
   onOpenGallery,
+  catchmentRadius = 3,
 }: KitaListProps) {
   return (
     <div className="space-y-4 max-h-[860px] overflow-y-auto pr-3 kita-scrollbar">
@@ -35,6 +37,7 @@ export function KitaList({
           onToggleFavorite={(e) => onToggleFavorite(kita.id, e)}
           onOpenInquiry={(e) => onOpenInquiry(kita.id, e)}
           onOpenGallery={() => onOpenGallery && onOpenGallery(kita)}
+          catchmentRadius={catchmentRadius}
         />
       ))}
     </div>

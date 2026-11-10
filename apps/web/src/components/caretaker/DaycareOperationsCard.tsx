@@ -4,39 +4,304 @@ import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { useCaretaker, CaretakerPhoto, DEFAULT_PHOTOS } from "../../context/CaretakerContext";
+import { caretakerApi } from "@/utils/caretakerApi";
 
 export function DaycareOperationsCard() {
   const { t } = useLanguage();
   const { profile, updateProfile } = useCaretaker();
 
   // Basic Information
-  const [daycareName, setDaycareName] = useState(profile.daycareName);
-  const [caregiverName, setCaregiverName] = useState(profile.caregiverName);
-  const [gender, setGender] = useState(profile.caregiverGender);
+  const [daycareName, setDaycareName] = useState(profile.daycareName || "");
+  const [caregiverName, setCaregiverName] = useState(profile.caregiverName || "");
+  const [gender, setGender] = useState(profile.caregiverGender || "");
   const [isGenderOpen, setIsGenderOpen] = useState(false);
   const genderDropdownRef = useRef<HTMLDivElement>(null);
 
   // Operations
-  const [visibilityWindow, setVisibilityWindow] = useState(profile.visibilityWindow);
-  const [operatingHours, setOperatingHours] = useState(profile.operatingHours);
-  const [maxCapacity, setMaxCapacity] = useState(profile.maxCapacity);
+  const [visibilityWindow, setVisibilityWindow] = useState(profile.visibilityWindow || "");
+  const [operatingHours, setOperatingHours] = useState(profile.operatingHours || "");
+  const [maxCapacity, setMaxCapacity] = useState(profile.maxCapacity || "");
 
   // Contact & Links
-  const [email, setEmail] = useState(profile.email);
-  const [website, setWebsite] = useState(profile.website);
-  const [phone, setPhone] = useState(profile.phone);
+  const [email, setEmail] = useState(profile.email || "");
+  const [website, setWebsite] = useState(profile.website || "");
+  const [phone, setPhone] = useState(profile.phone || "");
 
   // Additional Details
-  const [mealType, setMealType] = useState<"self" | "delivered">(
-    (profile.mealType as "self" | "delivered") || "self"
+  const [mealType, setMealType] = useState<"self" | "delivered" | "">(
+    (profile.mealType as "self" | "delivered" | "") || ""
   );
-  const [petStatus, setPetStatus] = useState<"none" | "pets">(
-    (profile.petStatus as "none" | "pets") || "none"
+  const [petStatus, setPetStatus] = useState<"none" | "pets" | "">(
+    (profile.petStatus as "none" | "pets" | "") || ""
   );
 
   // Save State
   const [isSaving, setIsSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+
+  // Photos State & Ref
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [photosList, setPhotosList] = useState<CaretakerPhoto[]>(() => {
+    if (profile.photos && profile.photos.length > 0) {
+      return profile.photos;
+    }
+    return [];
+  });
+  const photosListRef = useRef<CaretakerPhoto[]>(photosList);
+  photosListRef.current = photosList;
+
+  // Sync state with CaretakerContext profile
+  useEffect(() => {
+    if (profile.daycareName !== undefined) setDaycareName(profile.daycareName);
+    if (profile.caregiverName !== undefined) setCaregiverName(profile.caregiverName);
+    if (profile.caregiverGender !== undefined) setGender(profile.caregiverGender);
+    if (profile.visibilityWindow !== undefined) setVisibilityWindow(profile.visibilityWindow);
+    if (profile.operatingHours !== undefined) setOperatingHours(profile.operatingHours);
+    if (profile.maxCapacity !== undefined) setMaxCapacity(profile.maxCapacity);
+    if (profile.email !== undefined) setEmail(profile.email);
+    if (profile.website !== undefined) setWebsite(profile.website);
+    if (profile.phone !== undefined) setPhone(profile.phone);
+    if (profile.mealType !== undefined) setMealType(profile.mealType as "self" | "delivered" | "");
+    if (profile.petStatus !== undefined) setPetStatus(profile.petStatus as "none" | "pets" | "");
+    if (profile.photos) setPhotosList(profile.photos);
+  }, [
+    profile.daycareName,
+    profile.caregiverName,
+    profile.caregiverGender,
+    profile.visibilityWindow,
+    profile.operatingHours,
+    profile.maxCapacity,
+    profile.email,
+    profile.website,
+    profile.phone,
+    profile.mealType,
+    profile.petStatus,
+    profile.photos,
+  ]);
+
+  // State for existing daycare check & pending files to upload
+  const [hasExistingDaycare, setHasExistingDaycare] = useState(false);
+  const [pendingUploads, setPendingUploads] = useState<{ id: string; file: File }[]>([]);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Fetch existing daycare on mount
+  useEffect(() => {
+    const token = caretakerApi.getToken();
+    if (!token) return;
+
+    caretakerApi
+      .getDaycare()
+      .then((data) => {
+        setHasExistingDaycare(true);
+        if (data.daycareName) setDaycareName(data.daycareName);
+        if (data.caregiverName) setCaregiverName(data.caregiverName);
+        if (data.caregiverGender) setGender(data.caregiverGender);
+        if (data.operations?.operatingHours) setOperatingHours(data.operations.operatingHours);
+        if (data.operations?.visibilityWindow) setVisibilityWindow(data.operations.visibilityWindow);
+        if (data.operations?.maxCapacity) setMaxCapacity(`${data.operations.maxCapacity} children`);
+        if (data.contact?.email) setEmail(data.contact.email);
+        if (data.contact?.website) setWebsite(data.contact.website);
+        if (data.contact?.phone) setPhone(data.contact.phone);
+        if (data.additionalDetails?.meals) {
+          setMealType(data.additionalDetails.meals === "self-cooked" ? "self" : "delivered");
+        }
+        if (data.additionalDetails?.pets) {
+          setPetStatus(data.additionalDetails.pets === "have-pets" ? "pets" : "none");
+        }
+        if (data.location) {
+          const loc = data.location;
+          if (loc.latitude && loc.longitude) {
+            updateProfile({
+              lat: String(loc.latitude),
+              lng: String(loc.longitude),
+              street: loc.houseNumber ? `${loc.street} ${loc.houseNumber}` : loc.street,
+              city: loc.postcode ? `${loc.postcode} ${loc.city}` : loc.city,
+            });
+          }
+        }
+        if (Array.isArray(data.photos) && data.photos.length > 0) {
+          const mappedPhotos = data.photos.map((p: any, idx: number) => ({
+            id: p._id || `photo-${idx}`,
+            label: `Photo ${idx + 1}`,
+            src: p.url.startsWith("http") ? p.url : `http://localhost:5000${p.url}`,
+          }));
+          setPhotosList(mappedPhotos);
+          updateProfile({ photos: mappedPhotos, photoCount: mappedPhotos.length });
+        }
+        if (data.status) {
+          updateProfile({
+            approvalStatus: data.status,
+          });
+        }
+      })
+      .catch(() => {
+        setHasExistingDaycare(false);
+      });
+  }, []);
+
+  // Track newly selected photos files & generate local preview
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const fileList = Array.from(files);
+
+    fileList.forEach((file) => {
+      const uniqueId = `new-photo-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+      
+      // Register in pending uploads
+      setPendingUploads((prev) => [...prev, { id: uniqueId, file }]);
+
+      const reader = new FileReader();
+      reader.onload = (uploadEvent) => {
+        const base64Url = uploadEvent.target?.result as string;
+        if (base64Url) {
+          const newPhoto: CaretakerPhoto = {
+            id: uniqueId,
+            label: file.name.replace(/\.[^/.]+$/, "") || t.caretakerProfile.operations.photoGallery,
+            src: base64Url,
+          };
+          setPhotosList((prev) => {
+            const updated = [...prev, newPhoto];
+            updateProfile({ photos: updated, photoCount: updated.length });
+            return updated;
+          });
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+
+    e.target.value = "";
+  };
+
+
+  //form submit
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+    setErrorMessage(null);
+
+    try {
+      const formData = new FormData();
+
+      formData.append("daycareName", daycareName);
+      formData.append("caregiverName", caregiverName);
+      formData.append("caregiverGender", (gender || "other").toLowerCase());
+      formData.append(
+        "operations",
+        JSON.stringify({
+          visibilityWindow,
+          operatingHours,
+          maxCapacity: Number(String(maxCapacity).replace(/\D/g, "")) || 5,
+        })
+      );
+      formData.append(
+        "contact",
+        JSON.stringify({ email, website, phone })
+      );
+      formData.append(
+        "additionalDetails",
+        JSON.stringify({
+          meals: mealType === "self" ? "self-cooked" : "delivered",
+          pets: petStatus === "pets" ? "have-pets" : "no-pets",
+        })
+      );
+      // Parse street and house number cleanly
+      const streetTrimmed = (profile.street || "Stargarder Straße").trim();
+      const houseNumberMatch = streetTrimmed.match(/\b(\d+[a-zA-Z]?)\b$/);
+      const houseNumber = houseNumberMatch ? houseNumberMatch[1] : "14";
+      const cleanStreet = houseNumberMatch
+        ? streetTrimmed.replace(new RegExp(`\\s*${houseNumber}$`), "")
+        : streetTrimmed;
+
+      const cityTrimmed = (profile.city || "10437 Berlin").trim();
+      const postcodeMatch = cityTrimmed.match(/^(\d{4,5})/);
+      const postcode = postcodeMatch ? postcodeMatch[1] : "10437";
+      const cleanCity = postcodeMatch
+        ? cityTrimmed.replace(/^\d{4,5}\s*/, "")
+        : cityTrimmed;
+
+      const latNum = parseFloat(String(profile.lat));
+      const lngNum = parseFloat(String(profile.lng));
+
+      formData.append(
+        "location",
+        JSON.stringify({
+          latitude: Number.isFinite(latNum) ? latNum : 52.5413,
+          longitude: Number.isFinite(lngNum) ? lngNum : 13.4135,
+          street: cleanStreet || "Stargarder Straße",
+          houseNumber: houseNumber || "14",
+          postcode: postcode || "10437",
+          city: cleanCity || "Berlin",
+        })
+      );
+      // 1. Identify retained existing photos already saved in MongoDB (filter out newly selected base64/blob files)
+      const retainedExistingPhotos = photosList
+        .filter((p) => !p.src.startsWith("data:") && !p.src.startsWith("blob:"))
+        .map((p) => {
+          try {
+            const urlObj = new URL(p.src, "http://localhost:5000");
+            return urlObj.pathname;
+          } catch {
+            return p.src;
+          }
+        });
+
+      formData.append("existingPhotos", JSON.stringify(retainedExistingPhotos));
+
+      // 2. Append newly chosen raw files from pendingUploads
+      pendingUploads.forEach((item) => {
+        formData.append("photos", item.file);
+      });
+
+      let savedData: any = null;
+      if (hasExistingDaycare) {
+        // Calls PUT /api/caretaker/daycare
+        const res = await caretakerApi.updateDaycare(formData);
+        savedData = res?.data || res;
+      } else {
+        // Calls POST /api/caretaker/daycare
+        const res = await caretakerApi.createDaycare(formData);
+        savedData = res?.data || res;
+        setHasExistingDaycare(true);
+      }
+
+      setPendingUploads([]);
+      setSavedSuccess(true);
+      setTimeout(() => setSavedSuccess(false), 3500);
+
+      // Re-synchronize photo list and profile context with verified MongoDB response
+      if (savedData && Array.isArray(savedData.photos)) {
+        const mappedPhotos = savedData.photos.map((p: any, idx: number) => ({
+          id: p._id || `photo-${idx}`,
+          label: `Photo ${idx + 1}`,
+          src: p.url.startsWith("http") ? p.url : `http://localhost:5000${p.url}`,
+        }));
+        setPhotosList(mappedPhotos);
+        updateProfile({
+          daycareName,
+          caregiverName,
+          caregiverGender: gender,
+          operatingHours,
+          photos: mappedPhotos,
+          photoCount: mappedPhotos.length,
+        });
+      } else {
+        updateProfile({
+          daycareName,
+          caregiverName,
+          caregiverGender: gender,
+          operatingHours,
+          photos: photosList,
+          photoCount: photosList.length,
+        });
+      }
+    } catch (error: any) {
+      setErrorMessage(error.message || "Failed to save daycare profile");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -53,96 +318,21 @@ export function DaycareOperationsCard() {
     };
   }, []);
 
-  // Photos State & Ref
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [photosList, setPhotosList] = useState<CaretakerPhoto[]>(() => {
-    if (profile.photos && profile.photos.length > 0) {
-      return profile.photos;
-    }
-    return DEFAULT_PHOTOS;
-  });
-  const photosListRef = useRef<CaretakerPhoto[]>(photosList);
-  photosListRef.current = photosList;
-
-  useEffect(() => {
-    setDaycareName(profile.daycareName);
-    setCaregiverName(profile.caregiverName);
-    setGender(profile.caregiverGender);
-    setVisibilityWindow(profile.visibilityWindow);
-    setOperatingHours(profile.operatingHours);
-    setMaxCapacity(profile.maxCapacity);
-    setEmail(profile.email);
-    setWebsite(profile.website);
-    setPhone(profile.phone);
-    if (profile.mealType) setMealType(profile.mealType as "self" | "delivered");
-    if (profile.petStatus) setPetStatus(profile.petStatus as "none" | "pets");
-    if (profile.photos && profile.photos.length > 0) {
-      setPhotosList(profile.photos);
-    }
-  }, [profile]);
-
   const handleFieldChange = (key: string, value: any) => {
     updateProfile({ [key]: value });
   };
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    const fileList = Array.from(files);
-    let currentPhotos = [...photosListRef.current];
-
-    fileList.forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (uploadEvent) => {
-        const base64Url = uploadEvent.target?.result as string;
-        if (base64Url) {
-          const newPhoto: CaretakerPhoto = {
-            id: `photo-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-            label: file.name.replace(/\.[^/.]+$/, "") || t.caretakerProfile.operations.photoGallery,
-            src: base64Url,
-          };
-          currentPhotos = [...currentPhotos, newPhoto];
-          setPhotosList(currentPhotos);
-          updateProfile({ photos: currentPhotos, photoCount: currentPhotos.length });
-        }
-      };
-      reader.readAsDataURL(file);
-    });
-
-    e.target.value = "";
-  };
-
   const handleRemovePhoto = (idToRemove: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const updated = photosListRef.current.filter((p) => p.id !== idToRemove);
-    setPhotosList(updated);
-    updateProfile({ photos: updated, photoCount: updated.length });
-  };
-
-  const handleSave = (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSaving(true);
-    updateProfile({
-      daycareName,
-      caregiverName,
-      caregiverGender: gender,
-      visibilityWindow,
-      operatingHours,
-      maxCapacity,
-      email,
-      website,
-      phone,
-      mealType,
-      petStatus,
-      photos: photosList,
-      photoCount: photosList.length,
+    // 1. Remove from visual photos list
+    setPhotosList((prev) => {
+      const updated = prev.filter((p) => p.id !== idToRemove);
+      updateProfile({ photos: updated, photoCount: updated.length });
+      return updated;
     });
-    setTimeout(() => {
-      setIsSaving(false);
-      setSavedSuccess(true);
-      setTimeout(() => setSavedSuccess(false), 3000);
-    }, 500);
+
+    // 2. Remove from pending uploads queue if it was a newly chosen file
+    setPendingUploads((prev) => prev.filter((item) => item.id !== idToRemove));
   };
 
   return (
@@ -162,6 +352,15 @@ export function DaycareOperationsCard() {
           </p>
         </div>
       </div>
+
+      {errorMessage && (
+        <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-[14px] flex items-center gap-2">
+          <svg className="w-5 h-5 text-red-500 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <span>{errorMessage}</span>
+        </div>
+      )}
 
       <form onSubmit={handleSave} className="space-y-8">
         {/* Two-Column Form Grid */}
@@ -289,8 +488,8 @@ export function DaycareOperationsCard() {
                         setIsGenderOpen(false);
                       }}
                       className={`w-full px-4 py-2.5 text-left text-[14px] flex items-center justify-between transition-colors cursor-pointer ${gender === "Female"
-                          ? "bg-[#FAF7F2] text-[#A12D3A] font-bold"
-                          : "text-[#1E1B18] hover:bg-[#FAF8F5]"
+                        ? "bg-[#FAF7F2] text-[#A12D3A] font-bold"
+                        : "text-[#1E1B18] hover:bg-[#FAF8F5]"
                         }`}
                     >
                       <span>{t.caretakerProfile.operations.genderFemale}</span>
@@ -312,8 +511,8 @@ export function DaycareOperationsCard() {
                         setIsGenderOpen(false);
                       }}
                       className={`w-full px-4 py-2.5 text-left text-[14px] flex items-center justify-between transition-colors cursor-pointer ${gender === "Male"
-                          ? "bg-[#FAF7F2] text-[#A12D3A] font-bold"
-                          : "text-[#1E1B18] hover:bg-[#FAF8F5]"
+                        ? "bg-[#FAF7F2] text-[#A12D3A] font-bold"
+                        : "text-[#1E1B18] hover:bg-[#FAF8F5]"
                         }`}
                     >
                       <span>{t.caretakerProfile.operations.genderMale}</span>
@@ -335,8 +534,8 @@ export function DaycareOperationsCard() {
                         setIsGenderOpen(false);
                       }}
                       className={`w-full px-4 py-2.5 text-left text-[14px] flex items-center justify-between transition-colors cursor-pointer ${gender === "Diverse"
-                          ? "bg-[#FAF7F2] text-[#A12D3A] font-bold"
-                          : "text-[#1E1B18] hover:bg-[#FAF8F5]"
+                        ? "bg-[#FAF7F2] text-[#A12D3A] font-bold"
+                        : "text-[#1E1B18] hover:bg-[#FAF8F5]"
                         }`}
                     >
                       <span>{t.caretakerProfile.operations.genderDiverse}</span>
@@ -586,7 +785,12 @@ export function DaycareOperationsCard() {
                         src={item.src}
                         alt={item.label}
                         fill
-                        unoptimized={item.src.startsWith("data:")}
+                        sizes="(max-width: 640px) 33vw, 20vw"
+                        unoptimized={
+                          item.src.startsWith("data:") ||
+                          item.src.includes("localhost") ||
+                          item.src.includes("127.0.0.1")
+                        }
                         className="object-cover group-hover:scale-105 transition-transform"
                       />
 

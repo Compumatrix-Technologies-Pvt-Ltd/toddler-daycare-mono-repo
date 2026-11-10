@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { Header } from "../../components/Header";
 import { Footer } from "../../components/Footer";
@@ -8,19 +8,52 @@ import { FavoriteCard } from "../../components/FavoriteCard";
 import { CaretakerProfileDrawer } from "../../components/CaretakerProfileDrawer";
 import { EnquiryModal, EnquiryScope } from "../../components/modals/EnquiryModal";
 import { ImageGalleryModal } from "../../components/modals/ImageGalleryModal";
-import { KITAS } from "../../data/kitas";
 import { Kita } from "../../types";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { useSessionFavorites } from "../../utils/favoritesSession";
+import { caretakerApi } from "../../utils/caretakerApi";
+import { mapDaycareToKita } from "../../utils/daycareMapper";
 
 export default function FavoritesPage() {
   const { t } = useLanguage();
   const { favorites, removeFavorite, clearFavorites } = useSessionFavorites();
+  const [allKitas, setAllKitas] = useState<Kita[]>([]);
+  const [catchmentRadius, setCatchmentRadius] = useState<number>(3);
 
-  // Dynamically load favorited daycares from browser session & KITAS
+  useEffect(() => {
+    let isMounted = true;
+    async function loadDaycares() {
+      try {
+        const [daycares, settings] = await Promise.all([
+          caretakerApi.getAllDaycares(),
+          caretakerApi.getSettings(),
+        ]);
+        if (isMounted) {
+          if (settings?.defaultCatchmentRadiusKm) {
+            setCatchmentRadius(settings.defaultCatchmentRadiusKm);
+          }
+          if (Array.isArray(daycares)) {
+            // Strictly show only active daycares approved by admin
+            const mapped = daycares
+              .filter((d: any) => d.status === "approved")
+              .map(mapDaycareToKita);
+            setAllKitas(mapped);
+          }
+        }
+      } catch (err) {
+        console.warn("Could not load backend daycares or settings:", err);
+      }
+    }
+    loadDaycares();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Dynamically load favorited daycares from browser session & allKitas
   const favoriteList = useMemo(() => {
-    return KITAS.filter((k) => favorites[k.id]);
-  }, [favorites]);
+    return allKitas.filter((k) => favorites[k.id]);
+  }, [allKitas, favorites]);
 
   // Inquiry Modal State
   const [enquiryModalOpen, setEnquiryModalOpen] = useState(false);
@@ -200,16 +233,17 @@ export default function FavoritesPage() {
       <CaretakerProfileDrawer
         isOpen={!!drawerKita}
         kita={drawerKita}
-        allKitas={favoriteList.length > 0 ? favoriteList : KITAS}
+        allKitas={allKitas}
         onClose={() => setDrawerKita(null)}
         onSelectKita={(id) => {
-          const found = KITAS.find((k) => k.id === id);
+          const found = allKitas.find((k) => k.id === id);
           if (found) setDrawerKita(found);
         }}
         onSendInquiry={handleSingleInquiry}
         onOpenGallery={(idx) => {
           if (drawerKita) handleOpenGallery(drawerKita, idx || 0);
         }}
+        catchmentRadius={catchmentRadius}
       />
 
       {/* Lightbox Photo Gallery Modal */}
@@ -232,8 +266,11 @@ export default function FavoritesPage() {
         <EnquiryModal
           onClose={() => setEnquiryModalOpen(false)}
           activeKitaName={activeKitaForInquiry?.name || "Kita Sunshine"}
+          activeKitaId={activeKitaForInquiry?.id}
           initialScope={inquiryScope}
           favoritesCount={favoriteList.length}
+          daycareIds={favoriteList.map((k) => k.id)}
+          daycareNames={favoriteList.map((k) => k.name)}
         />
       )}
 

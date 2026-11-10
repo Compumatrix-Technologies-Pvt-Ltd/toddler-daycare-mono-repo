@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { caretakerApi } from "@/utils/caretakerApi";
 
 export type ApprovalStatus = "pending" | "approved" | "rejected";
 
@@ -45,6 +46,7 @@ export interface SectionCompletion {
 interface CaretakerContextType {
   profile: CaretakerProfileData;
   updateProfile: (updates: Partial<CaretakerProfileData>) => void;
+  resetProfile: (initialData?: Partial<CaretakerProfileData>) => void;
   completionPercentage: number;
   sections: SectionCompletion;
   approvalStatus: ApprovalStatus;
@@ -53,36 +55,31 @@ interface CaretakerContextType {
   checkLoginRedirect: () => { shouldRedirectToProfile: boolean; reason: "incomplete" | "awaiting_approval" | "approved" };
 }
 
-export const DEFAULT_PHOTOS: CaretakerPhoto[] = [
-  { id: "1", label: "Cover", src: "/assets/classroom.png" },
-  { id: "2", label: "Play area", src: "/assets/playground.png" },
-  { id: "3", label: "Nap room", src: "/assets/toys.png" },
-  { id: "4", label: "Garden", src: "/assets/playground.png" },
-];
+export const DEFAULT_PHOTOS: CaretakerPhoto[] = [];
 
-const DEFAULT_PROFILE: CaretakerProfileData = {
-  street: "Stargarder Straße 14",
-  city: "10437 Berlin",
-  lat: "52.5413",
-  lng: "13.4135",
-  isLocationPinned: true,
-  daycareName: "Kita Sonnenschein",
-  caregiverName: "Maria Weber",
-  caregiverGender: "Female",
-  visibilityWindow: "Jan 31, 2027",
-  operatingHours: "07:30 – 15:30",
-  maxCapacity: "5 children",
-  email: "maria@kitasunshine.de",
-  website: "kitasunshine-prenzlauerberg.de",
-  phone: "+49 30 12345678",
-  mealType: "self",
-  petStatus: "none",
-  photoCount: 4,
-  photos: DEFAULT_PHOTOS,
-  hasUploadedPermit: false, // Starts false so user can see incomplete state or upload to hit 100%
+export const EMPTY_PROFILE: CaretakerProfileData = {
+  street: "",
+  city: "",
+  lat: "",
+  lng: "",
+  isLocationPinned: false,
+  daycareName: "",
+  caregiverName: "",
+  caregiverGender: "",
+  visibilityWindow: "",
+  operatingHours: "",
+  maxCapacity: "",
+  email: "",
+  website: "",
+  phone: "",
+  mealType: "",
+  petStatus: "",
+  photoCount: 0,
+  photos: [],
+  hasUploadedPermit: false,
   permitFileName: "",
-  approvalStatus: "pending", // Default awaiting admin approval
-  isRegistered: true,
+  approvalStatus: "pending",
+  isRegistered: false,
 };
 
 const CaretakerContext = createContext<CaretakerContextType | undefined>(undefined);
@@ -90,16 +87,60 @@ const CaretakerContext = createContext<CaretakerContextType | undefined>(undefin
 const STORAGE_KEY = "toddler_caretaker_profile_v1";
 
 export function CaretakerProvider({ children }: { children: React.ReactNode }) {
-  const [profile, setProfile] = useState<CaretakerProfileData>(DEFAULT_PROFILE);
+  const [profile, setProfile] = useState<CaretakerProfileData>(EMPTY_PROFILE);
 
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
-        setProfile(JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        // Clean out any legacy mock data from earlier sessions
+        if (
+          parsed.caregiverName === "Maria Weber" ||
+          parsed.daycareName === "Kita Sonnenschein" ||
+          parsed.street === "Stargarder Straße 14"
+        ) {
+          localStorage.removeItem(STORAGE_KEY);
+          setProfile(EMPTY_PROFILE);
+        } else {
+          setProfile(parsed);
+        }
       }
     } catch {
-      // Fallback to default
+      // Fallback to empty
+    }
+
+    // Sync live approval status & verification from MongoDB backend
+    const token = caretakerApi.getToken();
+    if (token) {
+      caretakerApi
+        .getDaycare()
+        .then((data) => {
+          if (data) {
+            const liveStatus: ApprovalStatus =
+              data.status === "approved" ||
+              data.status === "rejected" ||
+              data.status === "pending"
+                ? data.status
+                : "pending";
+
+            const hasPermit = Boolean(
+              data.workPermit?.fileName || data.workPermit?.url
+            );
+
+            updateProfile({
+              approvalStatus: liveStatus,
+              hasUploadedPermit: hasPermit,
+              permitFileName: data.workPermit?.fileName || "",
+              daycareName: data.daycareName,
+              caregiverName: data.caregiverName,
+              caregiverGender: data.caregiverGender,
+            });
+          }
+        })
+        .catch(() => {
+          // No daycare in DB yet
+        });
     }
   }, []);
 
@@ -113,6 +154,19 @@ export function CaretakerProvider({ children }: { children: React.ReactNode }) {
       }
       return next;
     });
+  };
+
+  const resetProfile = (initialData?: Partial<CaretakerProfileData>) => {
+    const next: CaretakerProfileData = {
+      ...EMPTY_PROFILE,
+      ...initialData,
+    };
+    setProfile(next);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      // Storage unavailable
+    }
   };
 
   const setApprovalStatus = (status: ApprovalStatus) => {
@@ -177,6 +231,7 @@ export function CaretakerProvider({ children }: { children: React.ReactNode }) {
       value={{
         profile,
         updateProfile,
+        resetProfile,
         completionPercentage,
         sections,
         approvalStatus: profile.approvalStatus,

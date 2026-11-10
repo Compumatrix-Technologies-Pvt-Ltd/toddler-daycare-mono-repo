@@ -65,10 +65,7 @@ const daycareSchema = new Schema<IDaycare>(
                     },
                 },
             ],
-            validate: {
-                validator: (photos: unknown[]) => photos.length >= 4,
-                message: "At least 4 photos are required",
-            },
+            default: [],
         },
 
         location: {
@@ -81,9 +78,15 @@ const daycareSchema = new Schema<IDaycare>(
         },
 
         workPermit: {
-            url: { type: String, required: true },
+            url: { type: String, default: "" },
             publicId: String,
-            fileName: String,
+            fileName: { type: String, default: "" },
+        },
+
+        status: {
+            type: String,
+            enum: ["pending", "approved", "rejected"],
+            default: "pending",
         },
 
         ratings: [
@@ -111,4 +114,5 @@ const Daycare = mongoose.model<IDaycare>(
     daycareSchema
 );
 
+export { Daycare };
 export default Daycare;

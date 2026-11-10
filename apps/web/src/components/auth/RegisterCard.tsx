@@ -10,7 +10,7 @@ import { caretakerApi } from "../../utils/caretakerApi";
 export function RegisterCard() {
   const { t } = useLanguage();
   const router = useRouter();
-  const { updateProfile } = useCaretaker();
+  const { resetProfile } = useCaretaker();
 
   const [registerEmail, setRegisterEmail] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
@@ -42,15 +42,16 @@ export function RegisterCard() {
     try {
       await caretakerApi.register(registerEmail, registerPassword);
       setRegisterSuccess(true);
-      updateProfile({
+      // Ensure newly registered caretaker starts with a completely empty profile form
+      resetProfile({
         email: registerEmail,
         isRegistered: true,
         approvalStatus: "pending",
       });
-      // Auto-redirect to Caretaker Profile setup
+      // Redirect to Caretaker Profile setup
       setTimeout(() => {
-        router.push("/caretaker/profile?from=register");
-      }, 900);
+        router.push("/caretaker/profile");
+      }, 800);
     } catch (error: any) {
       setRegisterError(error.message || "Registration failed");
     } finally {
@@ -86,7 +87,7 @@ export function RegisterCard() {
           <div className="pt-4">
             <button
               type="button"
-              onClick={() => router.push("/caretaker/profile?from=register")}
+              onClick={() => router.push("/caretaker/profile")}
               className="w-full h-[50px] rounded-xl bg-[#F5A623] hover:bg-[#EAA000] text-[#1E1B18] font-bold text-[16px] shadow-[0_2px_8px_rgba(245,166,35,0.25)] transition-all flex items-center justify-center cursor-pointer"
               style={{ fontFamily: "var(--font-plus-jakarta)" }}
             >

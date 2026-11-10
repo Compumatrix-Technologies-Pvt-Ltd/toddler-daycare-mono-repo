@@ -1,5 +1,11 @@
 import { Request, Response, NextFunction } from "express";
-import { createDaycareService, getDaycareService, updatedDaycareService } from "@/services/caretaker/daycare";
+import {
+    createDaycareService,
+    getDaycareService,
+    updatedDaycareService,
+    allDaycareService,
+    deleteDaycarePhotoService,
+} from "@/services/caretaker/daycare";
 
 export const createDaycare = async (
     req: Request,
@@ -15,8 +21,11 @@ export const createDaycare = async (
             data: daycare,
         });
 
-    } catch (error) {
-        next(error);
+    } catch (error: any) {
+        return res.status(400).json({
+            success: false,
+            message: error.message || "Failed to create daycare",
+        });
     }
 }
 
@@ -37,6 +46,21 @@ export const getDaycare = async (req: Request, res: Response) => {
     }
 }
 
+//Get all
+export const allDaycare = async (req: Request, res: Response) => {
+    try {
+        const daycare = await allDaycareService(req);
+        return res.status(200).json({
+            success: true,
+            data: daycare
+        });
+    } catch (error: any) {
+        return res.status(error.message === "Daycare not found" ? 404 : 400).json({
+            success: false,
+            message: error.message,
+        });
+    }
+}
 
 // UPDATE daycare
 export const updateDaycare = async (req: Request, res: Response) => {
@@ -52,6 +76,23 @@ export const updateDaycare = async (req: Request, res: Response) => {
         const statusCode = error.message === "Daycare not found" ? 404 : 400;
 
         return res.status(statusCode).json({
+            success: false,
+            message: error.message,
+        });
+    }
+};
+
+// DELETE single photo
+export const deleteDaycarePhoto = async (req: Request, res: Response) => {
+    try {
+        const daycare = await deleteDaycarePhotoService(req);
+        return res.status(200).json({
+            success: true,
+            message: "Photo deleted successfully",
+            data: daycare,
+        });
+    } catch (error: any) {
+        return res.status(400).json({
             success: false,
             message: error.message,
         });

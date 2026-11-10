@@ -1,6 +1,34 @@
-export type AdminTab = "dashboard" | "settings";
+export type AdminTab = "dashboard" | "inquiries" | "settings";
 
 export type AdminRole = "super-admin" | "admin";
+
+export interface AdminInquiry {
+  _id: string;
+  referenceId: string;
+  scope: string;
+  caretakerId?: string;
+  caretakerIds?: string[];
+  daycareNames: string[];
+  daycareIds?: string[];
+  childName: string;
+  childBirthday?: string;
+  desiredStart: string;
+  estTransition?: string;
+  careHours: string;
+  preferences?: {
+    gender?: string;
+    food?: string;
+    pets?: string;
+  };
+  parentName: string;
+  phone: string;
+  email: string;
+  note?: string;
+  consentMapVisibility?: boolean;
+  status: "pending" | "reviewed" | "contacted" | "accepted" | "declined";
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface AdminUser {
   id: string;

@@ -13,6 +13,7 @@ interface KitaCardProps {
   onToggleFavorite: (e: React.MouseEvent) => void;
   onOpenInquiry: (e: React.MouseEvent) => void;
   onOpenGallery?: (e: React.MouseEvent) => void;
+  catchmentRadius?: number;
 }
 
 export function KitaCard({
@@ -23,17 +24,17 @@ export function KitaCard({
   onToggleFavorite,
   onOpenInquiry,
   onOpenGallery,
+  catchmentRadius = 3,
 }: KitaCardProps) {
   const { t } = useLanguage();
 
   return (
     <div
       onClick={onSelect}
-      className={`group relative rounded-2xl p-3 sm:p-3.5 transition-all cursor-pointer border ${
-        isSelected
+      className={`group relative rounded-2xl p-3 sm:p-3.5 transition-all cursor-pointer border ${isSelected
           ? "border-2 border-[#A12D3A] bg-white shadow-xs"
           : "border border-[#E5DDD2] hover:border-[#D5C9B8] bg-white hover:shadow-xs"
-      }`}
+        }`}
     >
       <div className="flex gap-3 sm:gap-3.5">
         {/* Thumbnail Image - click to open image modal */}
@@ -47,12 +48,22 @@ export function KitaCard({
           className="relative w-24 h-24 sm:w-32 sm:h-32 md:w-36 md:h-32 rounded-xl overflow-hidden bg-[#F3ECE2] shrink-0 cursor-pointer group/thumb"
           title={t.gallery.viewAllPhotos}
         >
-          <Image
-            src={kita.image}
-            alt={kita.name}
-            fill
-            className="object-cover group-hover/thumb:scale-105 transition-transform duration-300"
-          />
+          {kita.image ? (
+            <Image
+              src={kita.image}
+              alt={kita.name}
+              fill
+              sizes="(max-width: 640px) 96px, 144px"
+              unoptimized={true}
+              className="object-cover group-hover/thumb:scale-105 transition-transform duration-300"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-[#7A6E62]">
+              <svg className="w-8 h-8 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </div>
+          )}
           <div className="absolute inset-0 bg-black/0 group-hover/thumb:bg-black/20 transition-colors flex items-center justify-center">
             <span className="opacity-0 group-hover/thumb:opacity-100 transition-opacity bg-black/60 text-white rounded-full p-1.5 shadow-md">
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -95,11 +106,10 @@ export function KitaCard({
               }
             >
               <svg
-                className={`w-5 h-5 transition-transform active:scale-125 ${
-                  isFavorite
+                className={`w-5 h-5 transition-transform active:scale-125 ${isFavorite
                     ? "text-[#A12D3A] fill-[#A12D3A]"
                     : "text-[#A12D3A] hover:opacity-80"
-                }`}
+                  }`}
                 fill={isFavorite ? "currentColor" : "none"}
                 stroke="currentColor"
                 strokeWidth="2"
@@ -121,20 +131,44 @@ export function KitaCard({
               {kita.slots} {t.card.slotsAvailable}
             </span>
             <span className="text-[#C4B7A5]">•</span>
-            <span className="bg-[#FEF3C7] text-[#78350F] font-bold px-2 py-0.5 rounded-full text-[10px] sm:text-[11px]">
-              {kita.rating} ★ ({kita.reviewCount} {t.card.reviews})
-            </span>
+            {kita.rating > 0 ? (
+              <span className="bg-[#FEF3C7] text-[#78350F] font-bold px-2 py-0.5 rounded-full text-[10px] sm:text-[11px]">
+                {kita.rating} ★ ({kita.reviewCount} {t.card.reviews})
+              </span>
+            ) : (
+              <span className="bg-[#FEF3C7] text-[#78350F] font-semibold px-2 py-0.5 rounded-full text-[10px] sm:text-[11px]">
+                ★ Neu
+              </span>
+            )}
           </div>
 
           {/* Tag chips */}
           <div className="flex items-center gap-1.5 flex-wrap">
+            {/* Catchment Radius Badge */}
+            <span className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] text-[#8A775C] bg-[#FAF7F2] border border-[#E5DDD2] px-2 py-0.5 rounded-md font-medium">
+              <svg
+                className="w-3 h-3 text-[#A12D3A] shrink-0"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                />
+              </svg>
+              <span>{t.card.reachRadius.replace("{radius}", String(catchmentRadius))}</span>
+            </span>
+
             {kita.tags.map((tag, idx) => (
               <span
                 key={idx}
                 className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] text-[#554A3D] bg-[#F7F4EE] border border-[#E9E2D8] px-2 py-0.5 rounded-md"
               >
                 {tag.toLowerCase().includes("gekocht") ||
-                tag.toLowerCase().includes("food") ? (
+                  tag.toLowerCase().includes("food") ? (
                   <svg
                     className="w-3 h-3 text-[#7A6D60] shrink-0"
                     fill="none"
