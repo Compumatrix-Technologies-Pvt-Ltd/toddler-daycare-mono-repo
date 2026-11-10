@@ -64,6 +64,5 @@ coverage/
 *.pem
 .vercel
 
-# Uploaded media (local / runtime)
-uploads/
+
 
