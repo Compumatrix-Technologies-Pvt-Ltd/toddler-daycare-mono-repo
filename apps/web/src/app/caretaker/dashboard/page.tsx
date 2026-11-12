@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { CaretakerHeader } from "../../../components/caretaker/CaretakerHeader";
 import { Footer } from "../../../components/Footer";
 import { StatCardsOverview } from "../../../components/caretaker/dashboard/StatCardsOverview";
@@ -13,36 +13,263 @@ import { ExportModal } from "../../../components/caretaker/dashboard/ExportModal
 import { WorkPermitModal } from "../../../components/caretaker/dashboard/WorkPermitModal";
 import { DemandRadiusModal } from "../../../components/caretaker/dashboard/DemandRadiusModal";
 import { useLanguage } from "../../../i18n/LanguageContext";
-import {
-  GANTT_MONTHS,
-  GANTT_YEARS,
-  INITIAL_CURRENT_BOOKINGS,
-  INITIAL_FUTURE_BOOKINGS,
-  INITIAL_FITTING_INQUIRIES,
-} from "../../../data/mockCaretakerBookings";
-import { BookingItem, InquiryStatus } from "../../../types/caretakerDashboard";
+import { useCaretaker } from "../../../context/CaretakerContext";
+import { caretakerApi } from "../../../utils/caretakerApi";
+import { fetchInquiries, updateInquiryStatus } from "../../../utils/inquery";
+import { getSocket } from "../../../utils/socket";
+import { BookingItem, GanttMonth, InquiryStatus, YearGroup } from "../../../types/caretakerDashboard";
+
+const MONTH_SHORT_NAMES = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+
+function buildGanttTimeline(totalMonths = 22): { months: GanttMonth[]; years: YearGroup[] } {
+  const now = new Date();
+  const startYear = now.getFullYear();
+  const startMonth = now.getMonth();
+  const months: GanttMonth[] = [];
+  const yearCounts = new Map<number, number>();
+
+  for (let i = 0; i < totalMonths; i++) {
+    const d = new Date(startYear, startMonth + i, 1);
+    const y = d.getFullYear();
+    const m = d.getMonth();
+    const shortName = MONTH_SHORT_NAMES[m];
+    const yy = String(y).slice(-2);
+    months.push({
+      id: `${y}-${String(m + 1).padStart(2, "0")}`,
+      year: y,
+      shortName,
+      fullLabel: `${shortName} ${yy}`,
+      ...(i === 0 ? { isCurrentMonth: true } : {}),
+    });
+    yearCounts.set(y, (yearCounts.get(y) || 0) + 1);
+  }
+
+  const years: YearGroup[] = Array.from(yearCounts.entries()).map(([year, monthsCount]) => ({
+    year,
+    monthsCount,
+  }));
+
+  return { months, years };
+}
+
+const { months: GANTT_MONTHS, years: GANTT_YEARS } = buildGanttTimeline(22);
+
+function parseCapacity(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.max(0, Math.floor(value));
+  }
+  const digits = String(value ?? "").replace(/\D/g, "");
+  return digits ? parseInt(digits, 10) : 0;
+}
+
+function mapBackendStatusToDashboard(status?: string): InquiryStatus {
+  switch ((status || "").toLowerCase()) {
+    case "contacted":
+      return "Reviewing";
+    case "accepted":
+      return "Accepted";
+    case "rejected":
+      return "Declined";
+    default:
+      return "New";
+  }
+}
+
+function mapDashboardStatusToBackend(status: InquiryStatus): string {
+  switch (status) {
+    case "Reviewing":
+    case "Invited":
+      return "contacted";
+    case "Accepted":
+      return "accepted";
+    case "Declined":
+      return "rejected";
+    default:
+      return "pending";
+  }
+}
+
+function resolveStartMonthIndex(desiredStart?: string): number {
+  if (!desiredStart) return 0;
+  const lower = desiredStart.toLowerCase();
+  const yearMatch = lower.match(/20\d{2}/);
+  const monthNames = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+  const monthIdx = monthNames.findIndex((m) => lower.includes(m));
+  if (yearMatch && monthIdx >= 0) {
+    const targetId = `${yearMatch[0]}-${String(monthIdx + 1).padStart(2, "0")}`;
+    const found = GANTT_MONTHS.findIndex((gm) => gm.id === targetId);
+    if (found >= 0) return found;
+  }
+  const isoMatch = lower.match(/(20\d{2})-(\d{2})/);
+  if (isoMatch) {
+    const found = GANTT_MONTHS.findIndex((gm) => gm.id === `${isoMatch[1]}-${isoMatch[2]}`);
+    if (found >= 0) return found;
+  }
+  return 0;
+}
+
+function mapInquiryToBookingItem(inq: any, category: "inquiry" | "future"): BookingItem {
+  const startIdx = resolveStartMonthIndex(inq.desiredStart);
+  const endIdx = Math.min(GANTT_MONTHS.length - 1, startIdx + 10);
+  const startLabel = inq.desiredStart || GANTT_MONTHS[startIdx]?.fullLabel || "";
+  const endLabel = GANTT_MONTHS[endIdx]?.fullLabel || "";
+  const periodLabel = endLabel ? `${startLabel} – ${endLabel}` : startLabel;
+  const prefParts = [
+    inq.preferences?.gender,
+    inq.preferences?.food,
+    inq.preferences?.pets,
+  ].filter(Boolean);
+
+  return {
+    id: String(inq._id || inq.id || inq.referenceId || ""),
+    childName: inq.childName || "Child",
+    childAge: inq.childBirthday ? `DOB: ${inq.childBirthday}` : "",
+    childAgeDe: inq.childBirthday ? `Geb.: ${inq.childBirthday}` : "",
+    placementStart: startLabel,
+    placementStartDe: startLabel,
+    kindergartenTransition: endLabel,
+    kindergartenTransitionDe: endLabel,
+    period: periodLabel,
+    periodDe: periodLabel,
+    startMonthIndex: startIdx,
+    endMonthIndex: endIdx,
+    dailyHours: inq.careHours || "Mon – Fri • 08:00 – 15:00",
+    dailyHoursDe: inq.careHours || "Mo. – Fr. • 08:00 – 15:00 Uhr",
+    parentContact: {
+      parents: inq.parentName || "",
+      phone: inq.phone || "",
+      email: inq.email || "",
+    },
+    category,
+    isBooked: category === "future",
+    inquiryStatus: mapBackendStatusToDashboard(inq.status),
+    ...(inq.childBirthday ? { dob: inq.childBirthday } : {}),
+    desiredStart: startLabel,
+    desiredStartDe: startLabel,
+    ...(inq.estTransition ? { estTransition: inq.estTransition, estTransitionDe: inq.estTransition } : {}),
+    ...(prefParts.length > 0 ? { preferences: prefParts.join(" • "), preferencesDe: prefParts.join(" • ") } : {}),
+    ...(inq.note ? { parentQuote: inq.note, parentQuoteDe: inq.note } : {}),
+  };
+}
 
 export default function CaretakerDashboardPage() {
   const { t, language } = useLanguage();
+  const { profile } = useCaretaker();
   const vs = t.caretakerDashboard.viewSwitch;
   const tb = t.caretakerDashboard.toolbar;
   const dt = t.caretakerDashboard.details;
 
-  // Bookings State
-  const [currentBookings, setCurrentBookings] = useState<BookingItem[]>(INITIAL_CURRENT_BOOKINGS);
-  const [futureBookings, setFutureBookings] = useState<BookingItem[]>(INITIAL_FUTURE_BOOKINGS);
-  const [fittingInquiries, setFittingInquiries] = useState<BookingItem[]>(INITIAL_FITTING_INQUIRIES);
+  // Bookings & Inquiries State (loaded dynamically from backend)
+  const [currentBookings, setCurrentBookings] = useState<BookingItem[]>([]);
+  const [futureBookings, setFutureBookings] = useState<BookingItem[]>([]);
+  const [fittingInquiries, setFittingInquiries] = useState<BookingItem[]>([]);
+  const [selectedItem, setSelectedItem] = useState<BookingItem | null>(null);
 
-  // Selected item defaults to David matching Figma node 580:1449 / 580:1568
-  const [selectedItem, setSelectedItem] = useState<BookingItem | null>(
-    INITIAL_CURRENT_BOOKINGS.find((b) => b.id === "booking-david") || INITIAL_CURRENT_BOOKINGS[0]
+  // Dynamic capacity & catchment radius
+  const [totalSlots, setTotalSlots] = useState<number>(() =>
+    parseCapacity(profile.permitAuthorizedCapacity || profile.maxCapacity)
   );
-
-  // Baseline capacity scenario toggle
+  const [catchmentRadius, setCatchmentRadius] = useState<number>(3);
   const [isBaselineActive, setIsBaselineActive] = useState(false);
 
-  // Catchment radius in km
-  const [catchmentRadius, setCatchmentRadius] = useState(3);
+  const loadDashboardData = useCallback(async () => {
+    const token = caretakerApi.getToken();
+    const caretakerId = caretakerApi.getCaretakerId();
+
+    try {
+      const [settingsRes, daycareRes, inquiriesRes] = await Promise.all([
+        caretakerApi.getSettings().catch(() => null),
+        token ? caretakerApi.getDaycare().catch(() => null) : Promise.resolve(null),
+        token
+          ? fetchInquiries({
+              ...(caretakerId ? { caretakerId } : {}),
+              token,
+            }).catch(() => [])
+          : Promise.resolve([]),
+      ]);
+
+      if (settingsRes?.defaultCatchmentRadiusKm) {
+        setCatchmentRadius(Number(settingsRes.defaultCatchmentRadiusKm) || 3);
+      }
+
+      if (daycareRes) {
+        const cap = parseCapacity(
+          daycareRes.operations?.maxCapacity ??
+            daycareRes.workPermit?.authorizedCapacity ??
+            profile.permitAuthorizedCapacity ??
+            profile.maxCapacity
+        );
+        setTotalSlots(cap);
+      }
+
+      const list = Array.isArray(inquiriesRes) ? inquiriesRes : [];
+      const acceptedList = list
+        .filter((inq: any) => inq.status === "accepted")
+        .map((inq: any) => mapInquiryToBookingItem(inq, "future"));
+      const pendingList = list
+        .filter((inq: any) => inq.status !== "accepted" && inq.status !== "rejected")
+        .map((inq: any) => mapInquiryToBookingItem(inq, "inquiry"));
+
+      // Merge any locally-added manual bookings for this caretaker session
+      let manualCurrent: BookingItem[] = [];
+      let manualFuture: BookingItem[] = [];
+      if (typeof window !== "undefined") {
+        try {
+          const storageKey = `toddler_manual_bookings_${caretakerId || "default"}`;
+          const raw = localStorage.getItem(storageKey);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed?.current)) manualCurrent = parsed.current;
+            if (Array.isArray(parsed?.future)) manualFuture = parsed.future;
+          }
+        } catch {
+          // Ignore malformed local bookings
+        }
+      }
+
+      const nextCurrent = manualCurrent;
+      const nextFuture = [...manualFuture, ...acceptedList];
+      setCurrentBookings(nextCurrent);
+      setFutureBookings(nextFuture);
+      setFittingInquiries(pendingList);
+
+      setSelectedItem((prev) => {
+        const combined = [...nextCurrent, ...nextFuture, ...pendingList];
+        if (prev && combined.some((item) => item.id === prev.id)) {
+          return combined.find((item) => item.id === prev.id) || prev;
+        }
+        return combined[0] || null;
+      });
+    } catch (err) {
+      console.error("Failed to load caretaker dashboard data:", err);
+    }
+  }, [profile.maxCapacity, profile.permitAuthorizedCapacity]);
+
+  useEffect(() => {
+    loadDashboardData();
+
+    const socket = getSocket();
+    if (!socket) return;
+
+    const caretakerId = caretakerApi.getCaretakerId();
+    if (caretakerId) {
+      socket.emit("join:caretaker", caretakerId);
+    }
+
+    const handleSync = () => {
+      loadDashboardData();
+    };
+
+    socket.on("inquiry:created", handleSync);
+    socket.on("inquiry:updated", handleSync);
+    socket.on("daycare:updated", handleSync);
+
+    return () => {
+      socket.off("inquiry:created", handleSync);
+      socket.off("inquiry:updated", handleSync);
+      socket.off("daycare:updated", handleSync);
+    };
+  }, [loadDashboardData]);
 
   // Mobile segmented view state: "calendar" vs "details" (Rule 2 Mandatory Mobile Switcher)
   const [mobileView, setMobileView] = useState<"calendar" | "details">("calendar");
@@ -75,10 +302,34 @@ export default function CaretakerDashboardPage() {
     }
   };
 
+  // Persist manual bookings helper
+  const saveManualBookings = (nextCurrent: BookingItem[], nextFuture: BookingItem[]) => {
+    if (typeof window === "undefined") return;
+    try {
+      const caretakerId = caretakerApi.getCaretakerId();
+      const storageKey = `toddler_manual_bookings_${caretakerId || "default"}`;
+      localStorage.setItem(
+        storageKey,
+        JSON.stringify({
+          current: nextCurrent,
+          future: nextFuture.filter((b) => b.id.startsWith("manual-")),
+        })
+      );
+    } catch {
+      // Ignore storage errors
+    }
+  };
+
   // Add new booking
   const handleAddBooking = (newBooking: BookingItem) => {
-    setFutureBookings((prev) => [newBooking, ...prev]);
-    setSelectedItem(newBooking);
+    const manualBooking: BookingItem = {
+      ...newBooking,
+      id: newBooking.id.startsWith("manual-") ? newBooking.id : `manual-${newBooking.id}`,
+    };
+    const nextFuture = [manualBooking, ...futureBookings];
+    setFutureBookings(nextFuture);
+    saveManualBookings(currentBookings, nextFuture);
+    setSelectedItem(manualBooking);
     setNotificationMsg({
       text: t.caretakerDashboard.modals.addBooking.success,
       type: "success",
@@ -91,9 +342,12 @@ export default function CaretakerDashboardPage() {
     const updateList = (list: BookingItem[]) =>
       list.map((item) => (item.id === updated.id ? updated : item));
 
-    setCurrentBookings(updateList);
-    setFutureBookings(updateList);
+    const nextCurrent = updateList(currentBookings);
+    const nextFuture = updateList(futureBookings);
+    setCurrentBookings(nextCurrent);
+    setFutureBookings(nextFuture);
     setFittingInquiries(updateList);
+    saveManualBookings(nextCurrent, nextFuture);
 
     if (selectedItem?.id === updated.id) {
       setSelectedItem(updated);
@@ -104,29 +358,32 @@ export default function CaretakerDashboardPage() {
   const handleReleaseItem = (id: string) => {
     const removeList = (list: BookingItem[]) => list.filter((item) => item.id !== id);
 
-    setCurrentBookings(removeList);
-    setFutureBookings(removeList);
+    const nextCurrent = removeList(currentBookings);
+    const nextFuture = removeList(futureBookings);
+    setCurrentBookings(nextCurrent);
+    setFutureBookings(nextFuture);
     setFittingInquiries(removeList);
+    saveManualBookings(nextCurrent, nextFuture);
 
     if (selectedItem?.id === id) {
-      setSelectedItem(currentBookings[0] || null);
+      setSelectedItem(nextCurrent[0] || nextFuture[0] || null);
     }
   };
 
-  // Functional Mark As Booked: converts inquiry into confirmed future booking (Figma node 580:2006)
+  // Functional Mark As Booked: converts inquiry into confirmed future booking
   const handleMarkAsBooked = (inquiry: BookingItem) => {
     const convertedBooking: BookingItem = {
       ...inquiry,
       category: "future",
       isBooked: true,
       isExtendingRight: true,
-      period: "Dec 2027 – Aug 2029",
-      periodDe: "Dez. 2027 – Aug. 2029",
-      placementStart: "Dec 1, 2027",
-      placementStartDe: "1. Dez. 2027",
-      kindergartenTransition: "Aug 31, 2029",
-      kindergartenTransitionDe: "31. Aug. 2029",
+      inquiryStatus: "Accepted",
     };
+
+    // Persist accepted status to backend when inquiry is a backend record
+    if (inquiry.id && !inquiry.id.startsWith("manual-")) {
+      updateInquiryStatus(inquiry.id, "accepted").catch(() => {});
+    }
 
     // Remove from inquiries and add to future bookings
     setFittingInquiries((prev) => prev.filter((i) => i.id !== inquiry.id));
@@ -138,6 +395,9 @@ export default function CaretakerDashboardPage() {
       text: dt.markAsBookedSuccess,
       type: "success",
       onUndo: () => {
+        if (inquiry.id && !inquiry.id.startsWith("manual-")) {
+          updateInquiryStatus(inquiry.id, "pending").catch(() => {});
+        }
         setFutureBookings((prev) => prev.filter((b) => b.id !== inquiry.id));
         setFittingInquiries((prev) => [inquiry, ...prev]);
         setSelectedItem(inquiry);
@@ -150,10 +410,9 @@ export default function CaretakerDashboardPage() {
     }, 6000);
   };
 
-  // Functional Auto Schedule AI: simulates allocation and matches inquiries to upcoming vacancies
+  // Functional Auto Schedule AI: allocates the first fitting inquiry to an upcoming vacancy
   const handleTriggerAutoSchedule = () => {
-    // Hans desires Dec 2027 start, David transitions in Dec 2027 -> Perfect match with 0 vacant months!
-    const targetInquiry = fittingInquiries.find((i) => i.id === "inquiry-hans");
+    const targetInquiry = fittingInquiries[0];
     if (targetInquiry) {
       handleMarkAsBooked(targetInquiry);
       setNotificationMsg({
@@ -162,7 +421,10 @@ export default function CaretakerDashboardPage() {
       });
     } else {
       setNotificationMsg({
-        text: tb.aiScheduledSuccess,
+        text:
+          language === "de"
+            ? "Keine offenen Anfragen für die automatische Zuteilung vorhanden."
+            : "No pending inquiries available to auto-schedule.",
         type: "info",
       });
     }
@@ -171,6 +433,9 @@ export default function CaretakerDashboardPage() {
 
   // Update status of an inquiry (New -> Reviewing -> Invited -> Accepted)
   const handleUpdateInquiryStatus = (id: string, status: InquiryStatus) => {
+    if (id && !id.startsWith("manual-")) {
+      updateInquiryStatus(id, mapDashboardStatusToBackend(status)).catch(() => {});
+    }
     setFittingInquiries((prev) =>
       prev.map((item) => (item.id === id ? { ...item, inquiryStatus: status } : item))
     );
@@ -202,12 +467,15 @@ export default function CaretakerDashboardPage() {
   };
 
   // Highlight Slot Vacancies info toast
+  const allBookings = [...currentBookings, ...futureBookings, ...fittingInquiries];
+  const openVacanciesCount = Math.max(0, totalSlots - currentBookings.length);
+
   const handleViewVacancies = () => {
     setNotificationMsg({
       text:
         language === "de"
-          ? "Freie Plätze: 2 offene Plätze ab Oktober 2026 und Dezember 2027 prognostiziert."
-          : "Slot vacancies: 2 openings forecasted starting Oct 2026 and Dec 2027.",
+          ? `Freie Plätze: ${openVacanciesCount} von ${totalSlots} Plätzen aktuell verfügbar.`
+          : `Slot vacancies: ${openVacanciesCount} of ${totalSlots} spots currently available.`,
       type: "info",
     });
     setTimeout(() => setNotificationMsg(null), 4000);
@@ -217,9 +485,6 @@ export default function CaretakerDashboardPage() {
   const handleViewPermit = () => {
     setIsWorkPermitOpen(true);
   };
-
-  const allBookings = [...currentBookings, ...futureBookings, ...fittingInquiries];
-  const openVacanciesCount = 5 - currentBookings.length;
 
   return (
     <div className="min-h-screen flex flex-col bg-[#FAF7F2] text-[#1E1B18] overflow-x-clip">
@@ -276,9 +541,9 @@ export default function CaretakerDashboardPage() {
 
         {/* 13b Stat Cards Overview (Figma node 580:1661) */}
         <StatCardsOverview
-          inquiriesCount={fittingInquiries.length + 8}
-          openVacancies={openVacanciesCount > 0 ? openVacanciesCount : 1}
-          totalSlots={5}
+          inquiriesCount={fittingInquiries.length}
+          openVacancies={openVacanciesCount}
+          totalSlots={totalSlots}
           radiusValue={catchmentRadius}
           onFilterInquiries={handleScrollToInquiries}
           onViewRadius={handleViewRadius}

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import Link from "next/link";
 import { CaretakerHeader } from "../../../components/caretaker/CaretakerHeader";
 import { Footer } from "../../../components/Footer";
@@ -36,13 +36,95 @@ interface InquiryRecord {
 }
 
 export default function CaretakerInquiriesPage() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [inquiries, setInquiries] = useState<InquiryRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchHistory, setSearchHistory] = useState<string[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const searchBoxRef = useRef<HTMLDivElement>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedInquiry, setSelectedInquiry] = useState<InquiryRecord | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  const getHistoryKey = useCallback(() => {
+    const caretakerId = caretakerApi.getCaretakerId();
+    return `toddler_caretaker_inquiry_search_history_${caretakerId || "default"}`;
+  }, []);
+
+  // Load saved search history from localStorage
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(getHistoryKey());
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          setSearchHistory(parsed.filter((item): item is string => typeof item === "string" && item.trim().length > 0).slice(0, 8));
+        }
+      }
+    } catch {
+      // Ignore malformed storage
+    }
+  }, [getHistoryKey]);
+
+  // Close history dropdown on outside click
+  useEffect(() => {
+    const handleOutside = (e: MouseEvent) => {
+      if (searchBoxRef.current && !searchBoxRef.current.contains(e.target as Node)) {
+        setHistoryOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, []);
+
+  const saveSearchTerm = useCallback(
+    (term: string) => {
+      const clean = term.trim();
+      if (clean.length < 2) return;
+      setSearchHistory((prev) => {
+        const next = [clean, ...prev.filter((item) => item.toLowerCase() !== clean.toLowerCase())].slice(0, 8);
+        try {
+          localStorage.setItem(getHistoryKey(), JSON.stringify(next));
+        } catch {
+          // Ignore storage error
+        }
+        return next;
+      });
+    },
+    [getHistoryKey]
+  );
+
+  const removeHistoryTerm = (term: string) => {
+    setSearchHistory((prev) => {
+      const next = prev.filter((item) => item !== term);
+      try {
+        localStorage.setItem(getHistoryKey(), JSON.stringify(next));
+      } catch {
+        // Ignore storage error
+      }
+      return next;
+    });
+  };
+
+  const clearSearchHistory = () => {
+    setSearchHistory([]);
+    try {
+      localStorage.removeItem(getHistoryKey());
+    } catch {
+      // Ignore storage error
+    }
+  };
+
+  // Auto-save meaningful search queries after a brief pause
+  useEffect(() => {
+    const clean = searchQuery.trim();
+    if (clean.length < 2) return;
+    const timer = setTimeout(() => {
+      saveSearchTerm(clean);
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [searchQuery, saveSearchTerm]);
 
   // Load inquiries from backend filtered by caretakerId
   const loadData = async () => {
@@ -220,43 +302,185 @@ export default function CaretakerInquiriesPage() {
         </div>
 
         {/* Filter & Search Matrix */}
-        <div className="bg-white rounded-2xl border border-[#E5DDD2] p-3 sm:p-4 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">
-          {/* Search Input */}
-          <div className="relative flex-1">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by child, parent, phone, or reference ID..."
-              className="w-full bg-[#FAF7F2] border border-[#E5DDD2] rounded-xl pl-9 pr-4 py-2 text-xs sm:text-sm text-[#1E1B18] placeholder-[#9C8E7E] focus:outline-none focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] transition-colors min-h-[40px]"
-            />
-            <span className="absolute left-3 top-2.5 text-[#9C8E7E] text-sm">🔍</span>
+        <div className="bg-white rounded-2xl border border-[#E5DDD2] p-3 sm:p-4 shadow-2xs space-y-2.5">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            {/* Search Input + Search History Dropdown */}
+            <div ref={searchBoxRef} className="relative flex-1">
+              <div className="relative flex items-center">
+                <span className="absolute left-3 text-[#9C8E7E] pointer-events-none">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <circle cx="11" cy="11" r="8" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35" />
+                  </svg>
+                </span>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onFocus={() => setHistoryOpen(true)}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setHistoryOpen(true);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      saveSearchTerm(searchQuery);
+                      setHistoryOpen(false);
+                    } else if (e.key === "Escape") {
+                      setHistoryOpen(false);
+                    }
+                  }}
+                  placeholder={
+                    language === "de"
+                      ? "Nach Kind, Eltern, Telefon oder Referenz-ID suchen..."
+                      : "Search by child, parent, phone, or reference ID..."
+                  }
+                  className="w-full bg-[#FAF7F2] border border-[#E5DDD2] rounded-xl pl-9 pr-9 py-2 text-xs sm:text-sm text-[#1E1B18] placeholder-[#9C8E7E] focus:outline-none focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] transition-colors min-h-[42px]"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery("")}
+                    aria-label="Clear search"
+                    className="absolute right-2.5 w-6 h-6 rounded-full flex items-center justify-center text-[#7A6E62] hover:text-[#1E1B18] hover:bg-[#EBE3D7] transition-colors cursor-pointer"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+
+              {/* Search History Dropdown */}
+              {historyOpen && searchHistory.length > 0 && (
+                <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-30 bg-white border border-[#E5DDD2] rounded-xl shadow-lg overflow-hidden">
+                  <div className="flex items-center justify-between px-3.5 py-2 bg-[#FAF7F2] border-b border-[#EFE8DC]">
+                    <span className="text-[11px] font-bold text-[#7A6E62] uppercase tracking-wider flex items-center gap-1.5">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span>{language === "de" ? "Suchverlauf" : "Recent Parent Searches"}</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={clearSearchHistory}
+                      className="text-[11px] font-semibold text-[#A12D3A] hover:underline cursor-pointer"
+                    >
+                      {language === "de" ? "Alle löschen" : "Clear all"}
+                    </button>
+                  </div>
+                  <ul className="max-h-56 overflow-y-auto divide-y divide-[#F5F0E8]">
+                    {searchHistory.map((term) => (
+                      <li key={term} className="flex items-center justify-between gap-2 px-3 py-2 hover:bg-[#FAF7F2] transition-colors">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSearchQuery(term);
+                            saveSearchTerm(term);
+                            setHistoryOpen(false);
+                          }}
+                          className="flex-1 text-left text-xs sm:text-sm text-[#1E1B18] font-medium flex items-center gap-2 truncate cursor-pointer"
+                        >
+                          <svg className="w-3.5 h-3.5 text-[#9C8E7E] shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span className="truncate">{term}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeHistoryTerm(term)}
+                          aria-label={`Remove ${term}`}
+                          className="w-6 h-6 rounded-md flex items-center justify-center text-[#9C8E7E] hover:text-[#A12D3A] hover:bg-[#FEF2F2] transition-colors shrink-0 cursor-pointer"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            {/* Status Filter Pills */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
+              {[
+                { id: "all", label: "All" },
+                { id: "pending", label: "Pending" },
+                { id: "reviewed", label: "Reviewed" },
+                { id: "contacted", label: "Contacted" },
+                { id: "accepted", label: "Accepted" },
+                { id: "declined", label: "Declined" },
+              ].map((pill) => (
+                <button
+                  key={pill.id}
+                  type="button"
+                  onClick={() => setStatusFilter(pill.id)}
+                  className={`py-2 px-3 min-h-[38px] rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                    statusFilter === pill.id
+                      ? "bg-[#A12D3A] text-white shadow-2xs"
+                      : "bg-[#FAF7F2] text-[#6B5E51] border border-[#E5DDD2] hover:bg-white"
+                  }`}
+                >
+                  {pill.label}
+                </button>
+              ))}
+            </div>
           </div>
 
-          {/* Status Filter Pills */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
-            {[
-              { id: "all", label: "All" },
-              { id: "pending", label: "Pending" },
-              { id: "reviewed", label: "Reviewed" },
-              { id: "contacted", label: "Contacted" },
-              { id: "accepted", label: "Accepted" },
-              { id: "declined", label: "Declined" },
-            ].map((pill) => (
+          {/* Quick Recent Search History Chips */}
+          {searchHistory.length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-[#F4EFE7]">
+              <span className="text-[11px] font-semibold text-[#7A6E62] flex items-center gap-1 shrink-0">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>{language === "de" ? "Letzte Suchen:" : "Recent:"}</span>
+              </span>
+              {searchHistory.map((term) => {
+                const isActive = searchQuery.trim().toLowerCase() === term.toLowerCase();
+                return (
+                  <span
+                    key={term}
+                    className={`inline-flex items-center gap-1 pl-2.5 pr-1.5 py-1 rounded-full text-[11px] font-medium border transition-colors ${
+                      isActive
+                        ? "bg-[#FDF2F2] border-[#A12D3A] text-[#A12D3A]"
+                        : "bg-[#FAF7F2] border-[#E5DDD2] text-[#5C4C3E] hover:border-[#C4B7A5]"
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery(term);
+                        saveSearchTerm(term);
+                      }}
+                      className="cursor-pointer hover:underline max-w-[160px] truncate"
+                    >
+                      {term}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeHistoryTerm(term)}
+                      aria-label={`Remove ${term}`}
+                      className="w-4 h-4 rounded-full flex items-center justify-center hover:bg-black/5 cursor-pointer"
+                    >
+                      <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </span>
+                );
+              })}
               <button
-                key={pill.id}
                 type="button"
-                onClick={() => setStatusFilter(pill.id)}
-                className={`py-2 px-3 min-h-[38px] rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-                  statusFilter === pill.id
-                    ? "bg-[#A12D3A] text-white shadow-2xs"
-                    : "bg-[#FAF7F2] text-[#6B5E51] border border-[#E5DDD2] hover:bg-white"
-                }`}
+                onClick={clearSearchHistory}
+                className="text-[11px] font-semibold text-[#A12D3A] hover:underline ml-auto cursor-pointer"
               >
-                {pill.label}
+                {language === "de" ? "Verlauf löschen" : "Clear history"}
               </button>
-            ))}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Inquiries Cards List */}

@@ -102,6 +102,12 @@ export const de = {
     sendInquiry: "Anfrage senden",
     parentsReach: "Eltern im Umkreis von {radius} km um Ihre Kindertagespflege können diese finden",
     catchmentDesc: "Bestätigter Einzugsbereich für Familien in der Nachbarschaft",
+    caretakerGender: "Geschlecht der Betreuungsperson",
+    genderFemale: "Weiblich",
+    genderMale: "Männlich",
+    genderOther: "Divers",
+    website: "Webseite",
+    phone: "Telefon",
   },
   tags: {
     homeCooked: "selbst gekocht / angeliefert",
@@ -458,7 +464,7 @@ export const de = {
     nav: {
       dashboard: "Dashboard",
       daycareSlots: "Betreuungsplätze",
-      parentInquiries: "Elternanfragen",
+      parentInquiries: "Eltern-Suchverlauf",
       permitsVerification: "Erlaubnisse & Nachweise",
       userName: "Maria Weber",
       logout: "Abmelden",

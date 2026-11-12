@@ -113,6 +113,8 @@ export function mapDaycareToKita(doc: any): Kita {
     vacancyDate: rawWindow,
     vacancyDateDe: rawWindow,
     gender,
+    website: doc.contact?.website ? String(doc.contact.website).trim() : "",
+    phone: doc.contact?.phone ? String(doc.contact.phone).trim() : "",
     openingFrom,
     openingUntil,
   };

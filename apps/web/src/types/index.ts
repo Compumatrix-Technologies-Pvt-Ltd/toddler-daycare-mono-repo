@@ -33,6 +33,8 @@ export interface Kita {
   vacancyDate?: string;
   vacancyDateDe?: string;
   gender?: "female" | "male" | "other" | string;
+  website?: string;
+  phone?: string;
   openingFrom?: string;
   openingUntil?: string;
 }

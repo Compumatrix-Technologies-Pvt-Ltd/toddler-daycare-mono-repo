@@ -143,7 +143,6 @@ export function CaretakerHeader() {
       label: t.caretakerProfile.nav.parentInquiries,
       count: inquiriesCount,
     },
-    { href: "/caretaker/permits", label: t.caretakerProfile.nav.permitsVerification },
   ];
 
   const handleLockedClick = (e: React.MouseEvent) => {

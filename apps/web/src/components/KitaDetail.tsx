@@ -346,6 +346,84 @@ export function KitaDetail({
         </div>
       )}
 
+      {/* Caretaker Gender, Phone & Website */}
+      {(kita.gender || kita.phone || kita.website) && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3 py-3 border-b border-[#F0EAE1]">
+          {kita.gender && (
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-7 h-7 rounded-lg bg-[#F7F4EE] flex items-center justify-center text-[#7A6E62] shrink-0">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </div>
+              <div className="min-w-0">
+                <div className="text-[10px] font-medium text-[#7A6E62] truncate">
+                  {t.detail.caretakerGender}
+                </div>
+                <div className="text-xs font-semibold text-[#1E1B18] truncate">
+                  {kita.gender.toLowerCase() === "female"
+                    ? t.detail.genderFemale
+                    : kita.gender.toLowerCase() === "male"
+                    ? t.detail.genderMale
+                    : kita.gender.toLowerCase() === "other"
+                    ? t.detail.genderOther
+                    : kita.gender}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {kita.phone && (
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-7 h-7 rounded-lg bg-[#F7F4EE] flex items-center justify-center text-[#7A6E62] shrink-0">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                </svg>
+              </div>
+              <div className="min-w-0">
+                <div className="text-[10px] font-medium text-[#7A6E62] truncate">
+                  {t.detail.phone}
+                </div>
+                <a
+                  href={`tel:${kita.phone}`}
+                  className="text-xs font-semibold text-[#A12D3A] hover:underline truncate block"
+                >
+                  {kita.phone}
+                </a>
+              </div>
+            </div>
+          )}
+
+          {kita.website && (
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-7 h-7 rounded-lg bg-[#F7F4EE] flex items-center justify-center text-[#7A6E62] shrink-0">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="10" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" />
+                </svg>
+              </div>
+              <div className="min-w-0">
+                <div className="text-[10px] font-medium text-[#7A6E62] truncate">
+                  {t.detail.website}
+                </div>
+                <a
+                  href={
+                    kita.website.startsWith("http://") || kita.website.startsWith("https://")
+                      ? kita.website
+                      : `https://${kita.website}`
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-semibold text-[#A12D3A] hover:underline truncate block"
+                >
+                  {kita.website.replace(/^https?:\/\//, "")}
+                </a>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Bottom Feature Tags - renders raw daycare meal/pets details */}
       {(kita.mealsType || kita.petsPolicy) && (
         <div className="flex items-center gap-2 flex-wrap">

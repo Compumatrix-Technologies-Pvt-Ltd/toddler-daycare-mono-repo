@@ -102,6 +102,12 @@ export const en = {
     sendInquiry: "Send Inquiry",
     parentsReach: "Parents within {radius} km of your daycare can find it",
     catchmentDesc: "Verified neighborhood catchment area for local families",
+    caretakerGender: "Caretaker Gender",
+    genderFemale: "Female",
+    genderMale: "Male",
+    genderOther: "Other",
+    website: "Website",
+    phone: "Phone",
   },
   tags: {
     homeCooked: "home cooked / delivered",
@@ -458,7 +464,7 @@ export const en = {
     nav: {
       dashboard: "Dashboard",
       daycareSlots: "Daycare Slots",
-      parentInquiries: "Parent Inquiries",
+      parentInquiries: "Parent Search History",
       permitsVerification: "Permits & Verification",
       userName: "Maria Weber",
       logout: "Log Out",
