@@ -6,9 +6,9 @@ export { en } from "./en.js";
 
 export type Language = "de" | "en";
 
-export const translations = {
+export type Translations = typeof de;
+
+export const translations: Record<Language, Translations> = {
   de,
   en,
-} as const;
-
-export type Translations = typeof de;
+};

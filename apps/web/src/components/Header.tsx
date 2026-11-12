@@ -5,14 +5,53 @@ import Link from "next/link";
 import { useLanguage } from "../i18n/LanguageContext";
 import { ParentComingSoonModal } from "./modals/ParentComingSoonModal";
 import { useSessionFavorites } from "../utils/favoritesSession";
+import { caretakerApi } from "../utils/caretakerApi";
+import { getSocket } from "../utils/socket";
 
 export function Header() {
   const { t, language, setLanguage, toggleLanguage } = useLanguage();
-  const { favoritesCount } = useSessionFavorites();
+  const { favoritesCount, pruneFavorites } = useSessionFavorites();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [loginDropdownOpen, setLoginDropdownOpen] = useState(false);
   const [isParentModalOpen, setIsParentModalOpen] = useState(false);
   const loginDropdownRef = useRef<HTMLDivElement>(null);
+  const hasPrunedFavoritesRef = useRef(false);
+
+  // Remove any deleted or unapproved daycares from the favorites session
+  useEffect(() => {
+    let isMounted = true;
+
+    const syncFavoritesWithActiveDaycares = () => {
+      caretakerApi
+        .getAllDaycares()
+        .then((daycares) => {
+          if (!isMounted || !Array.isArray(daycares)) return;
+          const activeIds = daycares
+            .filter((d: any) => d.status === "approved")
+            .map((d: any) => String(d._id || d.id || ""))
+            .filter(Boolean);
+          pruneFavorites(activeIds);
+        })
+        .catch(() => {});
+    };
+
+    if (favoritesCount > 0 && !hasPrunedFavoritesRef.current) {
+      hasPrunedFavoritesRef.current = true;
+      syncFavoritesWithActiveDaycares();
+    }
+
+    const socket = getSocket();
+    if (socket) {
+      socket.on("daycare:updated", syncFavoritesWithActiveDaycares);
+    }
+
+    return () => {
+      isMounted = false;
+      if (socket) {
+        socket.off("daycare:updated", syncFavoritesWithActiveDaycares);
+      }
+    };
+  }, [favoritesCount, pruneFavorites]);
 
   // Close dropdown on click outside or escape key
   useEffect(() => {

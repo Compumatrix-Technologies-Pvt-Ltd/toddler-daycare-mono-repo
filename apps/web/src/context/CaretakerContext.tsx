@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { caretakerApi } from "@/utils/caretakerApi";
+import { getSocket } from "@/utils/socket";
 import { formatPostcodeCity, formatStreetDisplay } from "../components/map/mapUtils";
 
 export type ApprovalStatus = "pending" | "approved" | "rejected";
@@ -318,6 +319,29 @@ export function CaretakerProvider({ children }: { children: React.ReactNode }) {
 
     // Sync live approval status & verification from MongoDB backend
     refreshDaycare();
+
+    const token = caretakerApi.getToken();
+    const socket = getSocket();
+    if (!token || !socket) return;
+
+    const caretakerId = caretakerApi.getCaretakerId();
+    if (caretakerId) {
+      socket.emit("join:caretaker", caretakerId);
+    }
+
+    const handleDaycareChange = (payload?: { caretakerId?: string }) => {
+      if (!caretakerId || !payload?.caretakerId || payload.caretakerId === caretakerId) {
+        refreshDaycare();
+      }
+    };
+
+    socket.on("daycare:status_changed", handleDaycareChange);
+    socket.on("daycare:updated", handleDaycareChange);
+
+    return () => {
+      socket.off("daycare:status_changed", handleDaycareChange);
+      socket.off("daycare:updated", handleDaycareChange);
+    };
   }, []);
 
   const resetProfile = (initialData?: Partial<CaretakerProfileData>) => {

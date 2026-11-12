@@ -131,15 +131,9 @@ export function KitaCard({
               {kita.slots} {t.card.slotsAvailable}
             </span>
             <span className="text-[#C4B7A5]">•</span>
-            {kita.rating > 0 ? (
-              <span className="bg-[#FEF3C7] text-[#78350F] font-bold px-2 py-0.5 rounded-full text-[10px] sm:text-[11px]">
-                {kita.rating} ★ ({kita.reviewCount} {t.card.reviews})
-              </span>
-            ) : (
-              <span className="bg-[#FEF3C7] text-[#78350F] font-semibold px-2 py-0.5 rounded-full text-[10px] sm:text-[11px]">
-                ★ Neu
-              </span>
-            )}
+            <span className="bg-[#FEF3C7] text-[#78350F] font-bold px-2 py-0.5 rounded-full text-[10px] sm:text-[11px]">
+              {Number(kita.rating || 0).toFixed(1)} ★ ({Number(kita.reviewCount || 0)} {t.card.reviews})
+            </span>
           </div>
 
           {/* Tag chips */}

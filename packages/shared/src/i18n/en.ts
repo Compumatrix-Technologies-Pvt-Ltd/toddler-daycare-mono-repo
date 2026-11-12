@@ -457,8 +457,8 @@ export const en = {
     pageSubtitle: "Manage your daycare details, set your location on the map, and keep your contact information up to date. Manage your daycare vacancy slots, track bookings, and update availability.",
     nav: {
       dashboard: "Dashboard",
-      daycareSlots: "Daycare Slots (4)",
-      parentInquiries: "Parent Inquiries (7)",
+      daycareSlots: "Daycare Slots",
+      parentInquiries: "Parent Inquiries",
       permitsVerification: "Permits & Verification",
       userName: "Maria Weber",
       logout: "Log Out",

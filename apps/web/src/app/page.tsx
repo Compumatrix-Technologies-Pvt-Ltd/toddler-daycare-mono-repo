@@ -13,6 +13,7 @@ import { FilterModal } from "../components/modals/FilterModal";
 import { ImageGalleryModal } from "../components/modals/ImageGalleryModal";
 import { useLanguage } from "../i18n/LanguageContext";
 import { useSessionFavorites } from "../utils/favoritesSession";
+import { getSocket } from "../utils/socket";
 import { caretakerApi } from "../utils/caretakerApi";
 import { mapDaycareToKita } from "../utils/daycareMapper";
 import { calculateDistanceKm } from "../utils/geoDistance";
@@ -36,7 +37,7 @@ export default function ToddlerLandingPage() {
   const [allKitas, setAllKitas] = useState<Kita[]>([]);
   const [selectedKitaId, setSelectedKitaId] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(true);
-  const { favorites, toggleFavorite } = useSessionFavorites();
+  const { favorites, toggleFavorite, pruneFavorites } = useSessionFavorites();
 
   // Active Multi-Parameter Filters
   const [filters, setFilters] = useState<FilterState>(INITIAL_FILTERS);
@@ -140,6 +141,7 @@ export default function ToddlerLandingPage() {
                 .map(mapDaycareToKita)
             : [];
           setAllKitas(mappedDaycares);
+          pruneFavorites(mappedDaycares.map((k) => k.id));
           if (mappedDaycares.length > 0) {
             setSelectedKitaId(mappedDaycares[0].id);
           } else {
@@ -158,8 +160,21 @@ export default function ToddlerLandingPage() {
     loadDaycaresAndSettings();
     requestParentLocation();
 
+    const socket = getSocket();
+    const handleDaycareUpdated = () => {
+      if (isMounted) {
+        loadDaycaresAndSettings();
+      }
+    };
+    if (socket) {
+      socket.on("daycare:updated", handleDaycareUpdated);
+    }
+
     return () => {
       isMounted = false;
+      if (socket) {
+        socket.off("daycare:updated", handleDaycareUpdated);
+      }
     };
   }, []);
 

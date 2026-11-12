@@ -8,15 +8,17 @@ import { FavoriteCard } from "../../components/FavoriteCard";
 import { CaretakerProfileDrawer } from "../../components/CaretakerProfileDrawer";
 import { EnquiryModal, EnquiryScope } from "../../components/modals/EnquiryModal";
 import { ImageGalleryModal } from "../../components/modals/ImageGalleryModal";
+import { ParentComingSoonModal } from "../../components/modals/ParentComingSoonModal";
 import { Kita } from "../../types";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { useSessionFavorites } from "../../utils/favoritesSession";
 import { caretakerApi } from "../../utils/caretakerApi";
 import { mapDaycareToKita } from "../../utils/daycareMapper";
+import { getSocket } from "../../utils/socket";
 
 export default function FavoritesPage() {
   const { t } = useLanguage();
-  const { favorites, removeFavorite, clearFavorites } = useSessionFavorites();
+  const { favorites, removeFavorite, clearFavorites, pruneFavorites } = useSessionFavorites();
   const [allKitas, setAllKitas] = useState<Kita[]>([]);
   const [catchmentRadius, setCatchmentRadius] = useState<number>(3);
 
@@ -38,6 +40,7 @@ export default function FavoritesPage() {
               .filter((d: any) => d.status === "approved")
               .map(mapDaycareToKita);
             setAllKitas(mapped);
+            pruneFavorites(mapped.map((k) => k.id));
           }
         }
       } catch (err) {
@@ -45,8 +48,22 @@ export default function FavoritesPage() {
       }
     }
     loadDaycares();
+
+    const socket = getSocket();
+    const handleDaycareUpdated = () => {
+      if (isMounted) {
+        loadDaycares();
+      }
+    };
+    if (socket) {
+      socket.on("daycare:updated", handleDaycareUpdated);
+    }
+
     return () => {
       isMounted = false;
+      if (socket) {
+        socket.off("daycare:updated", handleDaycareUpdated);
+      }
     };
   }, []);
 
@@ -69,6 +86,7 @@ export default function FavoritesPage() {
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [galleryInitialIndex, setGalleryInitialIndex] = useState(0);
   const [galleryKita, setGalleryKita] = useState<Kita | null>(null);
+  const [isParentModalOpen, setIsParentModalOpen] = useState(false);
 
   // Handlers
   const handleRemoveFavorite = (id: string) => {
@@ -137,7 +155,8 @@ export default function FavoritesPage() {
               </p>
             </div>
             <button
-              onClick={() => alert(t.nav.login)}
+              type="button"
+              onClick={() => setIsParentModalOpen(true)}
               className="text-[#AE2F34] hover:text-[#88222E] font-medium text-sm hover:underline shrink-0 flex items-center gap-1 self-start sm:self-auto cursor-pointer min-h-[36px]"
             >
               <span>{t.favorites.banner.createAccount}</span>
@@ -273,6 +292,12 @@ export default function FavoritesPage() {
           daycareNames={favoriteList.map((k) => k.name)}
         />
       )}
+
+      {/* Parent Login Coming Soon Modal */}
+      <ParentComingSoonModal
+        isOpen={isParentModalOpen}
+        onClose={() => setIsParentModalOpen(false)}
+      />
 
       {/* Footer */}
       <Footer />

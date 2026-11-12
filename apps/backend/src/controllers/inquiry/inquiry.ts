@@ -6,6 +6,7 @@ import {
   getInquiryByIdService,
   updateInquiryStatusService,
 } from "../../services/inquiry/inquiryService.js";
+import { emitInquiryUpdated } from "../../config/socket.js";
 
 export const createInquiry = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -81,6 +82,16 @@ export const createInquiry = async (req: Request, res: Response): Promise<void> 
 
     const inquiry = result.inquiry || result;
     const parentEmailResult = result.parentEmailResult;
+
+    emitInquiryUpdated({
+      inquiryId: String(inquiry._id || inquiry.id || ""),
+      referenceId: inquiry.referenceId,
+      caretakerIds: Array.isArray(inquiry.caretakerIds)
+        ? inquiry.caretakerIds.map((id: any) => String(id))
+        : [],
+      status: inquiry.status,
+      action: "created",
+    });
 
     res.status(201).json({
       data: inquiry,
@@ -167,6 +178,16 @@ export const updateInquiryStatus = async (req: Request, res: Response): Promise<
       });
       return;
     }
+
+    emitInquiryUpdated({
+      inquiryId: String((updated as any)._id || id),
+      referenceId: (updated as any).referenceId,
+      caretakerIds: Array.isArray((updated as any).caretakerIds)
+        ? (updated as any).caretakerIds.map((cId: any) => String(cId))
+        : [],
+      status: (updated as any).status || status,
+      action: "status_changed",
+    });
 
     res.status(200).json({
       data: updated,

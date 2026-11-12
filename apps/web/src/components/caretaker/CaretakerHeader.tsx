@@ -6,7 +6,17 @@ import { usePathname } from "next/navigation";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { useCaretaker } from "../../context/CaretakerContext";
 import { caretakerApi } from "@/utils/caretakerApi";
+import { fetchInquiries } from "@/utils/inquery";
+import { getSocket } from "@/utils/socket";
 import { UnderReviewModal } from "./UnderReviewModal";
+
+function parseSlotCount(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.max(0, Math.floor(value));
+  }
+  const digits = String(value ?? "").replace(/\D/g, "");
+  return digits ? parseInt(digits, 10) : 0;
+}
 
 // Compute initials dynamically (e.g. "Priya Sharma" -> "PS", "Maria" -> "MA")
 function getInitials(name: string): string {
@@ -25,15 +35,21 @@ export function CaretakerHeader() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [lockedNotice, setLockedNotice] = useState<string | null>(null);
 
-  // Dynamic caretaker display name
+  // Dynamic caretaker display name & navigation counts
   const [displayName, setDisplayName] = useState(
     profile.caregiverName ||
       profile.daycareName ||
       (profile.email ? profile.email.split("@")[0] : "Caretaker")
   );
+  const [slotsCount, setSlotsCount] = useState<number>(() =>
+    parseSlotCount(profile.permitAuthorizedCapacity || profile.maxCapacity)
+  );
+  const [inquiriesCount, setInquiriesCount] = useState<number>(0);
 
-  // Sync with profile updates and backend daycare record
+  // Sync with profile updates and backend daycare / inquiries records
   useEffect(() => {
+    let cancelled = false;
+
     if (profile.caregiverName) {
       setDisplayName(profile.caregiverName);
     } else if (profile.daycareName) {
@@ -44,27 +60,89 @@ export function CaretakerHeader() {
       setDisplayName("Caretaker");
     }
 
+    const profileSlots = parseSlotCount(
+      profile.permitAuthorizedCapacity || profile.maxCapacity
+    );
+    setSlotsCount(profileSlots);
+
     const token = caretakerApi.getToken();
     if (!token) return;
 
-    caretakerApi
-      .getDaycare()
-      .then((data) => {
-        if (data.caregiverName) {
-          setDisplayName(data.caregiverName);
-        } else if (data.daycareName) {
-          setDisplayName(data.daycareName);
-        }
+    const caretakerId = caretakerApi.getCaretakerId();
+
+    const syncCounts = () => {
+      caretakerApi
+        .getDaycare()
+        .then((data) => {
+          if (cancelled) return;
+          if (data.caregiverName) {
+            setDisplayName(data.caregiverName);
+          } else if (data.daycareName) {
+            setDisplayName(data.daycareName);
+          }
+          const backendSlots = parseSlotCount(
+            data.operations?.maxCapacity ??
+              data.workPermit?.authorizedCapacity ??
+              profile.permitAuthorizedCapacity ??
+              profile.maxCapacity
+          );
+          setSlotsCount(backendSlots);
+        })
+        .catch(() => {});
+
+      fetchInquiries({
+        ...(caretakerId ? { caretakerId } : {}),
+        token,
       })
-      .catch(() => {});
-  }, [profile.caregiverName, profile.daycareName, profile.email]);
+        .then((list) => {
+          if (cancelled) return;
+          setInquiriesCount(Array.isArray(list) ? list.length : 0);
+        })
+        .catch(() => {});
+    };
+
+    syncCounts();
+
+    const socket = getSocket();
+    if (socket) {
+      if (caretakerId) {
+        socket.emit("join:caretaker", caretakerId);
+      }
+      socket.on("inquiry:created", syncCounts);
+      socket.on("inquiry:updated", syncCounts);
+      socket.on("daycare:updated", syncCounts);
+    }
+
+    return () => {
+      cancelled = true;
+      if (socket) {
+        socket.off("inquiry:created", syncCounts);
+        socket.off("inquiry:updated", syncCounts);
+        socket.off("daycare:updated", syncCounts);
+      }
+    };
+  }, [
+    profile.caregiverName,
+    profile.daycareName,
+    profile.email,
+    profile.maxCapacity,
+    profile.permitAuthorizedCapacity,
+  ]);
 
   const isApproved = approvalStatus === "approved";
 
-  const navItems = [
+  const navItems: { href: string; label: string; count?: number }[] = [
     { href: "/caretaker/dashboard", label: t.caretakerProfile.nav.dashboard },
-    { href: "/caretaker/slots", label: t.caretakerProfile.nav.daycareSlots },
-    { href: "/caretaker/inquiries", label: t.caretakerProfile.nav.parentInquiries },
+    {
+      href: "/caretaker/slots",
+      label: t.caretakerProfile.nav.daycareSlots,
+      count: slotsCount,
+    },
+    {
+      href: "/caretaker/inquiries",
+      label: t.caretakerProfile.nav.parentInquiries,
+      count: inquiriesCount,
+    },
     { href: "/caretaker/permits", label: t.caretakerProfile.nav.permitsVerification },
   ];
 
@@ -127,12 +205,23 @@ export function CaretakerHeader() {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`transition-all py-1.5 cursor-pointer flex flex-col items-center relative shrink-0 whitespace-nowrap ${isActive
+                  className={`transition-all py-1.5 cursor-pointer flex items-center gap-1.5 relative shrink-0 whitespace-nowrap ${isActive
                     ? "text-[#7C5800] font-semibold border-b-2 border-[#7C5800] pb-1"
                     : "text-[#514532] hover:text-[#7C5800]"
                     }`}
                 >
                   <span>{item.label}</span>
+                  {item.count !== undefined && (
+                    <span
+                      className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full leading-none tabular-nums ${
+                        isActive
+                          ? "bg-[#7C5800] text-white"
+                          : "bg-[#F3ECE2] text-[#514532] border border-[#E5DDD2]"
+                      }`}
+                    >
+                      {item.count}
+                    </span>
+                  )}
                 </Link>
               );
             }
@@ -299,12 +388,23 @@ export function CaretakerHeader() {
                   key={item.href}
                   href={item.href}
                   onClick={() => setMobileMenuOpen(false)}
-                  className={`px-4 py-3 rounded-xl text-sm font-semibold transition-all min-h-[44px] flex items-center ${isActive
+                  className={`px-4 py-3 rounded-xl text-sm font-semibold transition-all min-h-[44px] flex items-center justify-between ${isActive
                     ? "bg-[#FAF4ED] text-[#7C5800]"
                     : "text-[#514532] hover:bg-white"
                     }`}
                 >
-                  {item.label}
+                  <span>{item.label}</span>
+                  {item.count !== undefined && (
+                    <span
+                      className={`text-[11px] font-bold px-2 py-0.5 rounded-full leading-none tabular-nums ${
+                        isActive
+                          ? "bg-[#7C5800] text-white"
+                          : "bg-[#F3ECE2] text-[#514532] border border-[#E5DDD2]"
+                      }`}
+                    >
+                      {item.count}
+                    </span>
+                  )}
                 </Link>
               );
             }

@@ -170,6 +170,30 @@ export function removeSessionFavorite(id: string): Record<string, boolean> {
 }
 
 /**
+ * Remove any favorite IDs that are no longer present in the active approved daycares list.
+ */
+export function pruneSessionFavorites(validIds: Iterable<string>): Record<string, boolean> {
+  const validSet = new Set(validIds);
+  const current = getSessionFavorites();
+  const next: Record<string, boolean> = {};
+  let changed = false;
+
+  for (const [id, active] of Object.entries(current)) {
+    if (active && validSet.has(id)) {
+      next[id] = true;
+    } else if (active) {
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    saveSessionFavorites(next);
+  }
+
+  return next;
+}
+
+/**
  * Clear all favorites from the 30-day session.
  */
 export function clearSessionFavorites(): void {
@@ -246,6 +270,12 @@ export function useSessionFavorites() {
     setDaysRemaining(30);
   }, []);
 
+  const pruneFavorites = useCallback((validIds: Iterable<string>) => {
+    const updated = pruneSessionFavorites(validIds);
+    setFavoritesState(updated);
+    setDaysRemaining(getDaysRemaining());
+  }, []);
+
   return {
     favorites,
     favoritesCount,
@@ -254,5 +284,6 @@ export function useSessionFavorites() {
     toggleFavorite,
     removeFavorite,
     clearFavorites,
+    pruneFavorites,
   };
 }

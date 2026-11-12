@@ -14,6 +14,7 @@ import { AdminForgotPassword } from "./components/auth/AdminForgotPassword";
 import { adminAuthService } from "./services/adminAuthService";
 import { adminDaycareService } from "./services/adminDaycareService";
 import { adminSettingsService } from "./services/adminSettingsService";
+import { getAdminSocket } from "./utils/socket";
 import {
   AdminTab,
   AdminUser,
@@ -99,6 +100,24 @@ function AdminPortalInner() {
       .catch((err) => {
         console.warn("Could not load platform settings:", err);
       });
+
+    const socket = getAdminSocket();
+    if (!socket) return;
+
+    socket.emit("join:admin");
+
+    const handleDaycareUpdated = () => {
+      adminDaycareService
+        .getDaycares()
+        .then((data) => setApplications(data))
+        .catch(() => {});
+    };
+
+    socket.on("daycare:updated", handleDaycareUpdated);
+
+    return () => {
+      socket.off("daycare:updated", handleDaycareUpdated);
+    };
   }, [currentUser]);
 
   const handleSaveSettings = async (newSettings: PlatformSettings) => {

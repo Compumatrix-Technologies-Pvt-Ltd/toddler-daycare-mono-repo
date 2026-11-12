@@ -7,6 +7,7 @@ import { Footer } from "../../../components/Footer";
 import { useLanguage } from "../../../i18n/LanguageContext";
 import { fetchInquiries, updateInquiryStatus } from "../../../utils/inquery";
 import { caretakerApi } from "../../../utils/caretakerApi";
+import { getSocket } from "../../../utils/socket";
 
 interface InquiryRecord {
   _id: string;
@@ -63,6 +64,26 @@ export default function CaretakerInquiriesPage() {
 
   useEffect(() => {
     loadData();
+
+    const socket = getSocket();
+    if (!socket) return;
+
+    const caretakerId = caretakerApi.getCaretakerId();
+    if (caretakerId) {
+      socket.emit("join:caretaker", caretakerId);
+    }
+
+    const handleInquirySync = () => {
+      loadData();
+    };
+
+    socket.on("inquiry:created", handleInquirySync);
+    socket.on("inquiry:updated", handleInquirySync);
+
+    return () => {
+      socket.off("inquiry:created", handleInquirySync);
+      socket.off("inquiry:updated", handleInquirySync);
+    };
   }, []);
 
   // Update Status handler

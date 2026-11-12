@@ -3,6 +3,7 @@ import { registerService, loginService, profileService } from "@/services/admin/
 import Daycare from "@/modules/caretaker/daycare";
 import Caretaker from "@/modules/caretaker/auth";
 import { emailService } from "@/services/email/emailService";
+import { emitDaycareUpdated } from "@/config/socket";
 
 //Register controller
 export const register = async (req: Request, res: Response) => {
@@ -181,6 +182,13 @@ export const updateDaycareStatusAdmin = async (req: Request, res: Response) => {
                 );
             }
         }
+
+        emitDaycareUpdated({
+            daycareId: String(daycare._id),
+            ...(daycare.caretakerId ? { caretakerId: String(daycare.caretakerId) } : {}),
+            status: daycare.status,
+            action: "status_changed",
+        });
 
         return res.status(200).json({
             success: true,

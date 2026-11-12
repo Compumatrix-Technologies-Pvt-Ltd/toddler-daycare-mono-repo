@@ -457,8 +457,8 @@ export const de = {
     pageSubtitle: "Verwalte Deine Tagespflege-Details, lege Deinen Standort auf der Karte fest und halte Deine Kontaktdaten aktuell. Verwalte Deine freien Plätze, verfolge Buchungen und aktualisiere die Verfügbarkeit.",
     nav: {
       dashboard: "Dashboard",
-      daycareSlots: "Betreuungsplätze (4)",
-      parentInquiries: "Elternanfragen (7)",
+      daycareSlots: "Betreuungsplätze",
+      parentInquiries: "Elternanfragen",
       permitsVerification: "Erlaubnisse & Nachweise",
       userName: "Maria Weber",
       logout: "Abmelden",

@@ -6,6 +6,7 @@ import {
     allDaycareService,
     deleteDaycarePhotoService,
 } from "@/services/caretaker/daycare";
+import { emitDaycareUpdated } from "@/config/socket";
 
 export const createDaycare = async (
     req: Request,
@@ -14,6 +15,14 @@ export const createDaycare = async (
 ) => {
     try {
         const daycare = await createDaycareService(req);
+        const daycareDoc = daycare as any;
+
+        emitDaycareUpdated({
+            daycareId: String(daycareDoc?._id || ""),
+            ...(daycareDoc?.caretakerId ? { caretakerId: String(daycareDoc.caretakerId) } : {}),
+            status: daycareDoc?.status,
+            action: "created",
+        });
 
         return res.status(201).json({
             success: true,
@@ -66,6 +75,13 @@ export const allDaycare = async (req: Request, res: Response) => {
 export const updateDaycare = async (req: Request, res: Response) => {
     try {
         const daycare = await updatedDaycareService(req);
+
+        emitDaycareUpdated({
+            daycareId: String(daycare._id),
+            ...(daycare.caretakerId ? { caretakerId: String(daycare.caretakerId) } : {}),
+            status: daycare.status,
+            action: "updated",
+        });
 
         return res.status(200).json({
             success: true,
