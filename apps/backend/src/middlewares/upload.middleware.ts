@@ -56,11 +56,19 @@ const fileFilter: multer.Options["fileFilter"] = (
     }
 
     if (file.fieldname === "workPermit") {
-        if (file.mimetype === "application/pdf") {
+        const allowedPermitTypes = [
+            "application/pdf",
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "image/jpeg",
+            "image/png",
+            "image/webp",
+        ];
+        if (allowedPermitTypes.includes(file.mimetype)) {
             return cb(null, true);
         }
 
-        return cb(new Error("Work permit must be a PDF document"));
+        return cb(new Error("Work permit must be a PDF, DOC, DOCX, JPG, or PNG document"));
     }
 
     cb(new Error("Unexpected file field"));

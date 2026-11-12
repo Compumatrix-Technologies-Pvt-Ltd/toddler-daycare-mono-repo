@@ -158,6 +158,15 @@ export const updatedDaycareService = async (req: Request) => {
             throw new Error("daycare not found");
         }
 
+        const prevLoc = {
+            latitude: Number(daycare.location?.latitude),
+            longitude: Number(daycare.location?.longitude),
+            street: String(daycare.location?.street || "").trim(),
+            houseNumber: String(daycare.location?.houseNumber || "").trim(),
+            postcode: String(daycare.location?.postcode || "").trim(),
+            city: String(daycare.location?.city || "").trim(),
+        };
+
         // Update normal text fields
         const fields = [
             "daycareName",
@@ -173,6 +182,29 @@ export const updatedDaycareService = async (req: Request) => {
             if (req.body[field] !== undefined) {
                 (daycare as any)[field] = parseField(req.body[field]);
             }
+        }
+
+        let locationChanged = false;
+        if (req.body.location !== undefined) {
+            const nextLoc = {
+                latitude: Number(daycare.location?.latitude),
+                longitude: Number(daycare.location?.longitude),
+                street: String(daycare.location?.street || "").trim(),
+                houseNumber: String(daycare.location?.houseNumber || "").trim(),
+                postcode: String(daycare.location?.postcode || "").trim(),
+                city: String(daycare.location?.city || "").trim(),
+            };
+            locationChanged =
+                prevLoc.street !== nextLoc.street ||
+                prevLoc.houseNumber !== nextLoc.houseNumber ||
+                prevLoc.postcode !== nextLoc.postcode ||
+                prevLoc.city !== nextLoc.city ||
+                (Number.isFinite(prevLoc.latitude) &&
+                    Number.isFinite(nextLoc.latitude) &&
+                    Math.abs(prevLoc.latitude - nextLoc.latitude) > 0.00001) ||
+                (Number.isFinite(prevLoc.longitude) &&
+                    Number.isFinite(nextLoc.longitude) &&
+                    Math.abs(prevLoc.longitude - nextLoc.longitude) > 0.00001);
         }
 
         // Handle photo deletions & reconciliation
@@ -257,6 +289,13 @@ export const updatedDaycareService = async (req: Request) => {
                 url: `/uploads/daycare/documents/${newWorkPermit.filename}`,
                 fileName: newWorkPermit.originalname,
             };
+        }
+
+        // Any location change or resubmission sends the daycare to admin review (pending)
+        const isResubmitRequested =
+            req.body.resubmitForReview === "true" || req.body.resubmitForReview === true;
+        if (locationChanged || (daycare.status === "rejected" && (newWorkPermit || isResubmitRequested))) {
+            daycare.status = "pending";
         }
 
         await daycare.save();

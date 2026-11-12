@@ -3,6 +3,7 @@
 import React, { useEffect, useRef } from "react";
 import L from "leaflet";
 import { Kita } from "../../types";
+import { isValidLatLng, safeMoveMap } from "./mapUtils";
 
 interface SearchMapProps {
   kitas: Kita[];
@@ -17,13 +18,10 @@ interface SearchMapProps {
 const getCoordinatesForKita = (kita: Kita, index: number): [number, number] => {
   if (
     kita.coordinates &&
-    typeof kita.coordinates.lat === "number" &&
-    typeof kita.coordinates.lng === "number" &&
-    !isNaN(kita.coordinates.lat) &&
-    !isNaN(kita.coordinates.lng) &&
+    isValidLatLng(kita.coordinates.lat, kita.coordinates.lng) &&
     (kita.coordinates.lat !== 0 || kita.coordinates.lng !== 0)
   ) {
-    return [kita.coordinates.lat, kita.coordinates.lng];
+    return [kita.coordinates.lat as number, kita.coordinates.lng as number];
   }
 
   // Fallback coordinates around the registered cluster
@@ -142,9 +140,10 @@ export default function SearchMap({
     if (!mapContainerRef.current) return;
 
     if (!mapInstanceRef.current) {
-      const defaultCenter: [number, number] = userLocation
-        ? [userLocation.lat, userLocation.lng]
-        : [20.571046, 74.94637];
+      const defaultCenter: [number, number] =
+        userLocation && isValidLatLng(userLocation.lat, userLocation.lng)
+          ? [userLocation.lat, userLocation.lng]
+          : [20.571046, 74.94637];
 
       const activeCoords = activeKita
         ? getCoordinatesForKita(
@@ -164,9 +163,12 @@ export default function SearchMap({
       });
 
       const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN?.trim();
-      const fallbackTileUrl = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
+      const hasValidMapboxToken = Boolean(mapboxToken && mapboxToken.startsWith("pk."));
+      const osmTileUrl = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+      const osmAttribution =
+        '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 
-      if (mapboxToken) {
+      if (hasValidMapboxToken && mapboxToken) {
         const isRetina = typeof window !== "undefined" && window.devicePixelRatio > 1;
         const mapboxLayer = L.tileLayer(
           `https://api.mapbox.com/styles/v1/mapbox/light-v11/tiles/512/{z}/{x}/{y}${isRetina ? "@2x" : ""}?access_token=${mapboxToken}`,
@@ -182,16 +184,16 @@ export default function SearchMap({
         mapboxLayer.on("tileerror", () => {
           if (!map.hasLayer(mapboxLayer)) return;
           map.removeLayer(mapboxLayer);
-          L.tileLayer(fallbackTileUrl, {
-            subdomains: "abcd",
+          L.tileLayer(osmTileUrl, {
+            attribution: osmAttribution,
             maxZoom: 19,
           }).addTo(map);
         });
 
         mapboxLayer.addTo(map);
       } else {
-        L.tileLayer(fallbackTileUrl, {
-          subdomains: "abcd",
+        L.tileLayer(osmTileUrl, {
+          attribution: osmAttribution,
           maxZoom: 19,
         }).addTo(map);
       }
@@ -201,7 +203,27 @@ export default function SearchMap({
 
       mapInstanceRef.current = map;
 
-      // Safely invalidate size after layout mounts
+      // Safely invalidate size after layout mounts or mobile tab switches
+      const resizeObserver =
+        typeof ResizeObserver !== "undefined"
+          ? new ResizeObserver(() => {
+              if (mapInstanceRef.current && mapContainerRef.current) {
+                const { offsetWidth, offsetHeight } = mapContainerRef.current;
+                if (offsetWidth > 0 && offsetHeight > 0) {
+                  try {
+                    mapInstanceRef.current.invalidateSize({ animate: false });
+                  } catch {
+                    // Container was unmounted or destroyed
+                  }
+                }
+              }
+            })
+          : null;
+
+      if (resizeObserver && mapContainerRef.current) {
+        resizeObserver.observe(mapContainerRef.current);
+      }
+
       const resizeTimer = setTimeout(() => {
         if (
           mapInstanceRef.current &&
@@ -218,6 +240,7 @@ export default function SearchMap({
 
       return () => {
         clearTimeout(resizeTimer);
+        resizeObserver?.disconnect();
         if (mapInstanceRef.current) {
           try {
             mapInstanceRef.current.remove();
@@ -273,7 +296,7 @@ export default function SearchMap({
     });
 
     // Render User Location & Catchment Radius Circle
-    if (userLocation && typeof userLocation.lat === "number" && typeof userLocation.lng === "number") {
+    if (userLocation && isValidLatLng(userLocation.lat, userLocation.lng)) {
       const userLatLng: [number, number] = [userLocation.lat, userLocation.lng];
       const radiusMeters = (catchmentRadius || 3) * 1000;
 
@@ -335,7 +358,7 @@ export default function SearchMap({
         activeKita,
         activeIdx >= 0 ? activeIdx : 0
       );
-      map.flyTo(activeCoords, 14, { animate: true, duration: 0.8 });
+      safeMoveMap(map, activeCoords, 14, 0.8);
     }
   }, [kitas, activeKita?.id, userLocation?.lat, userLocation?.lng, catchmentRadius]);
 

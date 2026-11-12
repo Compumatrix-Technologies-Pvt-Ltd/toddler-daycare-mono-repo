@@ -5,7 +5,7 @@ import { useLanguage } from "../../context/LanguageContext";
 interface ApplicationDetailModalProps {
   application: DaycareApplication | null;
   onClose: () => void;
-  onApprove: (id: string) => void;
+  onApprove: (application: DaycareApplication) => void;
   onReject: (id: string) => void;
 }
 
@@ -82,7 +82,7 @@ export function ApplicationDetailModal({
                   {t.admin.dashboard.table.colPermit}
                 </span>
                 <span className="font-mono font-bold text-[#1E1B18] break-all">
-                  {application.permitNumber}
+                  {application.permitId || application.permitNumber}
                 </span>
               </div>
               <div>
@@ -90,23 +90,57 @@ export function ApplicationDetailModal({
                   {t.admin.dashboard.detailModal.registeredCapacity}
                 </span>
                 <span className="font-bold text-[#1E1B18]">
-                  {application.capacity} {t.admin.dashboard.table.children}
+                  {application.authorizedCapacity ?? application.capacity} {t.admin.dashboard.table.children}
                 </span>
               </div>
-              <div>
+              {application.registrationDate && (
+                <div>
+                  <span className="text-[#7A6E62] block text-[11px]">
+                    {t.admin.dashboard.detailModal.registrationDate}
+                  </span>
+                  <span className="font-semibold text-[#1E1B18]">
+                    {application.registrationDate}
+                  </span>
+                </div>
+              )}
+              {application.expirationDate && (
+                <div>
+                  <span className="text-[#7A6E62] block text-[11px]">
+                    {t.admin.dashboard.detailModal.expirationDate}
+                  </span>
+                  <span className="font-semibold text-[#16A34A]">
+                    {application.expirationDate}
+                  </span>
+                </div>
+              )}
+              {application.issuingAuthority && (
+                <div>
+                  <span className="text-[#7A6E62] block text-[11px]">
+                    {t.admin.dashboard.detailModal.issuingAuthority}
+                  </span>
+                  <span className="font-semibold text-[#1E1B18]">
+                    {application.issuingAuthority}
+                  </span>
+                </div>
+              )}
+              <div className="sm:col-span-2">
                 <span className="text-[#7A6E62] block text-[11px]">
                   {t.admin.dashboard.table.colDistrict}
                 </span>
-                <span className="font-semibold text-[#1E1B18]">
-                  {application.district}
-                </span>
-              </div>
-              <div>
-                <span className="text-[#7A6E62] block text-[11px]">Address</span>
-                <span className="text-[#5C4C3E] truncate block">
+                <span className="text-[#5C4C3E] break-words block">
                   {application.location}
                 </span>
               </div>
+              {application.adminNotes && (
+                <div className="sm:col-span-2 pt-1">
+                  <span className="text-[#7A6E62] block text-[11px]">
+                    {t.admin.dashboard.detailModal.adminNotes}
+                  </span>
+                  <p className="text-[#4E443B] bg-[#FAF7F2] p-2.5 rounded-lg border border-[#E5DDD2] text-xs mt-1">
+                    {application.adminNotes}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -130,16 +164,28 @@ export function ApplicationDetailModal({
               </div>
             </div>
 
-            <div className="pt-2">
-              <span className="text-[#7A6E62] block text-[11px]">
-                {t.admin.dashboard.detailModal.attachedDocuments}
-              </span>
-              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 mt-1 rounded-lg bg-[#FAF7F2] border border-[#E5DDD2] text-xs font-semibold text-[#16A34A]">
-                <span>✓</span>
-                <span>
-                  {application.documentsCount} {t.admin.dashboard.detailModal.documentsCount}
+            <div className="pt-2 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <span className="text-[#7A6E62] block text-[11px]">
+                  {t.admin.dashboard.detailModal.attachedDocuments}
                 </span>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 mt-1 rounded-lg bg-[#FAF7F2] border border-[#E5DDD2] text-xs font-semibold text-[#16A34A]">
+                  <span>✓</span>
+                  <span>
+                    {application.documentsCount} {t.admin.dashboard.detailModal.documentsCount}
+                  </span>
+                </div>
               </div>
+              {application.workPermitUrl && (
+                <a
+                  href={application.workPermitUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#E5DDD2] bg-[#FAF7F2] hover:bg-[#EFE7DC] text-xs font-semibold text-[#A12D3A] transition-colors"
+                >
+                  <span>{t.admin.dashboard.detailModal.viewPermitDoc}</span>
+                </a>
+              )}
             </div>
           </div>
         </div>
@@ -169,8 +215,8 @@ export function ApplicationDetailModal({
               <button
                 type="button"
                 onClick={() => {
-                  onApprove(application.id);
                   onClose();
+                  onApprove(application);
                 }}
                 className="px-4 py-2 rounded-xl bg-[#16A34A] hover:bg-[#15803D] text-white font-semibold text-xs shadow-2xs transition-colors cursor-pointer min-h-[38px]"
               >

@@ -19,9 +19,9 @@ export function WorkPermitModal({ isOpen, onClose }: WorkPermitModalProps) {
       role="dialog"
       aria-modal="true"
       aria-labelledby="permit-modal-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-xs animate-in fade-in overflow-y-auto"
     >
-      <div className="bg-white rounded-2xl border border-[#EAECF0] shadow-xl max-w-lg w-full p-6 sm:p-7 space-y-6 max-h-[92vh] overflow-y-auto">
+      <div className="bg-white rounded-2xl border border-[#EAECF0] shadow-xl max-w-lg w-full p-4 sm:p-7 space-y-5 sm:space-y-6 max-h-[92vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-start justify-between gap-4 border-b border-[#F2F4F7] pb-4">
           <div className="flex items-center gap-3">
@@ -45,7 +45,7 @@ export function WorkPermitModal({ isOpen, onClose }: WorkPermitModalProps) {
             type="button"
             onClick={onClose}
             aria-label={m.close}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-[#667085] hover:text-[#101828] hover:bg-[#F2F4F7] transition-colors cursor-pointer shrink-0"
+            className="w-10 h-10 rounded-lg flex items-center justify-center text-[#667085] hover:text-[#101828] hover:bg-[#F2F4F7] transition-colors cursor-pointer shrink-0"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -54,9 +54,9 @@ export function WorkPermitModal({ isOpen, onClose }: WorkPermitModalProps) {
         </div>
 
         {/* Verification Status Pill */}
-        <div className="p-3.5 rounded-xl bg-[#F0FDF4] border border-[#BBF7D0] flex items-center justify-between gap-3">
+        <div className="p-3.5 rounded-xl bg-[#F0FDF4] border border-[#BBF7D0] flex flex-wrap items-center justify-between gap-2 sm:gap-3">
           <div className="flex items-center gap-2.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#16A34A] animate-pulse" />
+            <span className="w-2.5 h-2.5 rounded-full bg-[#16A34A] animate-pulse shrink-0" />
             <span className="text-xs font-bold text-[#15803D]">
               {language === "de" ? "Amtlich verifiziert & aktuell" : "Officially Verified & Active"}
             </span>
@@ -68,29 +68,29 @@ export function WorkPermitModal({ isOpen, onClose }: WorkPermitModalProps) {
 
         {/* Certificate Details Matrix */}
         <div className="space-y-3 text-xs">
-          <div className="flex items-center justify-between py-2 border-b border-[#F2F4F7]">
+          <div className="flex flex-wrap items-center justify-between gap-2 py-2 border-b border-[#F2F4F7]">
             <span className="text-[#667085] font-medium">{m.permitNumber}</span>
             <span className="font-bold text-[#101828] font-mono">DE-84920-BER-2024</span>
           </div>
-          <div className="flex items-center justify-between py-2 border-b border-[#F2F4F7]">
+          <div className="flex flex-wrap items-center justify-between gap-2 py-2 border-b border-[#F2F4F7]">
             <span className="text-[#667085] font-medium">{m.authority}</span>
-            <span className="font-semibold text-[#101828]">{m.authorityVal}</span>
+            <span className="font-semibold text-[#101828] sm:text-right">{m.authorityVal}</span>
           </div>
-          <div className="flex items-center justify-between py-2 border-b border-[#F2F4F7]">
+          <div className="flex flex-wrap items-center justify-between gap-2 py-2 border-b border-[#F2F4F7]">
             <span className="text-[#667085] font-medium">{m.maxCapacity}</span>
             <span className="font-bold text-[#15803D] bg-[#F0FDF4] px-2 py-0.5 rounded-md">
               {m.maxCapacityVal}
             </span>
           </div>
-          <div className="flex items-center justify-between py-2 border-b border-[#F2F4F7]">
+          <div className="flex flex-wrap items-center justify-between gap-2 py-2 border-b border-[#F2F4F7]">
             <span className="text-[#667085] font-medium">{m.insurance}</span>
-            <span className="font-semibold text-[#101828] text-right">{m.insuranceVal}</span>
+            <span className="font-semibold text-[#101828] sm:text-right">{m.insuranceVal}</span>
           </div>
-          <div className="flex items-center justify-between py-2 border-b border-[#F2F4F7]">
+          <div className="flex flex-wrap items-center justify-between gap-2 py-2 border-b border-[#F2F4F7]">
             <span className="text-[#667085] font-medium">{m.firstAid}</span>
-            <span className="font-semibold text-[#101828] text-right">{m.firstAidVal}</span>
+            <span className="font-semibold text-[#101828] sm:text-right">{m.firstAidVal}</span>
           </div>
-          <div className="flex items-center justify-between py-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 py-2">
             <span className="text-[#667085] font-medium">{m.validUntil}</span>
             <span className="font-bold text-[#101828]">{m.validUntilVal}</span>
           </div>

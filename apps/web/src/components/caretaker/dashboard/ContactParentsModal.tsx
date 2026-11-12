@@ -38,11 +38,11 @@ export function ContactParentsModal({ isOpen, onClose, item }: ContactParentsMod
       role="dialog"
       aria-modal="true"
       aria-labelledby="contact-parents-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-xs animate-in fade-in overflow-y-auto"
       onClick={onClose}
     >
       <div
-        className="relative bg-white rounded-2xl shadow-2xl border border-[#EAECF0] w-full max-w-lg p-6 max-h-[92vh] overflow-y-auto text-[#101828]"
+        className="relative bg-white rounded-2xl shadow-2xl border border-[#EAECF0] w-full max-w-lg p-4 sm:p-6 max-h-[92vh] overflow-y-auto text-[#101828]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4 pb-4 border-b border-[#EAECF0]">
@@ -59,7 +59,7 @@ export function ContactParentsModal({ isOpen, onClose, item }: ContactParentsMod
             type="button"
             onClick={onClose}
             aria-label={t.caretakerDashboard.details.close}
-            className="w-9 h-9 rounded-lg flex items-center justify-center text-[#667085] hover:text-[#101828] hover:bg-[#F2F4F7] transition-colors cursor-pointer shrink-0"
+            className="w-10 h-10 rounded-lg flex items-center justify-center text-[#667085] hover:text-[#101828] hover:bg-[#F2F4F7] transition-colors cursor-pointer shrink-0"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -82,7 +82,7 @@ export function ContactParentsModal({ isOpen, onClose, item }: ContactParentsMod
               <svg className="w-4 h-4 text-[#667085]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
-              <a href={`mailto:${item.parentContact.email}`} className="text-[#175CD3] hover:underline font-medium">
+              <a href={`mailto:${item.parentContact.email}`} className="text-[#175CD3] hover:underline font-medium break-all">
                 {item.parentContact.email}
               </a>
             </div>
@@ -105,7 +105,7 @@ export function ContactParentsModal({ isOpen, onClose, item }: ContactParentsMod
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               placeholder={m.subjectPlaceholder}
-              className="w-full h-10 px-3 rounded-lg border border-[#D0D5DD] text-sm text-[#101828] placeholder-[#98A2B3] focus:outline-hidden focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] transition-all"
+              className="w-full h-[42px] px-3 rounded-lg border border-[#D0D5DD] text-sm text-[#101828] placeholder-[#98A2B3] focus:outline-hidden focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] transition-all"
             />
           </div>
 
@@ -123,17 +123,17 @@ export function ContactParentsModal({ isOpen, onClose, item }: ContactParentsMod
             />
           </div>
 
-          <div className="pt-3 border-t border-[#EAECF0] flex items-center justify-end gap-2.5">
+          <div className="pt-3 border-t border-[#EAECF0] flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-lg border border-[#D0D5DD] text-xs font-semibold text-[#344054] hover:bg-[#F2F4F7] transition-all cursor-pointer"
+              className="min-h-[42px] px-4 py-2 rounded-lg border border-[#D0D5DD] text-xs font-semibold text-[#344054] hover:bg-[#F2F4F7] transition-all cursor-pointer"
             >
               {m.cancel}
             </button>
             <button
               type="submit"
-              className="px-4 py-2 rounded-lg bg-[#0F172A] hover:bg-[#1E293B] text-white text-xs font-semibold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+              className="min-h-[42px] px-4 py-2 rounded-lg bg-[#0F172A] hover:bg-[#1E293B] text-white text-xs font-semibold transition-all shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />

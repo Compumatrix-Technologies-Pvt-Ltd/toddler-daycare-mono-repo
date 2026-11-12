@@ -13,8 +13,8 @@ export function LogoutModal({ isOpen, onClose, onConfirm }: LogoutModalProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-in fade-in">
-      <div className="relative w-full max-w-md bg-white rounded-2xl shadow-xl border border-[#E5DDD2] p-6 space-y-4 animate-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto bg-black/40 backdrop-blur-xs animate-in fade-in">
+      <div className="relative w-full max-w-md max-h-[92vh] overflow-y-auto bg-white rounded-2xl shadow-xl border border-[#E5DDD2] p-5 sm:p-6 space-y-4 animate-in zoom-in-95 duration-150">
         {/* Close Button */}
         <button
           type="button"

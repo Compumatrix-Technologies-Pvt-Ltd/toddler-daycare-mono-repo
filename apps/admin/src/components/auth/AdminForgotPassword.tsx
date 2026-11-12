@@ -40,18 +40,18 @@ export function AdminForgotPassword({
   };
 
   return (
-    <div className="min-h-screen bg-[#FAF7F2] text-[#1E1B18] flex flex-col justify-between p-4 sm:p-6 lg:p-8 antialiased">
+    <div className="min-h-screen bg-[#FAF7F2] text-[#1E1B18] flex flex-col justify-between p-4 sm:p-6 lg:p-8 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] antialiased">
       {/* Top Bar with Language Switcher */}
-      <div className="w-full max-w-5xl mx-auto flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
+      <div className="w-full max-w-5xl mx-auto flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5 min-w-0">
           <div className="w-9 h-9 rounded-full flex items-center justify-center relative shrink-0 shadow-2xs">
             <BrandSunIcon className="w-9 h-9 text-[#EAA000]" />
           </div>
-          <div>
-            <span className="font-bold text-[#423223] text-sm sm:text-base leading-tight block">
+          <div className="min-w-0">
+            <span className="font-bold text-[#423223] text-sm sm:text-base leading-tight block truncate">
               {t.brand.title}
             </span>
-            <span className="text-[10px] text-[#8A775C] uppercase tracking-wider font-semibold">
+            <span className="text-[10px] text-[#8A775C] uppercase tracking-wider font-semibold block truncate">
               {t.admin.badge} Control
             </span>
           </div>
@@ -69,7 +69,7 @@ export function AdminForgotPassword({
       </div>
 
       {/* Main Card */}
-      <div className="w-full max-w-md mx-auto my-6 sm:my-8 bg-white rounded-2xl border border-[#E5DDD2] shadow-sm p-6 sm:p-8 space-y-6 animate-in fade-in zoom-in-95 duration-200">
+      <div className="w-full max-w-md mx-auto my-5 sm:my-8 bg-white rounded-2xl border border-[#E5DDD2] shadow-sm p-5 sm:p-8 space-y-5 sm:space-y-6 animate-in fade-in zoom-in-95 duration-200">
         {!isSubmitted ? (
           <>
             {/* Header */}

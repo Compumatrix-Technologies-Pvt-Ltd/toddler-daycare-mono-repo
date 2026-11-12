@@ -2,6 +2,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/a
 
 export interface CaretakerLoginResponse {
     success: boolean;
+    code?: string;
     message: string;
     data: {
         caretaker: {
@@ -9,6 +10,8 @@ export interface CaretakerLoginResponse {
             email: string;
         };
         token: string;
+        daycareStatus?: "pending" | "approved" | "rejected" | null;
+        isProfileComplete?: boolean;
     };
 }
 
@@ -48,7 +51,10 @@ export const caretakerApi = {
 
         const result = await res.json();
         if (!res.ok || !result.success) {
-            throw new Error(result.message || "Login failed");
+            const err: any = new Error(result.message || "Login failed");
+            err.code = result.code;
+            err.status = res.status;
+            throw err;
         }
 
         // Persist JWT Token & Caretaker ID
@@ -223,5 +229,6 @@ export const caretakerApi = {
         localStorage.removeItem("caretaker_token");
         localStorage.removeItem("caretaker_email");
         localStorage.removeItem("caretaker_id");
+        localStorage.removeItem("toddler_caretaker_profile_v1");
     },
 };

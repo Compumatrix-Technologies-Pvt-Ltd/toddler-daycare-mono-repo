@@ -44,7 +44,52 @@ export default function ToddlerLandingPage() {
   // Parent's Location & Catchment Filtering
   const [parentLocation, setParentLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [isLocating, setIsLocating] = useState<boolean>(false);
-  const [strictRadiusFilter, setStrictRadiusFilter] = useState<boolean>(true);
+  const [locationQuery, setLocationQuery] = useState<string>("");
+  const [isSearchingLocation, setIsSearchingLocation] = useState<boolean>(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
+
+  // Geocode typed location query via OpenStreetMap Nominatim
+  const handleSearchLocation = async (query: string) => {
+    const trimmed = query.trim();
+    if (!trimmed) return;
+    setIsSearchingLocation(true);
+    setLocationError(null);
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(
+          trimmed
+        )}&limit=1`
+      );
+      if (!res.ok) throw new Error("Search failed");
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        const lat = Number.parseFloat(data[0].lat);
+        const lng = Number.parseFloat(data[0].lon);
+        if (Number.isFinite(lat) && Number.isFinite(lng)) {
+          setParentLocation({ lat, lng });
+          setLocationQuery(data[0].display_name || trimmed);
+          return;
+        }
+      }
+      setLocationError(t.search.locationNotFound);
+    } catch {
+      setLocationError(t.search.locationNotFound);
+    } finally {
+      setIsSearchingLocation(false);
+    }
+  };
+
+  const handleSelectLocation = (coords: { lat: number; lng: number }, label: string) => {
+    setLocationError(null);
+    setLocationQuery(label);
+    setParentLocation(coords);
+  };
+
+  const handleClearLocation = () => {
+    setLocationQuery("");
+    setLocationError(null);
+    requestParentLocation();
+  };
 
   // Request Parent's Current GPS Location
   const requestParentLocation = () => {
@@ -142,8 +187,8 @@ export default function ToddlerLandingPage() {
   const displayKitas = useMemo(() => {
     return kitasWithDistance
       .filter((k) => {
-        // 1. Radius Filter (if strictRadiusFilter is on and parentLocation exists)
-        if (strictRadiusFilter && parentLocation && k.distanceKm != null) {
+        // 1. Radius Filter (when parentLocation exists)
+        if (parentLocation && k.distanceKm != null) {
           if (k.distanceKm > filters.radiusKm) return false;
         }
 
@@ -219,7 +264,7 @@ export default function ToddlerLandingPage() {
         return true;
       })
       .sort((a, b) => (a.distanceKm ?? 999) - (b.distanceKm ?? 999));
-  }, [kitasWithDistance, filters, strictRadiusFilter, parentLocation]);
+  }, [kitasWithDistance, filters, parentLocation]);
 
   // Ensure an active daycare is selected from the filtered list
   useEffect(() => {
@@ -290,6 +335,16 @@ export default function ToddlerLandingPage() {
       <main className="flex-1 max-w-[1360px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-5">
         {/* 2. Top Parameter-Based Filter & Search Matrix */}
         <SearchBar
+          locationQuery={locationQuery}
+          setLocationQuery={(val) => {
+            setLocationQuery(val);
+            if (locationError) setLocationError(null);
+          }}
+          onSelectLocation={handleSelectLocation}
+          onSearchLocation={handleSearchLocation}
+          onClearLocation={handleClearLocation}
+          isSearchingLocation={isSearchingLocation}
+          locationError={locationError}
           childrenCount={filters.childrenCount}
           setChildrenCount={(val) => setFilters((prev) => ({ ...prev, childrenCount: val }))}
           selectedMonth={filters.startMonth}
@@ -314,10 +369,6 @@ export default function ToddlerLandingPage() {
             catchmentRadius={filters.radiusKm}
             isLocating={isLocating}
             onLocateMe={requestParentLocation}
-            strictRadiusFilter={strictRadiusFilter}
-            onToggleRadiusFilter={() => setStrictRadiusFilter((prev) => !prev)}
-            totalFilteredCount={displayKitas.length}
-            totalAvailableCount={allKitas.length}
           />
 
           {/* Active Parameter Filter Pills */}
@@ -470,19 +521,20 @@ export default function ToddlerLandingPage() {
                       >
                         {t.results.useDaycareArea} (~0.1 km)
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setStrictRadiusFilter(false);
-                          setFilters((prev) => ({
-                            ...INITIAL_FILTERS,
-                            radiusKm: prev.radiusKm,
-                          }));
-                        }}
-                        className="px-3.5 py-2 rounded-xl border border-[#D5C9B8] bg-white text-[#423223] text-xs font-semibold hover:bg-[#FAF7F2] cursor-pointer transition-colors"
-                      >
-                        {t.results.showAllDaycares.replace("{count}", String(allKitas.length))}
-                      </button>
+                      {activeFiltersCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setFilters((prev) => ({
+                              ...INITIAL_FILTERS,
+                              radiusKm: prev.radiusKm,
+                            }))
+                          }
+                          className="px-3.5 py-2 rounded-xl border border-[#D5C9B8] bg-white text-[#423223] text-xs font-semibold hover:bg-[#FAF7F2] cursor-pointer transition-colors"
+                        >
+                          {t.modals.filter.clearAll}
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>

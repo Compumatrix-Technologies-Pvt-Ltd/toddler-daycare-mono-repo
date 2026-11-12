@@ -36,9 +36,9 @@ export function DemandRadiusModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="radius-modal-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-xs animate-in fade-in overflow-y-auto"
     >
-      <div className="bg-white rounded-2xl border border-[#EAECF0] shadow-xl max-w-lg w-full p-6 sm:p-7 space-y-6 max-h-[92vh] overflow-y-auto">
+      <div className="bg-white rounded-2xl border border-[#EAECF0] shadow-xl max-w-lg w-full p-4 sm:p-7 space-y-5 sm:space-y-6 max-h-[92vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-start justify-between gap-4 border-b border-[#F2F4F7] pb-4">
           <div className="flex items-center gap-3">
@@ -62,7 +62,7 @@ export function DemandRadiusModal({
             type="button"
             onClick={onClose}
             aria-label={m.close}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-[#667085] hover:text-[#101828] hover:bg-[#F2F4F7] transition-colors cursor-pointer shrink-0"
+            className="w-10 h-10 rounded-lg flex items-center justify-center text-[#667085] hover:text-[#101828] hover:bg-[#F2F4F7] transition-colors cursor-pointer shrink-0"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -72,7 +72,7 @@ export function DemandRadiusModal({
 
         {/* Current Radius Visual Slider */}
         <div className="space-y-4 bg-[#FAFBFC] p-4 rounded-xl border border-[#EAECF0]">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-xs font-semibold text-[#344054]">{m.radiusLabel}</span>
             <span className="text-sm font-bold text-[#175CD3] bg-[#EFF8FF] px-2.5 py-1 rounded-md border border-[#B2DDFF]">
               {m.radiusUnit.replace("{km}", String(radiusValue))}
@@ -89,7 +89,7 @@ export function DemandRadiusModal({
             className="w-full accent-[#7C5800] cursor-pointer"
           />
 
-          <div className="flex justify-between text-[11px] text-[#98A2B3] font-medium">
+          <div className="flex justify-between gap-1 text-[10px] sm:text-[11px] text-[#98A2B3] font-medium">
             <span>1 km (Hyper-local)</span>
             <span>3 km (Standard Urban)</span>
             <span>5 km</span>
@@ -98,16 +98,16 @@ export function DemandRadiusModal({
         </div>
 
         {/* Simulation Output Card */}
-        <div className="p-4 rounded-xl bg-[#FAF8F5] border border-[#EBE3D7] flex items-center justify-between gap-4">
+        <div className="p-4 rounded-xl bg-[#FAF8F5] border border-[#EBE3D7] flex items-center justify-between gap-3">
           <div>
             <div className="text-[11px] font-semibold text-[#7A6E62] uppercase tracking-wide">
               {m.projectedLeads}
             </div>
-            <div className="text-xl font-bold text-[#101828] mt-1">
+            <div className="text-lg sm:text-xl font-bold text-[#101828] mt-1">
               ~{simulatedLeads} {language === "de" ? "Familien im Umkreis" : "Matching families"}
             </div>
           </div>
-          <div className="w-12 h-12 rounded-full bg-white border border-[#E5DDD2] flex items-center justify-center text-[#7C5800] text-lg font-bold shadow-2xs">
+          <div className="w-12 h-12 shrink-0 rounded-full bg-white border border-[#E5DDD2] flex items-center justify-center text-[#7C5800] text-lg font-bold shadow-2xs">
             {simulatedLeads}
           </div>
         </div>

@@ -29,12 +29,18 @@
 ---
 
 ## 2. 100% Mobile Responsiveness on Every Page (Mandatory Standard)
-- **Mobile First & Responsive Across All Breakpoints**:
-  Every single screen, component, modal, sheet, and drawer MUST look stunning, remain fully readable, and operate smoothly across:
-  - **Compact Mobile (320px – 390px)**: iPhone SE, compact Android devices.
-  - **Standard Mobile (391px – 640px)**: Modern smartphones (iPhone, Pixel, Galaxy).
-  - **Tablets & Foldables (641px – 1024px)**: iPads, tablets, narrow split-screen viewports.
-  - **Desktops & Wide Displays (1025px+)**: Laptops and large monitors (max container width: `1360px`).
+- **Mobile First & Responsive Across All Breakpoints (Both `apps/web` & `apps/admin`)**:
+  Every single screen, component, modal, sheet, and drawer in **both `apps/web` and `apps/admin`** MUST render cleanly, remain fully readable, and operate smoothly across all target device viewports without horizontal overflow or clipped controls:
+  - **Mandatory Mobile Viewport Test Matrix**:
+    - `360 × 800` — **Android (most used)** compact baseline (zero horizontal scroll, single-row top header without wrapping/collision, readable action cards & modals).
+    - `375 × 812` — **iPhone notch** viewport (`viewport-fit=cover` + `env(safe-area-inset-*)` padding awareness for sticky headers, full-screen drawers, and bottom bars).
+    - `390 × 844` — **Latest iPhone** standard viewport.
+    - `412 × 915` — **Large Android** viewport.
+  - **Responsive Breakpoint Tiers**:
+    - **Compact Mobile (`320px – 390px`)**: `360 × 800` and `375 × 812` notch iPhones, compact Android devices.
+    - **Standard Mobile (`391px – 640px`)**: `390 × 844`, `412 × 915`, modern smartphones.
+    - **Tablets & Foldables (`641px – 1024px`)**: iPads, tablets, narrow split-screen viewports.
+    - **Desktops & Wide Displays (`1025px+`)**: Laptops and large monitors (max container width: `1360px` / `1440px` admin).
 
 - **Mandatory Mobile UX Patterns**:
   1. **Segmented Mobile View Switcher**:

@@ -222,7 +222,7 @@ export default function CaretakerDashboardPage() {
   const openVacanciesCount = 5 - currentBookings.length;
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#FAF7F2] text-[#1E1B18]">
+    <div className="min-h-screen flex flex-col bg-[#FAF7F2] text-[#1E1B18] overflow-x-clip">
       {/* 1. Navigation Header (Figma node 580:1260 / 580:1640) */}
       <CaretakerHeader />
 

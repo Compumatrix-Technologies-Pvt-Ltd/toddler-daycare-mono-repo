@@ -62,15 +62,15 @@ export function ImageGalleryModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col justify-between p-3 sm:p-6 animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col justify-between p-3 sm:p-6 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] animate-in fade-in duration-200"
       role="dialog"
       aria-modal="true"
       aria-label={`${kita.name} ${t.gallery.title}`}
     >
       {/* Top Header Bar */}
-      <div className="flex items-center justify-between text-white pb-3 sm:pb-4 border-b border-white/10 shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center shrink-0">
+      <div className="flex items-center justify-between gap-2 text-white pb-3 sm:pb-4 border-b border-white/10 shrink-0 min-w-0">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/10 flex items-center justify-center shrink-0">
             <svg
               viewBox="0 0 36 36"
               className="w-6 h-6 text-[#EAA000]"
@@ -86,16 +86,16 @@ export function ImageGalleryModal({
               />
             </svg>
           </div>
-          <div>
-            <h3 className="font-bold text-base sm:text-lg leading-tight font-heading">
+          <div className="min-w-0">
+            <h3 className="font-bold text-sm sm:text-lg leading-tight font-heading truncate">
               {kita.name}
             </h3>
-            <p className="text-xs text-white/70">{kita.location}</p>
+            <p className="text-xs text-white/70 truncate">{kita.location}</p>
           </div>
         </div>
 
         {/* Counter & Action Buttons */}
-        <div className="flex items-center gap-2.5 sm:gap-4">
+        <div className="flex items-center gap-2 sm:gap-4 shrink-0">
           <span className="text-xs sm:text-sm font-medium text-white/80 bg-white/10 px-3 py-1 rounded-full">
             {currentPhotoText}
           </span>

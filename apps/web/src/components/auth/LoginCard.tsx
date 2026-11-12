@@ -10,7 +10,7 @@ import { caretakerApi } from "../../utils/caretakerApi";
 export function LoginCard() {
   const { t } = useLanguage();
   const router = useRouter();
-  const { checkLoginRedirect, completionPercentage, approvalStatus } = useCaretaker();
+  const { resetProfile, refreshDaycare } = useCaretaker();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -26,25 +26,40 @@ export function LoginCard() {
 
     try {
       //call backend login api
-      await caretakerApi.login(email.trim(), password);
+      const loginData = await caretakerApi.login(email.trim(), password);
+      resetProfile({ email: loginData.caretaker.email, isRegistered: true });
+      await refreshDaycare();
 
       //showsuccess
       setNotice({
-        title: "login successful",
+        title: "Login Successful",
         desc: t.caretakerProfile.loginNotice.loginSuccessMessage,
         type: "success",
       });
 
+      const targetPath =
+        loginData.daycareStatus === "approved"
+          ? "/caretaker/dashboard"
+          : "/caretaker/profile";
+
       //navigate to caretaker profile setup or dashboard
       setTimeout(() => {
-        router.push("/caretaker/profile");
+        router.push(targetPath);
       }, 700);
     } catch (error: any) {
-      setNotice({
-        title: "Login Failed",
-        desc: error.message || "Invalid email or password",
-        type: "incomplete",
-      });
+      if (error?.code === "DAYCARE_UNDER_REVIEW" || error?.status === 403) {
+        setNotice({
+          title: t.caretakerProfile.loginNotice.underReviewLoginTitle,
+          desc: t.caretakerProfile.loginNotice.underReviewLoginDesc,
+          type: "awaiting",
+        });
+      } else {
+        setNotice({
+          title: "Login Failed",
+          desc: error.message || "Invalid email or password",
+          type: "incomplete",
+        });
+      }
     } finally {
       setIsLoading(false);
     }

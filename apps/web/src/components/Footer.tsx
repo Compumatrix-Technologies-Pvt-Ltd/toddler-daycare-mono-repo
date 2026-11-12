@@ -8,7 +8,7 @@ export function Footer() {
   const { t } = useLanguage();
 
   return (
-    <footer className="mt-8 sm:mt-12 bg-[#ECE6DC] border-t border-[#DFD6C8] py-6 sm:py-8 px-4 sm:px-6 lg:px-8 text-[#6D6154]">
+    <footer className="mt-8 sm:mt-12 bg-[#ECE6DC] border-t border-[#DFD6C8] py-6 sm:py-8 pb-[max(1.5rem,env(safe-area-inset-bottom))] px-4 sm:px-6 lg:px-8 text-[#6D6154]">
       <div className="max-w-[1360px] mx-auto flex flex-col md:flex-row items-center justify-between gap-4 sm:gap-6">
         <div className="space-y-1 text-center md:text-left">
           <div className="flex items-center justify-center md:justify-start gap-2">

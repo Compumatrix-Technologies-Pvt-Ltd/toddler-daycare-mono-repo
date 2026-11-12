@@ -120,7 +120,7 @@ export function Dropdown({
           id={listId}
           role="listbox"
           aria-labelledby={buttonId}
-          className={`absolute z-30 mt-1.5 min-w-full w-max max-w-[240px] rounded-xl border border-[#E2D8CC] bg-white shadow-[0_8px_24px_rgba(0,0,0,0.10)] p-1 max-h-60 overflow-y-auto kita-scrollbar ${
+          className={`absolute z-30 mt-1.5 min-w-full w-max max-w-[min(240px,calc(100vw-2rem))] rounded-xl border border-[#E2D8CC] bg-white shadow-[0_8px_24px_rgba(0,0,0,0.10)] p-1 max-h-60 overflow-y-auto kita-scrollbar ${
             menuAlign === "right" ? "right-0" : "left-0"
           }`}
         >

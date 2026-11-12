@@ -72,8 +72,8 @@ const daycareSchema = new Schema<IDaycare>(
             latitude: { type: Number, required: true },
             longitude: { type: Number, required: true },
             street: { type: String, required: true },
-            houseNumber: { type: String, required: true },
-            postcode: { type: String, required: true },
+            houseNumber: { type: String, default: "" },
+            postcode: { type: String, default: "" },
             city: { type: String, required: true },
         },
 
@@ -81,6 +81,13 @@ const daycareSchema = new Schema<IDaycare>(
             url: { type: String, default: "" },
             publicId: String,
             fileName: { type: String, default: "" },
+            permitId: { type: String, default: "" },
+            registrationDate: { type: String, default: "" },
+            expirationDate: { type: String, default: "" },
+            issuingAuthority: { type: String, default: "" },
+            authorizedCapacity: { type: Number },
+            adminNotes: { type: String, default: "" },
+            approvedAt: { type: Date },
         },
 
         status: {

@@ -3,10 +3,12 @@ import { LanguageProvider, useLanguage } from "./context/LanguageContext";
 import { AdminHeader } from "./components/layout/AdminHeader";
 import { AdminSidebar } from "./components/layout/AdminSidebar";
 import { DashboardView } from "./components/dashboard/DashboardView";
+import { DaycaresTableSection } from "./components/dashboard/DaycaresTableSection";
 import { InquiriesView } from "./components/inquiries/InquiriesView";
 import { SettingsView } from "./components/settings/SettingsView";
 import { LogoutModal } from "./components/modals/LogoutModal";
 import { ApplicationDetailModal } from "./components/modals/ApplicationDetailModal";
+import { WorkPermitApproveModal } from "./components/modals/WorkPermitApproveModal";
 import { AdminLogin } from "./components/auth/AdminLogin";
 import { AdminForgotPassword } from "./components/auth/AdminForgotPassword";
 import { adminAuthService } from "./services/adminAuthService";
@@ -17,6 +19,7 @@ import {
   AdminUser,
   DaycareApplication,
   PlatformSettings,
+  WorkPermitDetails,
 } from "./types/admin";
 
 const INITIAL_SETTINGS: PlatformSettings = {
@@ -41,6 +44,7 @@ function AdminPortalInner() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [logoutModalOpen, setLogoutModalOpen] = useState(false);
   const [selectedApp, setSelectedApp] = useState<DaycareApplication | null>(null);
+  const [approveTargetApp, setApproveTargetApp] = useState<DaycareApplication | null>(null);
 
   // Real Daycare Applications from MongoDB (zero mock data)
   const [applications, setApplications] = useState<DaycareApplication[]>([]);
@@ -109,11 +113,34 @@ function AdminPortalInner() {
     }
   };
 
-  const handleUpdateStatus = async (id: string, newStatus: "approved" | "rejected") => {
+  const handleUpdateStatus = async (
+    id: string,
+    newStatus: "approved" | "rejected",
+    workPermitDetails?: WorkPermitDetails
+  ) => {
     try {
-      await adminDaycareService.updateStatus(id, newStatus);
+      const updatedApp = await adminDaycareService.updateStatus(id, newStatus, workPermitDetails);
       setApplications((prev) =>
-        prev.map((app) => (app.id === id ? { ...app, status: newStatus } : app))
+        prev.map((app) =>
+          app.id === id
+            ? updatedApp || {
+                ...app,
+                status: newStatus,
+                ...(workPermitDetails
+                  ? {
+                      permitId: workPermitDetails.permitId,
+                      permitNumber: workPermitDetails.permitId,
+                      registrationDate: workPermitDetails.registrationDate,
+                      expirationDate: workPermitDetails.expirationDate,
+                      issuingAuthority: workPermitDetails.issuingAuthority,
+                      authorizedCapacity: workPermitDetails.authorizedCapacity,
+                      capacity: workPermitDetails.authorizedCapacity ?? app.capacity,
+                      adminNotes: workPermitDetails.adminNotes,
+                    }
+                  : {}),
+              }
+            : app
+        )
       );
       const target = applications.find((a) => a.id === id);
       if (target) {
@@ -125,6 +152,7 @@ function AdminPortalInner() {
     } catch (err: any) {
       setToastMessage(`Failed to update status: ${err.message || "Server error"}`);
       setTimeout(() => setToastMessage(null), 4000);
+      throw err;
     }
   };
 
@@ -212,9 +240,24 @@ function AdminPortalInner() {
             <DashboardView
               applications={applications}
               isLoading={isLoadingApplications}
-              onUpdateStatus={handleUpdateStatus}
+              onViewAllDaycares={() => setActiveTab("daycares")}
+              onRequestApprove={(app) => setApproveTargetApp(app)}
+              onReject={(id) => handleUpdateStatus(id, "rejected")}
               onOpenDetails={(app) => setSelectedApp(app)}
             />
+          )}
+
+          {activeTab === "daycares" && (
+            <div className="animate-in fade-in duration-200">
+              <DaycaresTableSection
+                applications={applications}
+                isLoading={isLoadingApplications}
+                mode="full"
+                onRequestApprove={(app) => setApproveTargetApp(app)}
+                onReject={(id) => handleUpdateStatus(id, "rejected")}
+                onOpenDetails={(app) => setSelectedApp(app)}
+              />
+            </div>
           )}
 
           {activeTab === "inquiries" && <InquiriesView />}
@@ -239,14 +282,20 @@ function AdminPortalInner() {
       <ApplicationDetailModal
         application={selectedApp}
         onClose={() => setSelectedApp(null)}
-        onApprove={(id) => {
-          handleUpdateStatus(id, "approved");
+        onApprove={(app) => {
           setSelectedApp(null);
+          setApproveTargetApp(app);
         }}
         onReject={(id) => {
           handleUpdateStatus(id, "rejected");
           setSelectedApp(null);
         }}
+      />
+
+      <WorkPermitApproveModal
+        application={approveTargetApp}
+        onClose={() => setApproveTargetApp(null)}
+        onConfirmApprove={(id, details) => handleUpdateStatus(id, "approved", details)}
       />
     </div>
   );

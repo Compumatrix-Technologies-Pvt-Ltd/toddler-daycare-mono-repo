@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { useCaretaker } from "../../context/CaretakerContext";
 import { caretakerApi } from "@/utils/caretakerApi";
+import { UnderReviewModal } from "./UnderReviewModal";
 
 // Compute initials dynamically (e.g. "Priya Sharma" -> "PS", "Maria" -> "MA")
 function getInitials(name: string): string {
@@ -17,7 +18,7 @@ function getInitials(name: string): string {
 
 export function CaretakerHeader() {
   const { t, language, setLanguage } = useLanguage();
-  const { profile, approvalStatus } = useCaretaker();
+  const { profile, approvalStatus, resetProfile } = useCaretaker();
   const pathname = usePathname();
 
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
@@ -76,10 +77,11 @@ export function CaretakerHeader() {
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-[#FAF7F2] border-b border-[#EBE3D7] px-4 sm:px-6 lg:px-8 py-2.5 sm:py-3 relative shadow-xs">
-      <div className="max-w-[1360px] mx-auto flex items-center justify-between gap-3 sm:gap-4">
+    <>
+    <header className="sticky top-0 z-40 bg-[#FAF7F2] border-b border-[#EBE3D7] px-3 sm:px-6 lg:px-8 py-2.5 sm:py-3 pt-[max(0.625rem,env(safe-area-inset-top))] relative shadow-xs">
+      <div className="max-w-[1360px] mx-auto flex items-center justify-between gap-2 sm:gap-4 min-w-0">
         {/* Brand Logo */}
-        <Link href="/" className="flex items-center gap-2.5 sm:gap-3 cursor-pointer shrink-0">
+        <Link href="/" className="flex items-center gap-2 sm:gap-3 cursor-pointer min-w-0 shrink sm:shrink-0">
           <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center relative shrink-0">
             <svg
               viewBox="0 0 36 36"
@@ -105,10 +107,10 @@ export function CaretakerHeader() {
             </svg>
           </div>
           <div className="min-w-0">
-            <div className="font-bold text-[#423223] text-base sm:text-lg leading-tight tracking-tight whitespace-nowrap">
+            <div className="font-bold text-[#423223] text-sm sm:text-lg leading-tight tracking-tight truncate sm:whitespace-nowrap">
               {t.brand.title}
             </div>
-            <div className="text-[11px] sm:text-xs text-[#8A775C] tracking-wide whitespace-nowrap">
+            <div className="text-[10px] sm:text-xs text-[#8A775C] tracking-wide truncate sm:whitespace-nowrap">
               {t.brand.subtitle}
             </div>
           </div>
@@ -217,7 +219,7 @@ export function CaretakerHeader() {
 
             {/* Dropdown Menu */}
             {userDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-56 bg-white border border-[#E5DDD2] rounded-2xl shadow-xl py-2 z-50 animate-in fade-in">
+              <div className="absolute right-0 mt-2 w-56 max-w-[calc(100vw-1.5rem)] bg-white border border-[#E5DDD2] rounded-2xl shadow-xl py-2 z-50 animate-in fade-in">
                 {/* Profile Card Header */}
                 <div className="px-4 py-2.5 border-b border-[#F2F4F7]">
                   <p className="text-[11px] font-semibold text-[#7A6E62] uppercase tracking-wider">
@@ -253,6 +255,7 @@ export function CaretakerHeader() {
                   onClick={() => {
                     setUserDropdownOpen(false);
                     caretakerApi.logout();
+                    resetProfile();
                     window.location.href = "/login";
                   }}
                   className="w-full text-left block px-4 py-2.5 text-sm text-[#A12D3A] hover:bg-[#FEF2F2] font-semibold cursor-pointer transition-colors"
@@ -326,5 +329,7 @@ export function CaretakerHeader() {
         </div>
       )}
     </header>
+    <UnderReviewModal />
+    </>
   );
 }

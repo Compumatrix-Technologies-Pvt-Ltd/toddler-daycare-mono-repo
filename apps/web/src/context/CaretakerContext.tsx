@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { caretakerApi } from "@/utils/caretakerApi";
+import { formatPostcodeCity, formatStreetDisplay } from "../components/map/mapUtils";
 
 export type ApprovalStatus = "pending" | "approved" | "rejected";
 
@@ -32,6 +33,14 @@ export interface CaretakerProfileData {
   photos?: CaretakerPhoto[];
   hasUploadedPermit: boolean;
   permitFileName?: string;
+  workPermitUrl?: string;
+  permitId?: string;
+  permitRegistrationDate?: string;
+  permitExpirationDate?: string;
+  permitIssuingAuthority?: string;
+  permitAuthorizedCapacity?: number;
+  permitAdminNotes?: string;
+  permitApprovedAt?: string;
   approvalStatus: ApprovalStatus;
   isRegistered: boolean;
 }
@@ -47,12 +56,60 @@ interface CaretakerContextType {
   profile: CaretakerProfileData;
   updateProfile: (updates: Partial<CaretakerProfileData>) => void;
   resetProfile: (initialData?: Partial<CaretakerProfileData>) => void;
+  syncFromBackendDaycare: (data: any, options?: { preservePinState?: boolean }) => void;
+  refreshDaycare: () => Promise<void>;
+  isBackendProfileComplete: boolean;
+  isUnderAdminReview: boolean;
   completionPercentage: number;
   sections: SectionCompletion;
   approvalStatus: ApprovalStatus;
   setApprovalStatus: (status: ApprovalStatus) => void;
   toggleDemoApproval: () => void;
   checkLoginRedirect: () => { shouldRedirectToProfile: boolean; reason: "incomplete" | "awaiting_approval" | "approved" };
+}
+
+function resolveAssetUrl(rawUrl?: string): string {
+  if (!rawUrl) return "";
+  const clean = String(rawUrl).trim();
+  if (!clean) return "";
+  if (clean.startsWith("http://") || clean.startsWith("https://") || clean.startsWith("data:")) {
+    return clean;
+  }
+  try {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+    const origin = new URL(apiUrl).origin;
+    return `${origin}${clean.startsWith("/") ? "" : "/"}${clean}`;
+  } catch {
+    return `http://localhost:5000${clean.startsWith("/") ? "" : "/"}${clean}`;
+  }
+}
+
+export function isDaycareRecordComplete(data: any): boolean {
+  if (!data) return false;
+  const hasLocation = Boolean(
+    data.location?.street?.trim() &&
+    data.location?.city?.trim() &&
+    data.location?.latitude !== undefined &&
+    data.location?.longitude !== undefined
+  );
+  const hasOperations = Boolean(
+    data.daycareName?.trim() &&
+    data.caregiverName?.trim() &&
+    data.caregiverGender?.trim() &&
+    data.operations?.operatingHours?.trim()
+  );
+  const hasContactPhotos = Boolean(
+    data.contact?.email?.trim() &&
+    data.contact?.phone?.trim() &&
+    data.additionalDetails?.meals &&
+    data.additionalDetails?.pets &&
+    Array.isArray(data.photos) &&
+    data.photos.length >= 1
+  );
+  const hasPermit = Boolean(
+    data.workPermit?.url?.trim() || data.workPermit?.fileName?.trim()
+  );
+  return hasLocation && hasOperations && hasContactPhotos && hasPermit;
 }
 
 export const DEFAULT_PHOTOS: CaretakerPhoto[] = [];
@@ -78,6 +135,14 @@ export const EMPTY_PROFILE: CaretakerProfileData = {
   photos: [],
   hasUploadedPermit: false,
   permitFileName: "",
+  workPermitUrl: "",
+  permitId: "",
+  permitRegistrationDate: "",
+  permitExpirationDate: "",
+  permitIssuingAuthority: "",
+  permitAuthorizedCapacity: undefined,
+  permitAdminNotes: "",
+  permitApprovedAt: "",
   approvalStatus: "pending",
   isRegistered: false,
 };
@@ -88,6 +153,147 @@ const STORAGE_KEY = "toddler_caretaker_profile_v1";
 
 export function CaretakerProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<CaretakerProfileData>(EMPTY_PROFILE);
+  const [isBackendProfileComplete, setIsBackendProfileComplete] = useState(false);
+
+  const updateProfile = (updates: Partial<CaretakerProfileData>) => {
+    setProfile((prev) => {
+      const next = { ...prev, ...updates };
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // Storage full or unavailable
+      }
+      return next;
+    });
+  };
+
+  const syncFromBackendDaycare = (data: any, options?: { preservePinState?: boolean }) => {
+    if (!data) {
+      setIsBackendProfileComplete(false);
+      return;
+    }
+
+    const liveStatus: ApprovalStatus =
+      data.status === "approved" ||
+      data.status === "rejected" ||
+      data.status === "pending"
+        ? data.status
+        : "pending";
+
+    const hasPermit = Boolean(
+      data.workPermit?.fileName || data.workPermit?.url
+    );
+
+    const loc = data.location;
+    const hasBackendLoc = Boolean(
+      loc?.latitude !== undefined &&
+      loc?.longitude !== undefined &&
+      loc?.street &&
+      loc?.city
+    );
+    const loadedStreet = loc?.street
+      ? formatStreetDisplay(loc.street, loc.houseNumber)
+      : undefined;
+    const loadedCity = loc?.city
+      ? formatPostcodeCity(loc.postcode, loc.city)
+      : undefined;
+
+    const mappedPhotos: CaretakerPhoto[] | undefined = Array.isArray(data.photos)
+      ? data.photos.map((p: any, idx: number) => ({
+          id: p._id || `photo-${idx}`,
+          label: `Photo ${idx + 1}`,
+          src: resolveAssetUrl(p.url),
+        }))
+      : undefined;
+
+    const rawGender = String(data.caregiverGender || "").toLowerCase();
+    const mappedGender =
+      rawGender === "female"
+        ? "Female"
+        : rawGender === "male"
+          ? "Male"
+          : rawGender === "other" || rawGender === "diverse"
+            ? "Diverse"
+            : data.caregiverGender;
+
+    setProfile((prev) => {
+      const next: CaretakerProfileData = {
+        ...prev,
+        approvalStatus: liveStatus,
+        hasUploadedPermit: hasPermit,
+        permitFileName: data.workPermit?.fileName || "",
+        workPermitUrl: data.workPermit?.url || "",
+        permitId: data.workPermit?.permitId || "",
+        permitRegistrationDate: data.workPermit?.registrationDate || "",
+        permitExpirationDate: data.workPermit?.expirationDate || "",
+        permitIssuingAuthority: data.workPermit?.issuingAuthority || "",
+        permitAuthorizedCapacity: data.workPermit?.authorizedCapacity,
+        permitAdminNotes: data.workPermit?.adminNotes || "",
+        permitApprovedAt: data.workPermit?.approvedAt || "",
+        maxCapacity: data.workPermit?.authorizedCapacity
+          ? String(data.workPermit.authorizedCapacity)
+          : data.operations?.maxCapacity
+            ? String(data.operations.maxCapacity)
+            : prev.maxCapacity,
+        daycareName: data.daycareName ?? prev.daycareName,
+        caregiverName: data.caregiverName ?? prev.caregiverName,
+        caregiverGender: mappedGender ?? prev.caregiverGender,
+        visibilityWindow: data.operations?.visibilityWindow ?? prev.visibilityWindow,
+        operatingHours: data.operations?.operatingHours ?? prev.operatingHours,
+        email: data.contact?.email ?? prev.email,
+        website: data.contact?.website ?? prev.website,
+        phone: data.contact?.phone ?? prev.phone,
+        mealType:
+          data.additionalDetails?.meals === "self-cooked"
+            ? "self"
+            : data.additionalDetails?.meals === "delivered"
+              ? "delivered"
+              : prev.mealType,
+        petStatus:
+          data.additionalDetails?.pets === "have-pets"
+            ? "pets"
+            : data.additionalDetails?.pets === "no-pets"
+              ? "none"
+              : prev.petStatus,
+        ...(mappedPhotos
+          ? { photos: mappedPhotos, photoCount: mappedPhotos.length }
+          : {}),
+        ...(hasBackendLoc && !options?.preservePinState
+          ? {
+              street: loadedStreet || prev.street,
+              city: loadedCity || prev.city,
+              lat: String(loc.latitude),
+              lng: String(loc.longitude),
+              isLocationPinned: true,
+            }
+          : {}),
+      };
+
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // Storage full or unavailable
+      }
+      return next;
+    });
+
+    setIsBackendProfileComplete(isDaycareRecordComplete(data));
+  };
+
+  const refreshDaycare = async () => {
+    const token = caretakerApi.getToken();
+    if (!token) {
+      setIsBackendProfileComplete(false);
+      return;
+    }
+
+    try {
+      const data = await caretakerApi.getDaycare();
+      syncFromBackendDaycare(data);
+    } catch {
+      setIsBackendProfileComplete(false);
+    }
+  };
 
   useEffect(() => {
     try {
@@ -111,50 +317,8 @@ export function CaretakerProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Sync live approval status & verification from MongoDB backend
-    const token = caretakerApi.getToken();
-    if (token) {
-      caretakerApi
-        .getDaycare()
-        .then((data) => {
-          if (data) {
-            const liveStatus: ApprovalStatus =
-              data.status === "approved" ||
-              data.status === "rejected" ||
-              data.status === "pending"
-                ? data.status
-                : "pending";
-
-            const hasPermit = Boolean(
-              data.workPermit?.fileName || data.workPermit?.url
-            );
-
-            updateProfile({
-              approvalStatus: liveStatus,
-              hasUploadedPermit: hasPermit,
-              permitFileName: data.workPermit?.fileName || "",
-              daycareName: data.daycareName,
-              caregiverName: data.caregiverName,
-              caregiverGender: data.caregiverGender,
-            });
-          }
-        })
-        .catch(() => {
-          // No daycare in DB yet
-        });
-    }
+    refreshDaycare();
   }, []);
-
-  const updateProfile = (updates: Partial<CaretakerProfileData>) => {
-    setProfile((prev) => {
-      const next = { ...prev, ...updates };
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      } catch {
-        // Storage full or unavailable
-      }
-      return next;
-    });
-  };
 
   const resetProfile = (initialData?: Partial<CaretakerProfileData>) => {
     const next: CaretakerProfileData = {
@@ -162,6 +326,7 @@ export function CaretakerProvider({ children }: { children: React.ReactNode }) {
       ...initialData,
     };
     setProfile(next);
+    setIsBackendProfileComplete(false);
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
     } catch {
@@ -216,6 +381,12 @@ export function CaretakerProvider({ children }: { children: React.ReactNode }) {
 
   const completionPercentage = score;
 
+  const isUnderAdminReview = Boolean(
+    isBackendProfileComplete &&
+    completionPercentage === 100 &&
+    profile.approvalStatus === "pending"
+  );
+
   const checkLoginRedirect = () => {
     if (completionPercentage < 100) {
       return { shouldRedirectToProfile: true, reason: "incomplete" as const };
@@ -232,6 +403,10 @@ export function CaretakerProvider({ children }: { children: React.ReactNode }) {
         profile,
         updateProfile,
         resetProfile,
+        syncFromBackendDaycare,
+        refreshDaycare,
+        isBackendProfileComplete,
+        isUnderAdminReview,
         completionPercentage,
         sections,
         approvalStatus: profile.approvalStatus,

@@ -45,6 +45,13 @@ export interface IDaycare extends Document {
         url: string;
         publicId?: string;
         fileName?: string;
+        permitId?: string;
+        registrationDate?: string;
+        expirationDate?: string;
+        issuingAuthority?: string;
+        authorizedCapacity?: number;
+        adminNotes?: string;
+        approvedAt?: Date | string;
     };
 
     status?: "pending" | "approved" | "rejected";

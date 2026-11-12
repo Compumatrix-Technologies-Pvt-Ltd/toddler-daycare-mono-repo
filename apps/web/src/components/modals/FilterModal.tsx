@@ -129,7 +129,7 @@ export function FilterModal({
             <label className="block text-xs font-bold text-[#1E1B18]">
               {t.modals.filter.numberOfChildren}
             </label>
-            <div className="grid grid-cols-4 gap-1.5">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
               {[
                 { val: "", label: t.modals.filter.anyChildren || "Any" },
                 { val: "1", label: t.search.children.one },
@@ -190,7 +190,7 @@ export function FilterModal({
               <div className="text-[11px] font-semibold text-[#7A6E62] mb-1">
                 {t.modals.filter.monthTolerance}
               </div>
-              <div className="grid grid-cols-4 gap-1.5">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                 {[
                   { tol: 0, label: t.modals.filter.tolerances.exact },
                   { tol: 1, label: t.modals.filter.tolerances.oneMonth },
@@ -252,7 +252,7 @@ export function FilterModal({
             <label className="block text-xs font-bold text-[#1E1B18]">
               {t.modals.filter.caretakerGender}
             </label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {[
                 { val: "all", label: t.modals.filter.genderOptions.all },
                 { val: "female", label: `👩 ${t.modals.filter.genderOptions.female}` },
@@ -284,7 +284,7 @@ export function FilterModal({
             <label className="block text-xs font-bold text-[#1E1B18]">
               {t.modals.filter.foodPreference}
             </label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {[
                 { val: "any", label: t.modals.filter.foodOptions.any },
                 { val: "self-cooked", label: `🍲 ${t.modals.filter.foodOptions.selfCooked}` },
@@ -316,7 +316,7 @@ export function FilterModal({
             <label className="block text-xs font-bold text-[#1E1B18]">
               {t.modals.filter.pets}
             </label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {[
                 { val: "any", label: t.modals.filter.petsOptions.any },
                 { val: "allowed", label: `🐕 ${t.modals.filter.petsOptions.allowed}` },

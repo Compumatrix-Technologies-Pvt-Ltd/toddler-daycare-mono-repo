@@ -368,7 +368,7 @@ export function InquiriesView() {
                 <span className="font-bold text-[#7A6E62] uppercase tracking-wider block text-[10px]">
                   1. Child Information
                 </span>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div>
                     <span className="text-[#7A6E62] block text-[11px]">Child Name:</span>
                     <span className="font-bold text-[#1E1B18] text-sm">{selectedInquiry.childName}</span>
@@ -385,7 +385,7 @@ export function InquiriesView() {
                 <span className="font-bold text-[#7A6E62] uppercase tracking-wider block text-[10px]">
                   2. Timing & Schedule
                 </span>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div>
                     <span className="text-[#7A6E62] block text-[11px]">Desired Start:</span>
                     <span className="font-bold text-[#1E1B18]">{selectedInquiry.desiredStart}</span>
@@ -412,7 +412,7 @@ export function InquiriesView() {
                 <span className="font-bold text-[#7A6E62] uppercase tracking-wider block text-[10px]">
                   3. Parent Contact Details
                 </span>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <div>
                     <span className="text-[#7A6E62] block text-[11px]">Parent Name:</span>
                     <span className="font-bold text-[#1E1B18]">{selectedInquiry.parentName}</span>
@@ -464,7 +464,7 @@ export function InquiriesView() {
             </div>
 
             {/* Modal Actions */}
-            <div className="pt-3 border-t border-[#F0E8DC] flex items-center justify-between gap-3">
+            <div className="pt-3 border-t border-[#F0E8DC] flex flex-wrap items-center justify-between gap-3">
               <button
                 type="button"
                 onClick={() => setSelectedInquiry(null)}

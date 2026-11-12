@@ -163,11 +163,11 @@ export default function FavoritesPage() {
 
             {/* Actions Stack */}
             {favoriteList.length > 0 && (
-              <div className="flex flex-wrap items-center gap-3 shrink-0">
+              <div className="flex flex-wrap items-center gap-3 shrink-0 w-full md:w-auto">
                 {/* Clear Shortlist Button */}
                 <button
                   onClick={handleClearShortlist}
-                  className="bg-white hover:bg-stone-50 border border-[#D5C4AB] text-[#1C1917] font-medium text-sm px-4 py-2.5 rounded-lg h-11 min-h-[44px] transition-all flex items-center justify-center active:scale-[0.98] cursor-pointer"
+                  className="flex-1 sm:flex-initial bg-white hover:bg-stone-50 border border-[#D5C4AB] text-[#1C1917] font-medium text-sm px-4 py-2.5 rounded-lg min-h-[44px] transition-all flex items-center justify-center text-center active:scale-[0.98] cursor-pointer"
                 >
                   {t.favorites.clearShortlist}
                 </button>
@@ -175,7 +175,7 @@ export default function FavoritesPage() {
                 {/* Bulk Inquiry Button */}
                 <button
                   onClick={handleBulkInquiry}
-                  className="bg-[#AE2F34] hover:bg-[#88222E] text-white font-medium text-sm sm:text-[15px] px-5 sm:px-6 py-2.5 rounded-lg h-11 min-h-[44px] transition-all shadow-xs flex items-center justify-center active:scale-[0.98] cursor-pointer"
+                  className="flex-1 sm:flex-initial bg-[#AE2F34] hover:bg-[#88222E] text-white font-medium text-sm sm:text-[15px] px-5 sm:px-6 py-2.5 rounded-lg min-h-[44px] transition-all shadow-xs flex items-center justify-center text-center active:scale-[0.98] cursor-pointer"
                 >
                   {bulkInquiryText}
                 </button>

@@ -1,7 +1,20 @@
 import axios from "axios";
-import { DaycareApplication } from "../types/admin";
+import { DaycareApplication, WorkPermitDetails } from "../types/admin";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1";
+
+function resolveAssetUrl(rawUrl?: string): string {
+  if (!rawUrl) return "";
+  const clean = String(rawUrl).trim();
+  if (!clean) return "";
+  if (clean.startsWith("http://") || clean.startsWith("https://")) return clean;
+  try {
+    const origin = new URL(API_BASE_URL).origin;
+    return `${origin}${clean.startsWith("/") ? "" : "/"}${clean}`;
+  } catch {
+    return `http://localhost:5000${clean.startsWith("/") ? "" : "/"}${clean}`;
+  }
+}
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -34,7 +47,10 @@ export function mapMongoDaycareToApplication(raw: any): DaycareApplication {
     : "Recently";
 
   // If permit file name exists or permit is attached
-  const permitName = raw.workPermit?.fileName || (raw.workPermit?.url ? "Document-Uploaded.pdf" : "DE-PENDING");
+  const permitFileName = raw.workPermit?.fileName || "";
+  const workPermitUrl = resolveAssetUrl(raw.workPermit?.url);
+  const permitId = raw.workPermit?.permitId || "";
+  const permitName = permitId || permitFileName || (workPermitUrl ? "Document-Uploaded.pdf" : "DE-PENDING");
 
   const docCount = (raw.workPermit?.url ? 1 : 0) + (Array.isArray(raw.photos) ? raw.photos.length : 0);
 
@@ -47,10 +63,19 @@ export function mapMongoDaycareToApplication(raw: any): DaycareApplication {
     permitNumber: permitName,
     submittedDate: submitted,
     status: raw.status || (raw.workPermit?.url ? "pending" : "pending"),
-    capacity: raw.operations?.maxCapacity || 5,
+    capacity: raw.workPermit?.authorizedCapacity || raw.operations?.maxCapacity || 5,
     phone: raw.contact?.phone || "",
     email: raw.contact?.email || "",
     documentsCount: Math.max(docCount, 1),
+    workPermitUrl,
+    workPermitFileName: permitFileName,
+    permitId,
+    registrationDate: raw.workPermit?.registrationDate || "",
+    expirationDate: raw.workPermit?.expirationDate || "",
+    issuingAuthority: raw.workPermit?.issuingAuthority || "",
+    authorizedCapacity: raw.workPermit?.authorizedCapacity ?? raw.operations?.maxCapacity,
+    adminNotes: raw.workPermit?.adminNotes || "",
+    approvedAt: raw.workPermit?.approvedAt || "",
   };
 }
 
@@ -80,10 +105,18 @@ export const adminDaycareService = {
     }
   },
 
-  // Update status in MongoDB (approved / rejected / pending)
-  async updateStatus(id: string, status: "approved" | "rejected" | "pending"): Promise<any> {
-    const res = await api.patch(`/daycares/${id}/status`, { status });
-    return res.data;
+  // Update status in MongoDB (approved / rejected / pending) along with optional work permit details
+  async updateStatus(
+    id: string,
+    status: "approved" | "rejected" | "pending",
+    workPermitDetails?: WorkPermitDetails
+  ): Promise<DaycareApplication | null> {
+    const res = await api.patch(`/daycares/${id}/status`, {
+      status,
+      ...(workPermitDetails ? { workPermitDetails } : {}),
+    });
+    const updatedRaw = res.data?.data;
+    return updatedRaw ? mapMongoDaycareToApplication(updatedRaw) : null;
   },
 };
 

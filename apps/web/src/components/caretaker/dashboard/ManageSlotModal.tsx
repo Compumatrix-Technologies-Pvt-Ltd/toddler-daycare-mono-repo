@@ -69,11 +69,11 @@ export function ManageSlotModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="manage-slot-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-xs animate-in fade-in overflow-y-auto"
       onClick={onClose}
     >
       <div
-        className="relative bg-white rounded-2xl shadow-2xl border border-[#EAECF0] w-full max-w-md p-6 max-h-[92vh] overflow-y-auto text-[#101828]"
+        className="relative bg-white rounded-2xl shadow-2xl border border-[#EAECF0] w-full max-w-md p-4 sm:p-6 max-h-[92vh] overflow-y-auto text-[#101828]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4 pb-4 border-b border-[#EAECF0]">
@@ -89,7 +89,7 @@ export function ManageSlotModal({
             type="button"
             onClick={onClose}
             aria-label={t.caretakerDashboard.details.close}
-            className="w-9 h-9 rounded-lg flex items-center justify-center text-[#667085] hover:text-[#101828] hover:bg-[#F2F4F7] transition-colors cursor-pointer shrink-0"
+            className="w-10 h-10 rounded-lg flex items-center justify-center text-[#667085] hover:text-[#101828] hover:bg-[#F2F4F7] transition-colors cursor-pointer shrink-0"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -114,7 +114,7 @@ export function ManageSlotModal({
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value)}
-              className="w-full h-10 px-3 rounded-lg border border-[#D0D5DD] text-sm text-[#101828] bg-white focus:outline-hidden focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] transition-all"
+              className="w-full h-[42px] px-3 rounded-lg border border-[#D0D5DD] text-sm text-[#101828] bg-white focus:outline-hidden focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] transition-all"
             >
               <option value="active">{m.statusActive}</option>
               <option value="transitioning">{m.statusTransitioning}</option>
@@ -130,7 +130,7 @@ export function ManageSlotModal({
               type="text"
               value={transitionDate}
               onChange={(e) => setTransitionDate(e.target.value)}
-              className="w-full h-10 px-3 rounded-lg border border-[#D0D5DD] text-sm text-[#101828] focus:outline-hidden focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] transition-all"
+              className="w-full h-[42px] px-3 rounded-lg border border-[#D0D5DD] text-sm text-[#101828] focus:outline-hidden focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] transition-all"
             />
           </div>
 
@@ -142,7 +142,7 @@ export function ManageSlotModal({
               type="text"
               value={dailyHours}
               onChange={(e) => setDailyHours(e.target.value)}
-              className="w-full h-10 px-3 rounded-lg border border-[#D0D5DD] text-sm text-[#101828] focus:outline-hidden focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] transition-all"
+              className="w-full h-[42px] px-3 rounded-lg border border-[#D0D5DD] text-sm text-[#101828] focus:outline-hidden focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] transition-all"
             />
           </div>
 
@@ -150,7 +150,7 @@ export function ManageSlotModal({
             <button
               type="button"
               onClick={handleRelease}
-              className="w-full sm:w-auto text-xs font-semibold text-[#D92D20] hover:text-[#B42318] py-2 px-1 transition-colors cursor-pointer"
+              className="w-full sm:w-auto min-h-[42px] text-xs font-semibold text-[#D92D20] hover:text-[#B42318] py-2 px-1 transition-colors cursor-pointer"
             >
               {m.releaseSlot}
             </button>
@@ -158,13 +158,13 @@ export function ManageSlotModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-3.5 py-2 rounded-lg border border-[#D0D5DD] text-xs font-semibold text-[#344054] hover:bg-[#F2F4F7] transition-all cursor-pointer"
+                className="flex-1 sm:flex-initial min-h-[42px] px-3.5 py-2 rounded-lg border border-[#D0D5DD] text-xs font-semibold text-[#344054] hover:bg-[#F2F4F7] transition-all cursor-pointer"
               >
                 {m.cancel}
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 rounded-lg bg-[#0F172A] hover:bg-[#1E293B] text-white text-xs font-semibold transition-all shadow-xs cursor-pointer"
+                className="flex-1 sm:flex-initial min-h-[42px] px-4 py-2 rounded-lg bg-[#0F172A] hover:bg-[#1E293B] text-white text-xs font-semibold transition-all shadow-xs cursor-pointer"
               >
                 {m.save}
               </button>

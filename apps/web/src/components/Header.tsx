@@ -43,10 +43,10 @@ export function Header() {
   }, [loginDropdownOpen]);
 
   return (
-    <header className="sticky top-0 z-40 bg-[#FAF7F2]/95 backdrop-blur-md border-b border-[#EBE3D7] px-4 sm:px-6 lg:px-8 py-2.5 sm:py-3">
-      <div className="max-w-[1360px] mx-auto flex items-center justify-between gap-3 sm:gap-4">
+    <header className="sticky top-0 z-40 bg-[#FAF7F2]/95 backdrop-blur-md border-b border-[#EBE3D7] px-3 sm:px-6 lg:px-8 py-2.5 sm:py-3 pt-[max(0.625rem,env(safe-area-inset-top))]">
+      <div className="max-w-[1360px] mx-auto flex items-center justify-between gap-2 sm:gap-4 min-w-0">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2.5 sm:gap-3 cursor-pointer shrink-0">
+        <Link href="/" className="flex items-center gap-2 sm:gap-3 cursor-pointer min-w-0 shrink sm:shrink-0">
           <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center relative shrink-0">
             <svg
               viewBox="0 0 36 36"
@@ -72,10 +72,10 @@ export function Header() {
             </svg>
           </div>
           <div className="min-w-0">
-            <div className="font-bold text-[#423223] text-base sm:text-lg leading-tight tracking-tight whitespace-nowrap">
+            <div className="font-bold text-[#423223] text-sm sm:text-lg leading-tight tracking-tight truncate sm:whitespace-nowrap">
               {t.brand.title}
             </div>
-            <div className="text-[11px] sm:text-xs text-[#8A775C] tracking-wide whitespace-nowrap">
+            <div className="text-[10px] sm:text-xs text-[#8A775C] tracking-wide truncate sm:whitespace-nowrap">
               {t.brand.subtitle}
             </div>
           </div>
@@ -168,18 +168,6 @@ export function Header() {
               <span>EN</span>
             </button>
           </div>
-
-          {/* Quick 1-click Toggle Translate Button (Icon button on mobile / extra convenience) */}
-          <button
-            onClick={toggleLanguage}
-            className="flex sm:hidden items-center justify-center w-10 h-10 min-w-[40px] min-h-[40px] rounded-full bg-[#EFE8DD] text-[#4B3E2F] hover:bg-[#E2D8CC] transition-colors cursor-pointer"
-            title={`Switch to ${language === "de" ? "English" : "Deutsch"}`}
-            aria-label="Toggle language"
-          >
-            <span className="text-xs font-bold">
-              {language === "de" ? "EN" : "DE"}
-            </span>
-          </button>
 
           {/* Desktop Log In Dropdown Trigger */}
           <div className="relative hidden sm:block" ref={loginDropdownRef}>

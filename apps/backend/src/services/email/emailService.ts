@@ -26,6 +26,18 @@ export interface SendEmailResult {
   error?: string;
 }
 
+export interface DaycareStatusEmailPayload {
+  status: "approved" | "rejected";
+  daycareName: string;
+  caregiverName: string;
+  permitId?: string;
+  registrationDate?: string;
+  expirationDate?: string;
+  issuingAuthority?: string;
+  authorizedCapacity?: number;
+  adminNotes?: string;
+}
+
 class EmailService {
   private transporter: nodemailer.Transporter | null = null;
   private initializingPromise: Promise<nodemailer.Transporter> | null = null;
@@ -347,6 +359,146 @@ class EmailService {
       return { success: true, messageId: info.messageId, previewUrl };
     } catch (err: any) {
       console.error(`[EmailService] Failed to send email to parent (${parentEmail}):`, err.message);
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * Send approval or rejection notification email to Caretaker when Admin updates daycare status
+   */
+  async sendDaycareStatusNotificationToCaretaker(
+    caretakerEmail: string,
+    payload: DaycareStatusEmailPayload
+  ): Promise<SendEmailResult> {
+    const transporter = await this.getTransporter();
+    const isApproved = payload.status === "approved";
+
+    const subject = isApproved
+      ? `Genehmigt / Approved: Ihre Kindertagespflege "${payload.daycareName}" ist freigeschaltet`
+      : `Status-Update / Rejected: Ihre Kindertagespflege-Bewerbung "${payload.daycareName}"`;
+
+    const headerBg = isApproved ? "#16A34A" : "#A12D3A";
+    const headerSubBg = isApproved ? "#DCFCE7" : "#F8D8DC";
+    const badgeBg = isApproved ? "#DCFCE7" : "#FEE2E2";
+    const badgeText = isApproved ? "#166534" : "#991B1B";
+    const statusLabel = isApproved ? "Genehmigt / Approved" : "Abgelehnt / Rejected";
+
+    const permitRows = isApproved
+      ? `
+          <h3 style="font-size: 13px; text-transform: uppercase; color: #7A6E62; margin: 18px 0 8px 0; letter-spacing: 0.5px;">Verifizierte Erlaubnisdetails / Verified Permit Details</h3>
+          <table style="width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 16px;">
+            ${
+              payload.permitId
+                ? `<tr style="border-bottom: 1px solid #F0E8DC;"><td style="padding: 8px 0; color: #6D6154; width: 42%;">Erlaubnis-ID / Permit ID:</td><td style="padding: 8px 0; font-weight: bold; color: #1E1B18;">${payload.permitId}</td></tr>`
+                : ""
+            }
+            ${
+              payload.issuingAuthority
+                ? `<tr style="border-bottom: 1px solid #F0E8DC;"><td style="padding: 8px 0; color: #6D6154;">Behörde / Authority:</td><td style="padding: 8px 0; font-weight: bold; color: #1E1B18;">${payload.issuingAuthority}</td></tr>`
+                : ""
+            }
+            ${
+              payload.registrationDate
+                ? `<tr style="border-bottom: 1px solid #F0E8DC;"><td style="padding: 8px 0; color: #6D6154;">Registriert am / Issued:</td><td style="padding: 8px 0; font-weight: bold; color: #1E1B18;">${payload.registrationDate}</td></tr>`
+                : ""
+            }
+            ${
+              payload.expirationDate
+                ? `<tr style="border-bottom: 1px solid #F0E8DC;"><td style="padding: 8px 0; color: #6D6154;">Gültig bis / Expires:</td><td style="padding: 8px 0; font-weight: bold; color: #15803D;">${payload.expirationDate}</td></tr>`
+                : ""
+            }
+            ${
+              payload.authorizedCapacity
+                ? `<tr><td style="padding: 8px 0; color: #6D6154;">Kapazität / Capacity:</td><td style="padding: 8px 0; font-weight: bold; color: #1E1B18;">${payload.authorizedCapacity} Kinder / children</td></tr>`
+                : ""
+            }
+          </table>
+        `
+      : "";
+
+    const html = `
+      <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 620px; margin: 0 auto; padding: 24px; background-color: #FAF7F2; border: 1px solid #E5DDD2; border-radius: 16px;">
+        <div style="background-color: ${headerBg}; padding: 22px 24px; border-radius: 12px; margin-bottom: 24px; text-align: center;">
+          <h1 style="color: #ffffff; margin: 0; font-size: 21px; font-weight: bold; letter-spacing: 0.5px;">
+            ${isApproved ? "Kindertagespflege genehmigt / Daycare Approved" : "Bewerbung abgelehnt / Daycare Rejected"}
+          </h1>
+          <p style="color: ${headerSubBg}; margin: 6px 0 0 0; font-size: 13px;">Find Toddler Daycare • Admin Review Update</p>
+        </div>
+
+        <div style="background-color: #ffffff; padding: 24px; border-radius: 12px; border: 1px solid #E5DDD2; margin-bottom: 20px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #F0E8DC; padding-bottom: 14px; margin-bottom: 18px;">
+            <h2 style="margin: 0; font-size: 16px; color: #1E1B18;">${payload.daycareName}</h2>
+            <span style="background-color: ${badgeBg}; color: ${badgeText}; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold;">
+              ${statusLabel}
+            </span>
+          </div>
+
+          <p style="font-size: 15px; color: #1E1B18; margin: 0 0 12px 0;">
+            Hallo <strong>${payload.caregiverName || "Betreuer/in"}</strong>,
+          </p>
+
+          ${
+            isApproved
+              ? `
+                <p style="font-size: 13px; color: #4E443B; line-height: 1.6; margin: 0 0 16px 0;">
+                  Herzlichen Glückwunsch! Ihre Kindertagespflege <strong>${payload.daycareName}</strong> wurde erfolgreich von unserem Administrator-Team geprüft und <strong>genehmigt</strong>.
+                </p>
+                <p style="font-size: 13px; color: #4E443B; line-height: 1.6; margin: 0 0 16px 0;">
+                  Congratulations! Your daycare <strong>${payload.daycareName}</strong> has been verified and <strong>approved</strong>. You can now log in to your Caretaker Portal, and your daycare is live for parents.
+                </p>
+              `
+              : `
+                <p style="font-size: 13px; color: #4E443B; line-height: 1.6; margin: 0 0 16px 0;">
+                  Leider wurde Ihre Kindertagespflege-Bewerbung für <strong>${payload.daycareName}</strong> bei der Überprüfung <strong>abgelehnt</strong>.
+                </p>
+                <p style="font-size: 13px; color: #4E443B; line-height: 1.6; margin: 0 0 16px 0;">
+                  Unfortunately, your daycare application for <strong>${payload.daycareName}</strong> was <strong>rejected</strong> during admin review. You can now log in to your Caretaker Portal to update your profile or work permit and resubmit for review.
+                </p>
+              `
+          }
+
+          ${permitRows}
+
+          ${
+            payload.adminNotes
+              ? `
+                <div style="margin-top: 14px; background-color: #FAF7F2; border-left: 3px solid ${headerBg}; padding: 12px 16px; border-radius: 4px; font-size: 13px; color: #3D3328; line-height: 1.5;">
+                  <strong>Hinweise / Admin Notes:</strong><br />${payload.adminNotes}
+                </div>
+              `
+              : ""
+          }
+        </div>
+
+        <div style="text-align: center; color: #7A6E62; font-size: 11px; line-height: 1.5;">
+          <p style="margin: 0;">Find Toddler Daycare GmbH &bull; Ihr Partner für vertrauensvolle Kindertagespflege</p>
+          <p style="margin: 4px 0 0 0;">Bei Fragen schreiben Sie uns an: <a href="mailto:support@toddlerdaycare.de" style="color: #A12D3A;">support@toddlerdaycare.de</a></p>
+        </div>
+      </div>
+    `;
+
+    try {
+      const info = await transporter.sendMail({
+        from: `"Toddler Daycare Platform" <${this.fromEmail}>`,
+        to: caretakerEmail,
+        subject,
+        html,
+      });
+
+      const previewUrl = nodemailer.getTestMessageUrl(info);
+      console.log(
+        `[EmailService] Daycare ${payload.status} notification sent to caretaker (${caretakerEmail}). MessageId: ${info.messageId}`
+      );
+      if (previewUrl) {
+        console.log(`[EmailService] Caretaker Status Email Preview URL: ${previewUrl}`);
+      }
+
+      return { success: true, messageId: info.messageId, previewUrl };
+    } catch (err: any) {
+      console.error(
+        `[EmailService] Failed to send daycare ${payload.status} email to caretaker (${caretakerEmail}):`,
+        err.message
+      );
       return { success: false, error: err.message };
     }
   }

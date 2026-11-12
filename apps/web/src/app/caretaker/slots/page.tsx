@@ -10,7 +10,7 @@ export default function CaretakerSlotsPage() {
   const { t } = useLanguage();
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#FAF7F2] text-[#1E1B18]">
+    <div className="min-h-screen flex flex-col bg-[#FAF7F2] text-[#1E1B18] overflow-x-clip">
       <CaretakerHeader />
 
       <main className="flex-1 max-w-[1240px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">

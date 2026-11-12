@@ -16,10 +16,10 @@ export function AdminHeader({
   const { t, language, toggleLanguage } = useLanguage();
 
   return (
-    <header className="sticky top-0 z-30 h-14 sm:h-16 w-full bg-[#FAF7F2]/95 backdrop-blur-md border-b border-[#E5DDD2] px-3 sm:px-6 lg:px-8 transition-colors flex items-center shrink-0">
-      <div className="w-full max-w-[1440px] mx-auto flex items-center justify-between gap-2 sm:gap-4">
+    <header className="sticky top-0 z-30 min-h-14 sm:min-h-16 pt-[env(safe-area-inset-top)] w-full bg-[#FAF7F2]/95 backdrop-blur-md border-b border-[#E5DDD2] px-3 sm:px-6 lg:px-8 transition-colors flex items-center shrink-0">
+      <div className="w-full max-w-[1440px] mx-auto flex items-center justify-between gap-2 sm:gap-4 min-w-0">
         {/* Left Side: Mobile Hamburger & Website Logo */}
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0 min-w-0">
+        <div className="flex items-center gap-2 sm:gap-3 flex-1 sm:flex-initial min-w-0">
           {/* Mobile Hamburger Button */}
           <button
             type="button"
@@ -31,13 +31,13 @@ export function AdminHeader({
           </button>
 
           {/* Website Logo & Brand Text */}
-          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
             <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center relative shrink-0 shadow-2xs">
               <BrandSunIcon className="w-8 h-8 sm:w-9 sm:h-9 text-[#EAA000]" />
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-1.5 sm:gap-2">
-                <span className="font-bold text-[#423223] text-sm sm:text-base leading-tight tracking-tight whitespace-nowrap">
+              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                <span className="font-bold text-[#423223] text-sm sm:text-base leading-tight tracking-tight truncate sm:whitespace-nowrap">
                   {t.brand.title}
                 </span>
                 <span className="px-1.5 sm:px-2 py-0.5 rounded-md bg-[#A12D3A] text-white text-[9px] sm:text-[10px] font-bold uppercase tracking-wider shrink-0 shadow-2xs">

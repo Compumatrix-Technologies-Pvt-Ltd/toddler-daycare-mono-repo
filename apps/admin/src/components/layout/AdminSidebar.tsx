@@ -5,6 +5,7 @@ import {
   LogoutIcon,
   CloseIcon,
   BrandSunIcon,
+  BuildingIcon,
   ShieldCheckIcon,
   MailIcon,
 } from "../icons/AdminIcons";
@@ -42,11 +43,16 @@ export function AdminSidebar({
       id: "dashboard",
       label: t.admin.sidebar.dashboard,
       icon: DashboardIcon,
+    },
+    {
+      id: "daycares",
+      label: t.admin.sidebar.daycares,
+      icon: BuildingIcon,
       badge: pendingCount > 0 ? pendingCount : undefined,
     },
     {
       id: "inquiries",
-      label: (t.admin.sidebar as any).inquiries || "Daycare Inquiries",
+      label: t.admin.sidebar.inquiries,
       icon: MailIcon,
     },
     {

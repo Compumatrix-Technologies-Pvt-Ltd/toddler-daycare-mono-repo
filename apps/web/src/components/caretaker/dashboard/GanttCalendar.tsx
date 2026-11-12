@@ -273,7 +273,7 @@ export function GanttCalendar({
       {/* Secondary Toolbar: Search Matrix & Category Filter Tabs */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1">
           {/* Category Tabs */}
-          <div className="inline-flex items-center gap-1 p-1 bg-[#F2F4F7] rounded-xl self-start">
+          <div className="flex flex-wrap items-center gap-1 p-1 bg-[#F2F4F7] rounded-xl self-start max-w-full">
             {(
               [
                 { id: "all", label: tb.filterAll },

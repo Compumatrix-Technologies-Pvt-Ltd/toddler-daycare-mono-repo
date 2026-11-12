@@ -78,11 +78,11 @@ export function ExportModal({ isOpen, onClose, bookings }: ExportModalProps) {
       role="dialog"
       aria-modal="true"
       aria-labelledby="export-modal-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-xs animate-in fade-in overflow-y-auto"
       onClick={onClose}
     >
       <div
-        className="relative bg-white rounded-2xl shadow-2xl border border-[#EAECF0] w-full max-w-md p-6 max-h-[92vh] overflow-y-auto text-[#101828]"
+        className="relative bg-white rounded-2xl shadow-2xl border border-[#EAECF0] w-full max-w-md p-4 sm:p-6 max-h-[92vh] overflow-y-auto text-[#101828]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4 pb-4 border-b border-[#EAECF0]">
@@ -96,7 +96,7 @@ export function ExportModal({ isOpen, onClose, bookings }: ExportModalProps) {
             type="button"
             onClick={onClose}
             aria-label={m.close}
-            className="w-9 h-9 rounded-lg flex items-center justify-center text-[#667085] hover:text-[#101828] hover:bg-[#F2F4F7] transition-colors cursor-pointer shrink-0"
+            className="w-10 h-10 rounded-lg flex items-center justify-center text-[#667085] hover:text-[#101828] hover:bg-[#F2F4F7] transition-colors cursor-pointer shrink-0"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />

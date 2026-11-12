@@ -5,10 +5,15 @@ import Image from "next/image";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { useCaretaker, CaretakerPhoto, DEFAULT_PHOTOS } from "../../context/CaretakerContext";
 import { caretakerApi } from "@/utils/caretakerApi";
+import {
+  formatPostcodeCity,
+  formatStreetDisplay,
+  parseAddressComponents,
+} from "../map/mapUtils";
 
 export function DaycareOperationsCard() {
   const { t } = useLanguage();
-  const { profile, updateProfile } = useCaretaker();
+  const { profile, updateProfile, syncFromBackendDaycare } = useCaretaker();
 
   // Basic Information
   const [daycareName, setDaycareName] = useState(profile.daycareName || "");
@@ -114,8 +119,8 @@ export function DaycareOperationsCard() {
             updateProfile({
               lat: String(loc.latitude),
               lng: String(loc.longitude),
-              street: loc.houseNumber ? `${loc.street} ${loc.houseNumber}` : loc.street,
-              city: loc.postcode ? `${loc.postcode} ${loc.city}` : loc.city,
+              street: formatStreetDisplay(loc.street, loc.houseNumber),
+              city: formatPostcodeCity(loc.postcode, loc.city),
             });
           }
         }
@@ -207,19 +212,10 @@ export function DaycareOperationsCard() {
         })
       );
       // Parse street and house number cleanly
-      const streetTrimmed = (profile.street || "Stargarder Straße").trim();
-      const houseNumberMatch = streetTrimmed.match(/\b(\d+[a-zA-Z]?)\b$/);
-      const houseNumber = houseNumberMatch ? houseNumberMatch[1] : "14";
-      const cleanStreet = houseNumberMatch
-        ? streetTrimmed.replace(new RegExp(`\\s*${houseNumber}$`), "")
-        : streetTrimmed;
-
-      const cityTrimmed = (profile.city || "10437 Berlin").trim();
-      const postcodeMatch = cityTrimmed.match(/^(\d{4,5})/);
-      const postcode = postcodeMatch ? postcodeMatch[1] : "10437";
-      const cleanCity = postcodeMatch
-        ? cityTrimmed.replace(/^\d{4,5}\s*/, "")
-        : cityTrimmed;
+      const parsedLocation = parseAddressComponents(
+        profile.street || "Stargarder Straße",
+        profile.city || "10437, Berlin"
+      );
 
       const latNum = parseFloat(String(profile.lat));
       const lngNum = parseFloat(String(profile.lng));
@@ -229,10 +225,10 @@ export function DaycareOperationsCard() {
         JSON.stringify({
           latitude: Number.isFinite(latNum) ? latNum : 52.5413,
           longitude: Number.isFinite(lngNum) ? lngNum : 13.4135,
-          street: cleanStreet || "Stargarder Straße",
-          houseNumber: houseNumber || "14",
-          postcode: postcode || "10437",
-          city: cleanCity || "Berlin",
+          street: parsedLocation.street,
+          houseNumber: parsedLocation.houseNumber,
+          postcode: parsedLocation.postcode,
+          city: parsedLocation.city,
         })
       );
       // 1. Identify retained existing photos already saved in MongoDB (filter out newly selected base64/blob files)
@@ -270,7 +266,15 @@ export function DaycareOperationsCard() {
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 3500);
 
+      // Notify PinLocationCard to lock the saved map location
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("daycare-profile-saved"));
+      }
+
       // Re-synchronize photo list and profile context with verified MongoDB response
+      if (savedData) {
+        syncFromBackendDaycare(savedData, { preservePinState: true });
+      }
       if (savedData && Array.isArray(savedData.photos)) {
         const mappedPhotos = savedData.photos.map((p: any, idx: number) => ({
           id: p._id || `photo-${idx}`,
@@ -278,14 +282,6 @@ export function DaycareOperationsCard() {
           src: p.url.startsWith("http") ? p.url : `http://localhost:5000${p.url}`,
         }));
         setPhotosList(mappedPhotos);
-        updateProfile({
-          daycareName,
-          caregiverName,
-          caregiverGender: gender,
-          operatingHours,
-          photos: mappedPhotos,
-          photoCount: mappedPhotos.length,
-        });
       } else {
         updateProfile({
           daycareName,
@@ -362,9 +358,9 @@ export function DaycareOperationsCard() {
         </div>
       )}
 
-      <form onSubmit={handleSave} className="space-y-8">
+      <form onSubmit={handleSave} className="space-y-6 sm:space-y-8">
         {/* Two-Column Form Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-12">
           {/* ============================================================ */}
           {/* COLUMN 1: Basic Information + Operations                     */}
           {/* ============================================================ */}
@@ -688,7 +684,7 @@ export function DaycareOperationsCard() {
                 <span className="block text-[13px] font-semibold text-[#4B3E2F] mb-2">
                   {t.caretakerProfile.operations.meals}
                 </span>
-                <div className="flex items-center gap-6">
+                <div className="flex flex-wrap items-center gap-4 sm:gap-6">
                   <label className="flex items-center gap-2 cursor-pointer text-[14px] text-[#1E1B18]">
                     <input
                       type="radio"
@@ -723,7 +719,7 @@ export function DaycareOperationsCard() {
                 <span className="block text-[13px] font-semibold text-[#4B3E2F] mb-2">
                   {t.caretakerProfile.operations.pets}
                 </span>
-                <div className="flex items-center gap-6">
+                <div className="flex flex-wrap items-center gap-4 sm:gap-6">
                   <label className="flex items-center gap-2 cursor-pointer text-[14px] text-[#1E1B18]">
                     <input
                       type="radio"
@@ -776,7 +772,7 @@ export function DaycareOperationsCard() {
                 aria-label={t.caretakerProfile.operations.addPhoto}
               />
 
-              <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+              <div className="grid grid-cols-2 min-[390px]:grid-cols-3 sm:grid-cols-5 gap-2.5 sm:gap-3">
                 {photosList.map((item) => (
                   <div key={item.id} className="space-y-1.5 text-center group">
                     <div className="relative aspect-square rounded-xl overflow-hidden border border-[#E5DDD2] bg-[#FAF8F5] shadow-xs">

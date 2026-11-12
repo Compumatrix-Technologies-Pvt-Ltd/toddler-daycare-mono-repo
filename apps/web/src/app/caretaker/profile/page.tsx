@@ -13,12 +13,12 @@ export default function CaretakerProfilePage() {
   const { t } = useLanguage();
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#FAF7F2] text-[#1E1B18]">
+    <div className="min-h-screen flex flex-col bg-[#FAF7F2] text-[#1E1B18] overflow-x-clip">
       {/* Caretaker Header */}
       <CaretakerHeader />
 
       {/* Main Content Container */}
-      <main className="flex-1 max-w-[1240px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-8 space-y-5 sm:space-y-6">
+      <main className="flex-1 max-w-[1240px] w-full mx-auto px-3.5 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
         {/* Page Title & Subtitle */}
         <div className="space-y-1">
           <h1

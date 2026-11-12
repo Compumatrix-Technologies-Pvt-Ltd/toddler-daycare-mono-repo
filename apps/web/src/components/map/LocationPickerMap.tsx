@@ -2,13 +2,15 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import L from "leaflet";
+import { safeMoveMap } from "./mapUtils";
 
 interface LocationPickerMapProps {
   lat?: number;
   lng?: number;
   street?: string;
   city?: string;
-  onLocationChange: (lat: number, lng: number) => void;
+  locked?: boolean;
+  onLocationChange: (lat: number, lng: number, addressHint?: string) => void;
   className?: string;
 }
 
@@ -17,6 +19,7 @@ export default function LocationPickerMap({
   lng,
   street,
   city,
+  locked = false,
   onLocationChange,
   className = "w-full h-full min-h-[300px]",
 }: LocationPickerMapProps) {
@@ -24,6 +27,12 @@ export default function LocationPickerMap({
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
   const isInternalMoveRef = useRef(false);
+  const lockedRef = useRef(locked);
+  const onLocationChangeRef = useRef(onLocationChange);
+
+  useEffect(() => {
+    onLocationChangeRef.current = onLocationChange;
+  }, [onLocationChange]);
 
   const [isLocating, setIsLocating] = useState(false);
   const [locateNotice, setLocateNotice] = useState<string | null>(null);
@@ -90,6 +99,7 @@ export default function LocationPickerMap({
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setIsLocating(false);
+        if (lockedRef.current) return;
         const currentLat = parseFloat(position.coords.latitude.toFixed(6));
         const currentLng = parseFloat(position.coords.longitude.toFixed(6));
 
@@ -99,11 +109,9 @@ export default function LocationPickerMap({
           markerRef.current.setIcon(createPinIcon(street || city || "Current Location"));
         }
         if (mapInstanceRef.current) {
-          mapInstanceRef.current.flyTo([currentLat, currentLng], 15, {
-            duration: 1.2,
-          });
+          safeMoveMap(mapInstanceRef.current, [currentLat, currentLng], 15, 1.2);
         }
-        onLocationChange(currentLat, currentLng);
+        onLocationChangeRef.current(currentLat, currentLng);
       },
       (error) => {
         setIsLocating(false);
@@ -124,6 +132,125 @@ export default function LocationPickerMap({
     );
   };
 
+  // Setup Leaflet map instance with OpenStreetMap tiles
+  const setupMap = (
+    container: HTMLElement,
+    center: [number, number] = [0, 0],
+    zoom = 2
+  ): L.Map => {
+    const map = L.map(container, {
+      zoomControl: true,
+      scrollWheelZoom: "center",
+    }).setView(center, zoom);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 19,
+    }).addTo(map);
+
+    return map;
+  };
+
+  // Load leaflet-control-geocoder script/CSS once on the client and attach search control
+  const attachGeocoderControl = (
+    map: L.Map,
+    marker: L.Marker,
+    onSelect: (lat: number, lng: number, addressHint?: string) => void
+  ): (() => void) => {
+    if (typeof window === "undefined" || typeof document === "undefined") {
+      return () => {};
+    }
+
+    (window as unknown as { L?: typeof L }).L = L;
+
+    let cancelled = false;
+
+    const addControl = () => {
+      if (cancelled) return;
+      const LeafletControl = (
+        window as unknown as { L?: { Control?: { geocoder?: (opts: Record<string, unknown>) => L.Control } } }
+      ).L?.Control;
+
+      const mapWithInternals = map as unknown as {
+        _hasGeocoderControl?: boolean;
+        _controlCorners?: Record<string, HTMLElement>;
+      };
+
+      if (
+        !LeafletControl?.geocoder ||
+        mapInstanceRef.current !== map ||
+        !mapWithInternals._controlCorners ||
+        mapWithInternals._hasGeocoderControl
+      ) {
+        return;
+      }
+
+      mapWithInternals._hasGeocoderControl = true;
+
+      const geocoder = LeafletControl.geocoder({
+        defaultMarkGeocode: false,
+        position: "topleft",
+      });
+
+      (geocoder as unknown as L.Evented).on("markgeocode", (e: unknown) => {
+        if (lockedRef.current) return;
+        const event = e as { geocode?: { name?: string; center?: { lat: number; lng: number } } };
+        const center = event.geocode?.center;
+        if (!center) return;
+
+        const nextLat = parseFloat(center.lat.toFixed(6));
+        const nextLng = parseFloat(center.lng.toFixed(6));
+        marker.setLatLng([nextLat, nextLng]);
+        safeMoveMap(map, [nextLat, nextLng], 15, 0.8);
+        isInternalMoveRef.current = true;
+        onSelect(nextLat, nextLng, event.geocode?.name);
+      });
+
+      geocoder.addTo(map);
+    };
+
+    const cssId = "leaflet-control-geocoder-css";
+    if (!document.getElementById(cssId)) {
+      const link = document.createElement("link");
+      link.id = cssId;
+      link.rel = "stylesheet";
+      link.href = "https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css";
+      document.head.appendChild(link);
+    }
+
+    const windowLeaflet = (window as unknown as { L?: { Control?: { geocoder?: unknown } } }).L;
+    const leafletWithControl = L as unknown as { Control?: { geocoder?: unknown } };
+    if (windowLeaflet?.Control?.geocoder || leafletWithControl.Control?.geocoder) {
+      addControl();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const scriptId = "leaflet-control-geocoder-js";
+    const existingScript = document.getElementById(scriptId) as HTMLScriptElement | null;
+    if (existingScript) {
+      existingScript.addEventListener("load", addControl, { once: true });
+      return () => {
+        cancelled = true;
+        existingScript.removeEventListener("load", addControl);
+      };
+    }
+
+    const script = document.createElement("script");
+    script.id = scriptId;
+    script.src = "https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js";
+    script.async = true;
+    script.addEventListener("load", addControl, { once: true });
+    document.body.appendChild(script);
+
+    return () => {
+      cancelled = true;
+      script.removeEventListener("load", addControl);
+    };
+  };
+
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
@@ -135,65 +262,31 @@ export default function LocationPickerMap({
         lat !== 0 &&
         lng !== 0;
 
-      const initialLat = hasValidCoords ? (lat as number) : 20.567825;
-      const initialLng = hasValidCoords ? (lng as number) : 74.94705;
+      const initialLat = hasValidCoords ? (lat as number) : 0;
+      const initialLng = hasValidCoords ? (lng as number) : 0;
+      const initialZoom = hasValidCoords ? 14 : 2;
 
-      const map = L.map(mapContainerRef.current, {
-        center: [initialLat, initialLng],
-        zoom: hasValidCoords ? 14 : 12,
-        zoomControl: true,
-        scrollWheelZoom: "center",
-      });
+      const map = setupMap(mapContainerRef.current, [initialLat, initialLng], initialZoom);
 
-      const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN?.trim();
-      const fallbackTileUrl =
-        "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
-      const fallbackAttribution =
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
-
-      if (mapboxToken) {
-        const isRetina = typeof window !== "undefined" && window.devicePixelRatio > 1;
-        const mapboxLayer = L.tileLayer(
-          `https://api.mapbox.com/styles/v1/mapbox/light-v11/tiles/512/{z}/{x}/{y}${isRetina ? "@2x" : ""}?access_token=${mapboxToken}`,
-          {
-            attribution:
-              '© <a href="https://www.mapbox.com/about/maps/">Mapbox</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-            tileSize: 512,
-            zoomOffset: -1,
-            maxZoom: 22,
-          }
-        );
-
-        mapboxLayer.on("tileerror", () => {
-          if (!map.hasLayer(mapboxLayer)) return;
-          map.removeLayer(mapboxLayer);
-          L.tileLayer(fallbackTileUrl, {
-            attribution: fallbackAttribution,
-            subdomains: "abcd",
-            maxZoom: 19,
-          }).addTo(map);
-        });
-
-        mapboxLayer.addTo(map);
-      } else {
-        L.tileLayer(fallbackTileUrl, {
-          attribution: fallbackAttribution,
-          subdomains: "abcd",
-          maxZoom: 19,
-        }).addTo(map);
-      }
-
-      // Create draggable marker
+      // Create marker (draggable only when not locked)
       const marker = L.marker([initialLat, initialLng], {
-        draggable: true,
+        draggable: !lockedRef.current,
         icon: createPinIcon(street || city || "Daycare Pin"),
       }).addTo(map);
 
+      mapInstanceRef.current = map;
+      markerRef.current = marker;
+
+      const cleanupGeocoder = attachGeocoderControl(map, marker, (nextLat, nextLng, addressHint) => {
+        onLocationChangeRef.current(nextLat, nextLng, addressHint);
+      });
+
       // On Marker Drag
       marker.on("dragend", () => {
+        if (lockedRef.current) return;
         const position = marker.getLatLng();
         isInternalMoveRef.current = true;
-        onLocationChange(
+        onLocationChangeRef.current(
           parseFloat(position.lat.toFixed(6)),
           parseFloat(position.lng.toFixed(6))
         );
@@ -201,20 +294,18 @@ export default function LocationPickerMap({
 
       // On Map Click - move pin to clicked location
       map.on("click", (e: L.LeafletMouseEvent) => {
+        if (lockedRef.current) return;
         const { lat: clickLat, lng: clickLng } = e.latlng;
         marker.setLatLng([clickLat, clickLng]);
         isInternalMoveRef.current = true;
-        onLocationChange(
+        onLocationChangeRef.current(
           parseFloat(clickLat.toFixed(6)),
           parseFloat(clickLng.toFixed(6))
         );
       });
 
-      mapInstanceRef.current = map;
-      markerRef.current = marker;
-
       // For new registration (no coordinates saved yet): automatically request current location
-      if (!hasValidCoords) {
+      if (!hasValidCoords && !lockedRef.current) {
         goToCurrentLocation(true);
       }
 
@@ -234,6 +325,7 @@ export default function LocationPickerMap({
       }, 250);
 
       return () => {
+        cleanupGeocoder();
         clearTimeout(resizeTimer);
         if (mapInstanceRef.current) {
           try {
@@ -247,6 +339,50 @@ export default function LocationPickerMap({
       };
     }
   }, []);
+
+  // Sync locked state with map view, marker dragging, zoom & geocoder controls
+  useEffect(() => {
+    lockedRef.current = locked;
+    const map = mapInstanceRef.current;
+    if (map) {
+      if (locked) {
+        map.dragging.disable();
+        map.scrollWheelZoom.disable();
+        map.doubleClickZoom.disable();
+        map.touchZoom.disable();
+        map.boxZoom.disable();
+        map.keyboard.disable();
+      } else {
+        map.dragging.enable();
+        map.scrollWheelZoom.enable();
+        map.doubleClickZoom.enable();
+        map.touchZoom.enable();
+        map.boxZoom.enable();
+        map.keyboard.enable();
+      }
+    }
+    if (markerRef.current) {
+      if (locked) {
+        markerRef.current.dragging?.disable();
+      } else {
+        markerRef.current.dragging?.enable();
+      }
+    }
+    if (mapContainerRef.current) {
+      const geocoderEl = mapContainerRef.current.querySelector(
+        ".leaflet-control-geocoder"
+      ) as HTMLElement | null;
+      if (geocoderEl) {
+        geocoderEl.style.display = locked ? "none" : "";
+      }
+      const zoomEl = mapContainerRef.current.querySelector(
+        ".leaflet-control-zoom"
+      ) as HTMLElement | null;
+      if (zoomEl) {
+        zoomEl.style.display = locked ? "none" : "";
+      }
+    }
+  }, [locked]);
 
   // Update marker position and map center when props change from external updates (e.g. Geocoding)
   useEffect(() => {
@@ -270,16 +406,15 @@ export default function LocationPickerMap({
 
     // External change (e.g. searching address) -> update marker coordinate and fly map
     markerRef.current.setLatLng([validLat, validLng]);
-    mapInstanceRef.current.flyTo([validLat, validLng], 15, {
-      duration: 0.8,
-    });
+    safeMoveMap(mapInstanceRef.current, [validLat, validLng], 15, 0.8);
   }, [lat, lng, street, city]);
 
   return (
     <div className={`relative ${className}`}>
       <div ref={mapContainerRef} className="w-full h-full z-0" />
 
-      {/* GPS Location Control Icon */}
+      {/* GPS Location Control Icon (hidden when location is fixed/locked) */}
+      {!locked && (
       <div className="absolute top-3.5 right-3.5 z-[1000] flex flex-col items-end gap-1.5">
         <button
           type="button"
@@ -330,6 +465,7 @@ export default function LocationPickerMap({
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }

@@ -270,7 +270,7 @@ export function KitaDetail({
 
       {/* Key Details Row */}
       {(kita.hours || kita.ageRange || kita.distance) && (
-        <div className="grid grid-cols-3 gap-2 sm:gap-3 py-3 border-y border-[#F0EAE1]">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3 py-3 border-y border-[#F0EAE1]">
           {/* Hours */}
           {kita.hours ? (
             <div className="flex items-center gap-1.5 sm:gap-2.5">

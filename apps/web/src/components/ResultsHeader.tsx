@@ -14,10 +14,6 @@ interface ResultsHeaderProps {
   catchmentRadius?: number;
   isLocating?: boolean;
   onLocateMe?: () => void;
-  strictRadiusFilter?: boolean;
-  onToggleRadiusFilter?: () => void;
-  totalFilteredCount?: number;
-  totalAvailableCount?: number;
 }
 
 export function ResultsHeader({
@@ -31,10 +27,6 @@ export function ResultsHeader({
   catchmentRadius = 3,
   isLocating = false,
   onLocateMe,
-  strictRadiusFilter = true,
-  onToggleRadiusFilter,
-  totalFilteredCount = 0,
-  totalAvailableCount = 0,
 }: ResultsHeaderProps) {
   const { t } = useLanguage();
 
@@ -102,19 +94,6 @@ export function ResultsHeader({
                     <span>{t.results.locateMe}</span>
                   </span>
                 )}
-              </button>
-            )}
-
-            {/* Radius Filter Toggle (Allow user to toggle strict radius filter vs view all) */}
-            {onToggleRadiusFilter && totalAvailableCount > 0 && (
-              <button
-                type="button"
-                onClick={onToggleRadiusFilter}
-                className="text-[11px] font-medium text-[#7A6E62] hover:text-[#1E1B18] underline ml-1 cursor-pointer"
-              >
-                {strictRadiusFilter
-                  ? t.results.showAllDaycares.replace("{count}", String(totalAvailableCount))
-                  : t.results.filterWithinRadius.replace("{radius}", String(catchmentRadius))}
               </button>
             )}
           </div>

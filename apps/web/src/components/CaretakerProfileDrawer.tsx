@@ -42,7 +42,7 @@ export function CaretakerProfileDrawer({
     >
       {/* Right-Side Drawer Panel */}
       <div
-        className="w-full max-w-[660px] h-full bg-white shadow-[-6px_0px_24px_rgba(0,0,0,0.18)] p-5 sm:p-7 md:p-8 flex flex-col gap-5 sm:gap-6 overflow-y-auto animate-in slide-in-from-right duration-300 relative"
+        className="w-full max-w-[660px] h-full bg-white shadow-[-6px_0px_24px_rgba(0,0,0,0.18)] p-4 sm:p-7 md:p-8 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1.25rem,env(safe-area-inset-bottom))] flex flex-col gap-4 sm:gap-6 overflow-y-auto animate-in slide-in-from-right duration-300 relative"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top Back Action Bar */}

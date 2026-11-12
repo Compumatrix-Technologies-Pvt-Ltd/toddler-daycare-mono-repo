@@ -145,11 +145,11 @@ export function EnquiryModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto"
+      className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] overflow-y-auto"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-3xl border border-[#E5DDD2] w-full max-w-[820px] p-5 sm:p-8 relative my-auto max-h-[92vh] overflow-y-auto shadow-2xl animate-in fade-in zoom-in-95 duration-200"
+        className="bg-white rounded-3xl border border-[#E5DDD2] w-full max-w-[820px] p-4 sm:p-8 relative my-auto max-h-[92vh] overflow-y-auto shadow-2xl animate-in fade-in zoom-in-95 duration-200"
         role="dialog"
         aria-modal="true"
         aria-labelledby="enquiry-modal-title"
@@ -341,7 +341,7 @@ export function EnquiryModal({
 
           {/* SECTION 3: PREFERENCES */}
           <div className="p-3.5 sm:p-4 rounded-2xl bg-[#FAF7F2] border border-[#E5DDD2] space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-1.5">
               <div className="flex items-center gap-2 text-xs font-bold uppercase text-[#7A6E62] tracking-wider">
                 <span>✨</span>
                 <span>3. {t.modals.enquiryForm.preferencesLabel}</span>

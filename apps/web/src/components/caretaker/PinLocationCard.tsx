@@ -5,6 +5,12 @@ import dynamic from "next/dynamic";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { useCaretaker } from "../../context/CaretakerContext";
 import { caretakerApi } from "@/utils/caretakerApi";
+import {
+  formatPostcodeCity,
+  formatStreetDisplay,
+  parseAddressComponents,
+  parseNominatimAddress,
+} from "../map/mapUtils";
 
 // Dynamically import Leaflet Map to ensure zero SSR / "window is not defined" issues
 const LocationPickerMap = dynamic(
@@ -23,31 +29,9 @@ const LocationPickerMap = dynamic(
   }
 );
 
-// Helper to parse street, house number, postcode, and city for strict MongoDB schema
-function parseAddressComponents(rawStreet: string, rawCity: string) {
-  const streetTrimmed = (rawStreet || "").trim();
-  // Extract house number if at the end of the street string (e.g. "Stargarder Straße 14" -> "Stargarder Straße", "14")
-  const houseMatch = streetTrimmed.match(/^(.*?)(?:\s+(\d+[a-zA-Z\/-]*))?$/);
-  const streetName = houseMatch && houseMatch[1] ? houseMatch[1].trim() : streetTrimmed;
-  const houseNumber = houseMatch && houseMatch[2] ? houseMatch[2].trim() : "1";
-
-  const cityTrimmed = (rawCity || "").trim();
-  // Extract postcode if at beginning of city string (e.g. "10437 Berlin" -> "10437", "Berlin")
-  const cityMatch = cityTrimmed.match(/^(\d{4,5})?\s*(.*)$/);
-  const postcode = cityMatch && cityMatch[1] ? cityMatch[1].trim() : "10437";
-  const cityName = cityMatch && cityMatch[2] && cityMatch[2].trim() ? cityMatch[2].trim() : "Berlin";
-
-  return {
-    street: streetName || "Daycare Street",
-    houseNumber: houseNumber || "1",
-    postcode: postcode || "10437",
-    city: cityName || "Berlin",
-  };
-}
-
 export function PinLocationCard() {
   const { t } = useLanguage();
-  const { profile, updateProfile } = useCaretaker();
+  const { profile, updateProfile, syncFromBackendDaycare } = useCaretaker();
 
   const [street, setStreet] = useState(profile.street || "");
   const [city, setCity] = useState(profile.city || "");
@@ -57,21 +41,40 @@ export function PinLocationCard() {
   const [isLookingUp, setIsLookingUp] = useState(false);
   const [isReverseGeocoding, setIsReverseGeocoding] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [hasValidated, setHasValidated] = useState(
-    Boolean(profile.isLocationPinned && profile.lat && profile.lng)
-  );
+  const initialPinned = Boolean(profile.isLocationPinned && profile.lat && profile.lng);
+  const [hasValidated, setHasValidated] = useState(initialPinned);
+  const [hasSavedLocation, setHasSavedLocation] = useState(initialPinned);
+  const [isEditingLocation, setIsEditingLocation] = useState(!initialPinned);
   const [statusMessage, setStatusMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
+  const savedSnapshotRef = useRef<{ street: string; city: string; lat: string; lng: string } | null>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Sync state with CaretakerContext
+  // Sync state with CaretakerContext (only when not actively editing a saved location)
   useEffect(() => {
+    if (hasSavedLocation && isEditingLocation) return;
     setStreet(profile.street || "");
     setCity(profile.city || "");
     setLat(profile.lat || "");
     setLng(profile.lng || "");
     setHasValidated(Boolean(profile.isLocationPinned && profile.lat && profile.lng));
-  }, [profile.street, profile.city, profile.lat, profile.lng, profile.isLocationPinned]);
+  }, [profile.street, profile.city, profile.lat, profile.lng, profile.isLocationPinned, hasSavedLocation, isEditingLocation]);
+
+  // Lock location map whenever the full profile form is saved
+  useEffect(() => {
+    const handleProfileSaved = () => {
+      setHasSavedLocation(true);
+      setIsEditingLocation(false);
+      savedSnapshotRef.current = {
+        street: profile.street || street,
+        city: profile.city || city,
+        lat: profile.lat || lat,
+        lng: profile.lng || lng,
+      };
+    };
+    window.addEventListener("daycare-profile-saved", handleProfileSaved);
+    return () => window.removeEventListener("daycare-profile-saved", handleProfileSaved);
+  }, [profile.street, profile.city, profile.lat, profile.lng, street, city, lat, lng]);
 
   // Fetch saved location from MongoDB on initial mount
   useEffect(() => {
@@ -90,11 +93,20 @@ export function PinLocationCard() {
             setLng(loadedLng);
             setHasValidated(true);
 
-            const loadedStreet = loc.houseNumber ? `${loc.street} ${loc.houseNumber}` : loc.street;
-            const loadedCity = loc.postcode ? `${loc.postcode} ${loc.city}` : loc.city;
+            const loadedStreet = formatStreetDisplay(loc.street, loc.houseNumber);
+            const loadedCity = formatPostcodeCity(loc.postcode, loc.city);
 
             if (loadedStreet) setStreet(loadedStreet);
             if (loadedCity) setCity(loadedCity);
+
+            savedSnapshotRef.current = {
+              street: loadedStreet || profile.street || "",
+              city: loadedCity || profile.city || "",
+              lat: loadedLat,
+              lng: loadedLng,
+            };
+            setHasSavedLocation(true);
+            setIsEditingLocation(false);
 
             updateProfile({
               street: loadedStreet || profile.street,
@@ -117,9 +129,9 @@ export function PinLocationCard() {
     targetLng: number,
     targetStreet: string,
     targetCity: string
-  ) => {
+  ): Promise<boolean> => {
     const token = caretakerApi.getToken();
-    if (!token) return;
+    if (!token) return false;
 
     try {
       setIsSaving(true);
@@ -138,9 +150,24 @@ export function PinLocationCard() {
         })
       );
 
-      await caretakerApi.updateDaycare(formData);
+      const updated = await caretakerApi.updateDaycare(formData);
+      if (updated) {
+        const savedDoc = updated?.data || updated;
+        syncFromBackendDaycare(savedDoc);
+        savedSnapshotRef.current = {
+          street: targetStreet,
+          city: targetCity,
+          lat: String(targetLat),
+          lng: String(targetLng),
+        };
+        setHasSavedLocation(true);
+        setIsEditingLocation(false);
+        return true;
+      }
+      return false;
     } catch {
       // If daycare is not yet created, values are staged in CaretakerContext and saved upon full profile creation
+      return false;
     } finally {
       setIsSaving(false);
     }
@@ -149,7 +176,12 @@ export function PinLocationCard() {
   // =========================================================================
   // 1. SELECTING PIN ON MAP -> SHOW IN FIELD (Reverse Geocoding)
   // =========================================================================
-  const handleMapLocationChange = async (newLat: number, newLng: number) => {
+  const handleMapLocationChange = async (
+    newLat: number,
+    newLng: number,
+    addressHint?: string
+  ) => {
+    if (hasSavedLocation && !isEditingLocation) return;
     const latStr = String(newLat);
     const lngStr = String(newLng);
     setLat(latStr);
@@ -157,51 +189,60 @@ export function PinLocationCard() {
     setHasValidated(true);
     setIsReverseGeocoding(true);
 
-    const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN?.trim();
+    const rawMapboxToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN?.trim();
+    const mapboxToken = rawMapboxToken?.startsWith("pk.") ? rawMapboxToken : undefined;
 
     try {
       let resolvedStreet = "";
       let resolvedCity = "";
 
-      // Try Mapbox Reverse Geocoding first
+      // Try Mapbox Reverse Geocoding first (including POIs, buildings, hospitals, landmarks)
       if (mapboxToken) {
-        const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${newLng},${newLat}.json?access_token=${mapboxToken}&language=de,en&limit=1`;
+        const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${newLng},${newLat}.json?access_token=${mapboxToken}&types=poi,address,neighborhood,locality,place&language=de,en&limit=1`;
         const res = await fetch(url);
         const data = await res.json();
 
         if (data.features && data.features.length > 0) {
           const feature = data.features[0];
-          const streetPart = feature.text || "";
-          const housePart = feature.address ? ` ${feature.address}` : "";
-          resolvedStreet = `${streetPart}${housePart}`.trim();
+          const isPoi = Array.isArray(feature.place_type) && feature.place_type.includes("poi");
+          if (isPoi) {
+            const poiTitle = feature.text || "";
+            const poiStreet = feature.properties?.address || "";
+            resolvedStreet = [poiTitle, poiStreet].filter(Boolean).join(", ").trim();
+          } else {
+            const streetPart = feature.text || "";
+            const housePart = feature.address ? ` ${feature.address}` : "";
+            resolvedStreet = `${streetPart}${housePart}`.trim();
+          }
 
           // Context gives postcode and city
           const postcodeObj = feature.context?.find((c: any) => c.id.startsWith("postcode"));
           const placeObj = feature.context?.find((c: any) => c.id.startsWith("place") || c.id.startsWith("locality"));
           const postcode = postcodeObj?.text || "";
-          const cityName = placeObj?.text || "Berlin";
-          resolvedCity = `${postcode} ${cityName}`.trim();
+          const cityName = placeObj?.text || "";
+          resolvedCity = formatPostcodeCity(postcode, cityName);
         }
       }
 
-      // Fallback to OpenStreetMap Nominatim Reverse Geocoding
-      if (!resolvedStreet && !resolvedCity) {
-        const osmUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${newLat}&lon=${newLng}&addressdetails=1`;
+      // Fallback to OpenStreetMap Nominatim Reverse Geocoding (zoom=18 resolves buildings/hospitals/POIs)
+      if (!resolvedStreet || !resolvedCity) {
+        const osmUrl = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${newLat}&lon=${newLng}&zoom=18&addressdetails=1&namedetails=1`;
         const res = await fetch(osmUrl, {
           headers: { "Accept-Language": "de,en" },
         });
         const data = await res.json();
 
-        if (data && data.address) {
-          const a = data.address;
-          const road = a.road || a.street || a.pedestrian || a.suburb || "";
-          const houseNo = a.house_number ? ` ${a.house_number}` : "";
-          resolvedStreet = `${road}${houseNo}`.trim();
-
-          const postCode = a.postcode || "";
-          const cityPlace = a.city || a.town || a.village || a.county || "Berlin";
-          resolvedCity = `${postCode} ${cityPlace}`.trim();
+        const parsedOsm = parseNominatimAddress(data);
+        if (!resolvedStreet && parsedOsm.streetLabel) {
+          resolvedStreet = parsedOsm.streetLabel;
         }
+        if (!resolvedCity && parsedOsm.cityLabel) {
+          resolvedCity = parsedOsm.cityLabel;
+        }
+      }
+
+      if (!resolvedStreet && addressHint) {
+        resolvedStreet = addressHint.split(",").slice(0, 2).map((s) => s.trim()).join(", ");
       }
 
       // Update input fields if address resolved
@@ -224,7 +265,9 @@ export function PinLocationCard() {
         isLocationPinned: true,
       });
 
-      await persistLocationToDb(newLat, newLng, finalStreet, finalCity);
+      if (!hasSavedLocation) {
+        await persistLocationToDb(newLat, newLng, finalStreet, finalCity);
+      }
     } catch {
       setStatusMessage({
         type: "success",
@@ -237,7 +280,9 @@ export function PinLocationCard() {
         isLocationPinned: true,
       });
 
-      await persistLocationToDb(newLat, newLng, street, city);
+      if (!hasSavedLocation) {
+        await persistLocationToDb(newLat, newLng, street, city);
+      }
     } finally {
       setIsReverseGeocoding(false);
     }
@@ -257,7 +302,8 @@ export function PinLocationCard() {
       return;
     }
 
-    const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN?.trim();
+    const rawMapboxToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN?.trim();
+    const mapboxToken = rawMapboxToken?.startsWith("pk.") ? rawMapboxToken : undefined;
 
     try {
       let foundLat: number | null = null;
@@ -280,11 +326,11 @@ export function PinLocationCard() {
         }
       }
 
-      // 2. Fallback to OpenStreetMap Nominatim
+      // 2. Fallback to OpenStreetMap Nominatim (includes buildings, hospitals, landmarks, POIs)
       if (foundLat === null || foundLng === null) {
-        const osmUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+        const osmUrl = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(
           fullQuery
-        )}&limit=1`;
+        )}&addressdetails=1&namedetails=1&limit=1`;
         const res = await fetch(osmUrl, {
           headers: { "Accept-Language": "de,en" },
         });
@@ -306,7 +352,9 @@ export function PinLocationCard() {
         setHasValidated(true);
         setStatusMessage({
           type: "success",
-          text: `Found & pinned: Lat ${foundLat.toFixed(4)}, Lng ${foundLng.toFixed(4)}`,
+          text: formattedPlace
+            ? `Found & pinned: ${formattedPlace}`
+            : `Found & pinned: Lat ${foundLat.toFixed(4)}, Lng ${foundLng.toFixed(4)}`,
         });
 
         updateProfile({
@@ -317,7 +365,9 @@ export function PinLocationCard() {
           isLocationPinned: true,
         });
 
-        await persistLocationToDb(foundLat, foundLng, street, city);
+        if (!hasSavedLocation) {
+          await persistLocationToDb(foundLat, foundLng, street, city);
+        }
       } else {
         setStatusMessage({
           type: "error",
@@ -346,12 +396,57 @@ export function PinLocationCard() {
     updateProfile({ city: val });
   };
 
+  const handleStartChangeLocation = () => {
+    savedSnapshotRef.current = { street, city, lat, lng };
+    setStatusMessage(null);
+    setIsEditingLocation(true);
+  };
+
+  const handleCancelChangeLocation = () => {
+    const snap = savedSnapshotRef.current;
+    if (snap) {
+      setStreet(snap.street);
+      setCity(snap.city);
+      setLat(snap.lat);
+      setLng(snap.lng);
+      updateProfile({
+        street: snap.street,
+        city: snap.city,
+        lat: snap.lat,
+        lng: snap.lng,
+        isLocationPinned: Boolean(snap.lat && snap.lng),
+      });
+    }
+    setStatusMessage(null);
+    setIsEditingLocation(false);
+  };
+
+  const handleSaveChangedLocation = async () => {
+    const nextLat = parseFloat(lat);
+    const nextLng = parseFloat(lng);
+    if (!Number.isFinite(nextLat) || !Number.isFinite(nextLng) || nextLat === 0 || nextLng === 0) {
+      setStatusMessage({
+        type: "error",
+        text: "Please pin a valid location on the map before saving.",
+      });
+      return;
+    }
+    const saved = await persistLocationToDb(nextLat, nextLng, street, city);
+    if (saved) {
+      setStatusMessage({
+        type: "success",
+        text: t.caretakerProfile.location.reviewNotice,
+      });
+    }
+  };
+
   const parsedLat = parseFloat(lat) || 0;
   const parsedLng = parseFloat(lng) || 0;
+  const isLocked = hasSavedLocation && !isEditingLocation;
 
   return (
-    <div className="bg-white rounded-[24px] border border-[#E5DDD2] shadow-[0_2px_16px_rgba(0,0,0,0.03)] p-6 sm:p-8">
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+    <div className="bg-white rounded-[24px] border border-[#E5DDD2] shadow-[0_2px_16px_rgba(0,0,0,0.03)] p-4 sm:p-8">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-8 items-start">
         {/* ============================================================ */}
         {/* Left Column: Form Inputs & Address Controls                  */}
         {/* ============================================================ */}
@@ -420,9 +515,12 @@ export function PinLocationCard() {
                   id="location-street"
                   type="text"
                   value={street}
+                  disabled={isLocked}
                   onChange={handleStreetChange}
                   placeholder={t.caretakerProfile.location.streetPlaceholder}
-                  className="w-full h-[48px] px-4 rounded-xl border border-[#E5DDD2] bg-[#FAF8F5]/60 text-[15px] text-[#1E1B18] placeholder:text-[#A89E90] focus:outline-none focus:ring-2 focus:ring-[#F5A623]/40 focus:border-[#F5A623] transition-all"
+                  className={`w-full h-[48px] px-4 rounded-xl border border-[#E5DDD2] text-[15px] text-[#1E1B18] placeholder:text-[#A89E90] focus:outline-none focus:ring-2 focus:ring-[#F5A623]/40 focus:border-[#F5A623] transition-all ${
+                    isLocked ? "bg-[#F3EFE8] opacity-80 cursor-not-allowed" : "bg-[#FAF8F5]/60"
+                  }`}
                 />
               </div>
             </div>
@@ -440,38 +538,89 @@ export function PinLocationCard() {
                   id="location-city"
                   type="text"
                   value={city}
+                  disabled={isLocked}
                   onChange={handleCityChange}
                   placeholder={t.caretakerProfile.location.postcodeCityPlaceholder}
-                  className="w-full h-[48px] px-4 rounded-xl border border-[#E5DDD2] bg-[#FAF8F5]/60 text-[15px] text-[#1E1B18] placeholder:text-[#A89E90] focus:outline-none focus:ring-2 focus:ring-[#F5A623]/40 focus:border-[#F5A623] transition-all"
+                  className={`w-full h-[48px] px-4 rounded-xl border border-[#E5DDD2] text-[15px] text-[#1E1B18] placeholder:text-[#A89E90] focus:outline-none focus:ring-2 focus:ring-[#F5A623]/40 focus:border-[#F5A623] transition-all ${
+                    isLocked ? "bg-[#F3EFE8] opacity-80 cursor-not-allowed" : "bg-[#FAF8F5]/60"
+                  }`}
                 />
               </div>
             </div>
 
-            {/* Look up & Sync CTA Button */}
-            <button
-              type="submit"
-              disabled={isLookingUp || isSaving}
-              className="w-full h-[48px] rounded-xl bg-[#A12D3A] hover:bg-[#88222E] active:scale-[0.99] text-white font-semibold text-[15px] shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer pt-0.5 disabled:opacity-75"
-              style={{ fontFamily: "var(--font-plus-jakarta)" }}
-            >
-              {isLookingUp || isSaving ? (
-                <>
-                  <svg className="animate-spin h-5 w-5 text-white" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                  </svg>
-                  <span>Searching & Updating Map...</span>
-                </>
-              ) : (
-                <>
-                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <circle cx="11" cy="11" r="8" />
-                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                  </svg>
-                  <span>{t.caretakerProfile.location.lookupButton}</span>
-                </>
-              )}
-            </button>
+            {/* Action Buttons: Fixed -> Change Location | Editing -> Lookup + Save for Review / Cancel */}
+            {isLocked ? (
+              <button
+                type="button"
+                onClick={handleStartChangeLocation}
+                className="w-full h-[48px] rounded-xl border-2 border-[#A12D3A] bg-white hover:bg-[#FAF7F2] active:scale-[0.99] text-[#A12D3A] font-semibold text-[15px] shadow-2xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+                style={{ fontFamily: "var(--font-plus-jakarta)" }}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                <span>{t.caretakerProfile.location.changeButton}</span>
+              </button>
+            ) : (
+              <div className="space-y-2.5">
+                <button
+                  type="submit"
+                  disabled={isLookingUp || isSaving}
+                  className="w-full h-[48px] rounded-xl bg-[#A12D3A] hover:bg-[#88222E] active:scale-[0.99] text-white font-semibold text-[15px] shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer pt-0.5 disabled:opacity-75"
+                  style={{ fontFamily: "var(--font-plus-jakarta)" }}
+                >
+                  {isLookingUp ? (
+                    <>
+                      <svg className="animate-spin h-5 w-5 text-white" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                      </svg>
+                      <span>Searching & Updating Map...</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <circle cx="11" cy="11" r="8" />
+                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                      </svg>
+                      <span>{t.caretakerProfile.location.lookupButton}</span>
+                    </>
+                  )}
+                </button>
+
+                {hasSavedLocation && (
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <button
+                      type="button"
+                      onClick={handleSaveChangedLocation}
+                      disabled={isSaving || isLookingUp}
+                      className="flex-1 min-h-[46px] px-4 rounded-xl bg-[#15803D] hover:bg-[#166534] text-white font-semibold text-[14px] shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-75"
+                    >
+                      {isSaving ? (
+                        <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24" fill="none">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                        </svg>
+                      ) : (
+                        <svg className="w-4 h-4 text-white shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                      <span>{t.caretakerProfile.location.saveLocationButton}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleCancelChangeLocation}
+                      disabled={isSaving}
+                      className="sm:w-auto min-h-[46px] px-4 rounded-xl border border-[#D5C9B8] bg-white hover:bg-[#FAF7F2] text-[#4B3E2F] font-semibold text-[14px] transition-all cursor-pointer"
+                    >
+                      {t.caretakerProfile.location.cancelChangeButton}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </form>
 
           {/* Quick Tip for Caretaker */}
@@ -488,19 +637,20 @@ export function PinLocationCard() {
         {/* ============================================================ */}
         {/* Right Column: Interactive Leaflet Map Preview                */}
         {/* ============================================================ */}
-        <div className="lg:col-span-7 relative h-[360px] sm:h-[420px] rounded-2xl overflow-hidden border border-[#E5DDD2] bg-[#E9E7E2] shadow-inner">
+        <div className="lg:col-span-7 relative isolate h-[280px] sm:h-[380px] lg:h-[420px] rounded-2xl overflow-hidden border border-[#E5DDD2] bg-[#E9E7E2] shadow-inner">
           {/* Real Leaflet Map */}
           <LocationPickerMap
             lat={parsedLat}
             lng={parsedLng}
             street={street}
             city={city}
+            locked={isLocked}
             onLocationChange={handleMapLocationChange}
             className="w-full h-full"
           />
 
-          {/* Top Pill Overlay: Lat/Lng Validated */}
-          <div className="absolute top-4 left-4 z-1000 flex items-center gap-2 bg-[#1E1B18]/90 backdrop-blur-md text-white text-[12px] font-mono font-medium px-3.5 py-1.5 rounded-full shadow-md border border-white/10 pointer-events-none">
+          {/* Top Pill Overlay: Lat/Lng Validated / Fixed */}
+          <div className="absolute top-3.5 left-14 z-1000 flex items-center gap-2 max-w-[calc(100%-8.5rem)] bg-[#1E1B18]/90 backdrop-blur-md text-white text-[11px] sm:text-[12px] font-mono font-medium px-3 sm:px-3.5 py-1.5 rounded-full shadow-md border border-white/10 pointer-events-none truncate">
             <svg className="w-3.5 h-3.5 text-[#F59E0B]" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
             </svg>
@@ -511,7 +661,11 @@ export function PinLocationCard() {
             )}
             <span className={`w-1.5 h-1.5 rounded-full ${hasValidated ? "bg-[#22C55E]" : "bg-[#F59E0B]"}`} />
             <span className="text-[#86EFAC] font-sans text-[11px] font-semibold">
-              {hasValidated ? t.caretakerProfile.location.validatedBadge : "Set Pin"}
+              {isLocked
+                ? t.caretakerProfile.location.lockedBadge
+                : hasValidated
+                  ? t.caretakerProfile.location.validatedBadge
+                  : "Set Pin"}
             </span>
           </div>
 
@@ -521,7 +675,7 @@ export function PinLocationCard() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
             </svg>
             <p className="text-[12px] text-[#5C5043] leading-snug">
-              {t.caretakerProfile.location.dragTooltip}
+              {isLocked ? t.caretakerProfile.location.lockedTooltip : t.caretakerProfile.location.dragTooltip}
             </p>
           </div>
         </div>
