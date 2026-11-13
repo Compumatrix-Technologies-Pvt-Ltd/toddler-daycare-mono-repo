@@ -409,3 +409,71 @@ export function KeyIcon({ className = "w-5 h-5" }: IconProps) {
   );
 }
 
+export function RefreshCwIcon({ className = "w-4 h-4" }: IconProps) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+      <path d="M3 3v5h5" />
+      <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+      <path d="M16 16h5v5" />
+    </svg>
+  );
+}
+
+export function InboxIcon({ className = "w-6 h-6" }: IconProps) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
+      <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+    </svg>
+  );
+}
+
+export function GermanFlagIcon({ className = "w-4 h-3" }: IconProps) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 640 480"
+      aria-hidden="true"
+    >
+      <path fill="#000" d="M0 0h640v160H0z" />
+      <path fill="#D00" d="M0 160h640v160H0z" />
+      <path fill="#FFCE00" d="M0 320h640v160H0z" />
+    </svg>
+  );
+}
+
+export function UkFlagIcon({ className = "w-4 h-3" }: IconProps) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 640 480"
+      aria-hidden="true"
+    >
+      <path fill="#012169" d="M0 0h640v480H0z" />
+      <path stroke="#FFF" strokeWidth="60" d="m0 0 640 480M640 0 0 480" />
+      <path stroke="#C8102E" strokeWidth="40" d="m0 0 640 480M640 0 0 480" />
+      <path stroke="#FFF" strokeWidth="100" d="M320 0v480M0 240h640" />
+      <path stroke="#C8102E" strokeWidth="60" d="M320 0v480M0 240h640" />
+    </svg>
+  );
+}
+

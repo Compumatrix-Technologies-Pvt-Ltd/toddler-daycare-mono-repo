@@ -4,6 +4,8 @@ export interface IPlatformSettings extends Document {
   siteName: string;
   contactEmail: string;
   defaultCatchmentRadiusKm: number;
+  urbanCatchmentRadiusKm: number;
+  ruralCatchmentRadiusKm: number;
   autoValidatePermits: boolean;
   emailNotificationOnInquiry: boolean;
   dailyDigestEnabled: boolean;
@@ -19,6 +21,8 @@ const settingsSchema = new Schema<IPlatformSettings>(
     siteName: { type: String, default: "Find Toddler Daycare" },
     contactEmail: { type: String, default: "admin@toddler-care.de" },
     defaultCatchmentRadiusKm: { type: Number, default: 3.0 },
+    urbanCatchmentRadiusKm: { type: Number, default: 3.0 },
+    ruralCatchmentRadiusKm: { type: Number, default: 10.0 },
     autoValidatePermits: { type: Boolean, default: true },
     emailNotificationOnInquiry: { type: Boolean, default: true },
     dailyDigestEnabled: { type: Boolean, default: true },

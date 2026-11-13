@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { useLanguage } from "../../../i18n/LanguageContext";
 import { BookingItem } from "../../../types/caretakerDashboard";
+import { DatePicker } from "@repo/ui";
 
 interface AddBookingModalProps {
   isOpen: boolean;
@@ -123,14 +124,12 @@ export function AddBookingModal({ isOpen, onClose, onAddBooking }: AddBookingMod
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>
-              <label className="block text-xs font-semibold text-[#344054] mb-1.5 uppercase tracking-wide">
-                {m.childDob}
-              </label>
-              <input
-                type="date"
+              <DatePicker
+                label={m.childDob}
                 value={childDob}
-                onChange={(e) => setChildDob(e.target.value)}
-                className="w-full h-[42px] px-3 rounded-lg border border-[#D0D5DD] text-sm text-[#101828] focus:outline-hidden focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] transition-all"
+                onChange={(_d, str) => setChildDob(str)}
+                locale={language}
+                maxDate={new Date()}
               />
             </div>
             <div>
@@ -142,32 +141,27 @@ export function AddBookingModal({ isOpen, onClose, onAddBooking }: AddBookingMod
                 value={dailyHours}
                 onChange={(e) => setDailyHours(e.target.value)}
                 placeholder={m.dailyHoursPlaceholder}
-                className="w-full h-[42px] px-3 rounded-lg border border-[#D0D5DD] text-sm text-[#101828] placeholder-[#98A2B3] focus:outline-hidden focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] transition-all"
+                className="w-full h-[42px] px-3 rounded-xl border border-[#D0D5DD] text-sm text-[#101828] placeholder-[#98A2B3] focus:outline-hidden focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] transition-all"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>
-              <label className="block text-xs font-semibold text-[#344054] mb-1.5 uppercase tracking-wide">
-                {m.placementStart}
-              </label>
-              <input
-                type="date"
+              <DatePicker
+                label={m.placementStart}
                 value={placementStart}
-                onChange={(e) => setPlacementStart(e.target.value)}
-                className="w-full h-[42px] px-3 rounded-lg border border-[#D0D5DD] text-sm text-[#101828] focus:outline-hidden focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] transition-all"
+                onChange={(_d, str) => setPlacementStart(str)}
+                locale={language}
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-[#344054] mb-1.5 uppercase tracking-wide">
-                {m.transitionDate}
-              </label>
-              <input
-                type="date"
+              <DatePicker
+                label={m.transitionDate}
                 value={transitionDate}
-                onChange={(e) => setTransitionDate(e.target.value)}
-                className="w-full h-[42px] px-3 rounded-lg border border-[#D0D5DD] text-sm text-[#101828] focus:outline-hidden focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] transition-all"
+                onChange={(_d, str) => setTransitionDate(str)}
+                locale={language}
+                minDate={placementStart}
               />
             </div>
           </div>

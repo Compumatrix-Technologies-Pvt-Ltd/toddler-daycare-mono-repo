@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { LanguageProvider, useLanguage } from "./context/LanguageContext";
 import { AdminHeader } from "./components/layout/AdminHeader";
 import { AdminSidebar } from "./components/layout/AdminSidebar";
@@ -12,7 +13,7 @@ import { WorkPermitApproveModal } from "./components/modals/WorkPermitApproveMod
 import { AdminLogin } from "./components/auth/AdminLogin";
 import { AdminForgotPassword } from "./components/auth/AdminForgotPassword";
 import { adminAuthService } from "./services/adminAuthService";
-import { adminDaycareService } from "./services/adminDaycareService";
+import { adminDaycareService, AdminDashboardStats } from "./services/adminDaycareService";
 import { adminSettingsService } from "./services/adminSettingsService";
 import { getAdminSocket } from "./utils/socket";
 import {
@@ -27,6 +28,8 @@ const INITIAL_SETTINGS: PlatformSettings = {
   siteName: "Find Toddler Daycare",
   contactEmail: "admin@toddler-care.de",
   defaultCatchmentRadiusKm: 3.0,
+  urbanCatchmentRadiusKm: 3.0,
+  ruralCatchmentRadiusKm: 10.0,
   autoValidatePermits: true,
   emailNotificationOnInquiry: true,
   dailyDigestEnabled: true,
@@ -37,6 +40,9 @@ const INITIAL_SETTINGS: PlatformSettings = {
 
 function AdminPortalInner() {
   const { t } = useLanguage();
+  const navigate = useNavigate();
+  const location = useLocation();
+
   const [currentUser, setCurrentUser] = useState<AdminUser | null>(null);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [authScreen, setAuthScreen] = useState<"login" | "forgot-password">("login");
@@ -49,9 +55,38 @@ function AdminPortalInner() {
 
   // Real Daycare Applications from MongoDB (zero mock data)
   const [applications, setApplications] = useState<DaycareApplication[]>([]);
+  const [dashboardStats, setDashboardStats] = useState<AdminDashboardStats | null>(null);
   const [isLoadingApplications, setIsLoadingApplications] = useState(false);
+  const [inquiriesCount, setInquiriesCount] = useState<number>(0);
   const [settings, setSettings] = useState<PlatformSettings>(INITIAL_SETTINGS);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Synchronize activeTab with URL path
+  useEffect(() => {
+    const rawPath = location.pathname.toLowerCase().replace(/^\//, "");
+    if (rawPath === "daycares") {
+      setActiveTab("daycares");
+    } else if (rawPath === "inquiries") {
+      setActiveTab("inquiries");
+    } else if (rawPath === "settings") {
+      setActiveTab("settings");
+    } else if (rawPath === "dashboard" || rawPath === "") {
+      setActiveTab("dashboard");
+    }
+  }, [location.pathname]);
+
+  // When authenticated user is on / or /login, redirect URL to /dashboard
+  useEffect(() => {
+    if (currentUser && (location.pathname === "/login" || location.pathname === "/" || location.pathname === "")) {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [currentUser, location.pathname, navigate]);
+
+  const handleSelectTab = (tab: AdminTab) => {
+    setActiveTab(tab);
+    navigate(`/${tab}`);
+    setMobileSidebarOpen(false);
+  };
 
   // Restore authenticated session on page load
   useEffect(() => {
@@ -71,27 +106,37 @@ function AdminPortalInner() {
       .finally(() => setIsCheckingAuth(false));
   }, []);
 
-  // Fetch real registered daycares when authenticated
+  // Fetch real registered daycares & dashboard stats when authenticated
   useEffect(() => {
     if (!currentUser) {
       setApplications([]);
+      setDashboardStats(null);
       return;
     }
 
     setIsLoadingApplications(true);
+    // Fetch live dashboard stats from API (totalDaycares, pendingPermits, verifiedCaretakers, demandInquiries, totalCapacity, applications)
     adminDaycareService
-      .getDaycares()
-      .then((data) => {
-        setApplications(data);
+      .getDashboardStats()
+      .then((stats) => {
+        if (stats) {
+          setDashboardStats(stats);
+          setApplications(stats.applications);
+          setInquiriesCount(stats.demandInquiries);
+        } else {
+          // Fallback to getDaycares
+          return adminDaycareService.getDaycares().then((data) => setApplications(data));
+        }
       })
       .catch((err) => {
-        console.error("Error loading daycares from API:", err);
+        console.error("Error loading dashboard data from API:", err);
+        return adminDaycareService.getDaycares().then((data) => setApplications(data)).catch(() => {});
       })
       .finally(() => {
         setIsLoadingApplications(false);
       });
 
-    // Also fetch live platform settings (including defaultCatchmentRadiusKm)
+    // Also fetch platform settings (including defaultCatchmentRadiusKm)
     adminSettingsService
       .getSettings()
       .then((data) => {
@@ -108,8 +153,16 @@ function AdminPortalInner() {
 
     const handleDaycareUpdated = () => {
       adminDaycareService
-        .getDaycares()
-        .then((data) => setApplications(data))
+        .getDashboardStats()
+        .then((stats) => {
+          if (stats) {
+            setDashboardStats(stats);
+            setApplications(stats.applications);
+            setInquiriesCount(stats.demandInquiries);
+          } else {
+            return adminDaycareService.getDaycares().then((data) => setApplications(data));
+          }
+        })
         .catch(() => {});
     };
 
@@ -179,7 +232,9 @@ function AdminPortalInner() {
     adminAuthService.logout();
     setLogoutModalOpen(false);
     setCurrentUser(null);
+    setDashboardStats(null);
     setAuthScreen("login");
+    navigate("/login");
   };
 
   const pendingCount = applications.filter((a) => a.status === "pending").length;
@@ -195,10 +250,13 @@ function AdminPortalInner() {
 
   // Unauthenticated Flow: Login & Forgot Password
   if (!currentUser) {
-    if (authScreen === "forgot-password") {
+    if (authScreen === "forgot-password" || location.pathname === "/forgot-password") {
       return (
         <AdminForgotPassword
-          onBackToLogin={() => setAuthScreen("login")}
+          onBackToLogin={() => {
+            setAuthScreen("login");
+            navigate("/login");
+          }}
         />
       );
     }
@@ -207,8 +265,12 @@ function AdminPortalInner() {
         onLoginSuccess={(user) => {
           setCurrentUser(user);
           setAuthScreen("login");
+          navigate("/dashboard");
         }}
-        onNavigateToForgotPassword={() => setAuthScreen("forgot-password")}
+        onNavigateToForgotPassword={() => {
+          setAuthScreen("forgot-password");
+          navigate("/forgot-password");
+        }}
       />
     );
   }
@@ -228,10 +290,7 @@ function AdminPortalInner() {
         {/* Sidebar */}
         <AdminSidebar
           activeTab={activeTab}
-          onSelectTab={(tab) => {
-            setActiveTab(tab);
-            setMobileSidebarOpen(false);
-          }}
+          onSelectTab={handleSelectTab}
           onLogoutClick={() => setLogoutModalOpen(true)}
           mobileOpen={mobileSidebarOpen}
           onCloseMobile={() => setMobileSidebarOpen(false)}
@@ -258,8 +317,10 @@ function AdminPortalInner() {
           {activeTab === "dashboard" && (
             <DashboardView
               applications={applications}
+              inquiriesCount={inquiriesCount}
+              stats={dashboardStats}
               isLoading={isLoadingApplications}
-              onViewAllDaycares={() => setActiveTab("daycares")}
+              onViewAllDaycares={() => handleSelectTab("daycares")}
               onRequestApprove={(app) => setApproveTargetApp(app)}
               onReject={(id) => handleUpdateStatus(id, "rejected")}
               onOpenDetails={(app) => setSelectedApp(app)}
@@ -313,6 +374,7 @@ function AdminPortalInner() {
 
       <WorkPermitApproveModal
         application={approveTargetApp}
+        applications={applications}
         onClose={() => setApproveTargetApp(null)}
         onConfirmApprove={(id, details) => handleUpdateStatus(id, "approved", details)}
       />

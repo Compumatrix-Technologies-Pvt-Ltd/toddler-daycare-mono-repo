@@ -1,20 +1,24 @@
 import React, { useState, useEffect } from "react";
+import mammoth from "mammoth";
 import { CloseIcon, ShieldCheckIcon, BuildingIcon, CheckCircleIcon } from "../icons/AdminIcons";
 import { DaycareApplication, WorkPermitDetails } from "../../types/admin";
 import { useLanguage } from "../../context/LanguageContext";
+import { DatePicker } from "@repo/ui";
 
 interface WorkPermitApproveModalProps {
   application: DaycareApplication | null;
+  applications?: DaycareApplication[];
   onClose: () => void;
   onConfirmApprove: (id: string, details: WorkPermitDetails) => Promise<void> | void;
 }
 
 export function WorkPermitApproveModal({
   application,
+  applications = [],
   onClose,
   onConfirmApprove,
 }: WorkPermitApproveModalProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const copy = t.admin.dashboard.approveModal;
 
   const [permitId, setPermitId] = useState("");
@@ -55,11 +59,55 @@ export function WorkPermitApproveModal({
   const docName = application.workPermitFileName || (docUrl ? docUrl.split("/").pop() || "work-permit" : "");
   const lowerUrl = (docUrl || docName).toLowerCase();
   const isPdf = lowerUrl.endsWith(".pdf");
+  const isDocx = lowerUrl.endsWith(".docx");
+  const isDoc = lowerUrl.endsWith(".doc");
   const isImage =
     lowerUrl.endsWith(".png") ||
     lowerUrl.endsWith(".jpg") ||
     lowerUrl.endsWith(".jpeg") ||
     lowerUrl.endsWith(".webp");
+
+  const [docxHtml, setDocxHtml] = useState<string | null>(null);
+  const [docLoading, setDocLoading] = useState<boolean>(false);
+  const [docError, setDocError] = useState<string | null>(null);
+
+  // Load and convert .docx documents to formatted HTML using mammoth
+  useEffect(() => {
+    if (!docUrl || !isDocx) {
+      setDocxHtml(null);
+      setDocLoading(false);
+      setDocError(null);
+      return;
+    }
+
+    let isMounted = true;
+    setDocLoading(true);
+    setDocError(null);
+
+    fetch(docUrl)
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+        return res.arrayBuffer();
+      })
+      .then(async (arrayBuffer) => {
+        const result = await (mammoth as any).convertToHtml({ arrayBuffer });
+        if (isMounted) {
+          setDocxHtml(result.value);
+          setDocLoading(false);
+        }
+      })
+      .catch((err) => {
+        if (isMounted) {
+          console.warn("Failed to parse docx document with mammoth:", err);
+          setDocError("Could not render Word document preview inline.");
+          setDocLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [docUrl, isDocx]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,6 +115,20 @@ export function WorkPermitApproveModal({
 
     if (!permitId.trim() || !registrationDate.trim() || !expirationDate.trim()) {
       setError(copy.validationRequired);
+      return;
+    }
+
+    // Validation: Permit Number can not be duplicate / same across registered daycares
+    const trimmedPermit = permitId.trim().toLowerCase();
+    const isDuplicate = applications.some(
+      (app) =>
+        app.id !== application.id &&
+        (app.permitId?.trim().toLowerCase() === trimmedPermit ||
+          app.permitNumber?.trim().toLowerCase() === trimmedPermit)
+    );
+
+    if (isDuplicate) {
+      setError(copy.validationPermitDuplicate || "This Permit Number is already assigned to another registered daycare.");
       return;
     }
 
@@ -90,7 +152,12 @@ export function WorkPermitApproveModal({
       await onConfirmApprove(application.id, payload);
       onClose();
     } catch (err: any) {
-      setError(err?.message || "Failed to approve work permit.");
+      const serverMsg =
+        err?.response?.data?.message ||
+        err?.response?.data?.errors?.permitId?.[0] ||
+        err?.message ||
+        "Failed to approve work permit.";
+      setError(serverMsg);
     } finally {
       setIsSubmitting(false);
     }
@@ -200,10 +267,72 @@ export function WorkPermitApproveModal({
                     </div>
                   ) : isPdf ? (
                     <iframe
-                      src={docUrl}
+                      src={`${docUrl}#view=FitH`}
                       title={docName || "Work Permit PDF"}
-                      className="w-full h-[340px] sm:h-[420px] bg-white border-0"
+                      className="w-full h-[380px] sm:h-[460px] bg-white border-0"
                     />
+                  ) : isDocx ? (
+                    <div className="flex-1 flex flex-col bg-white overflow-hidden min-h-[380px] sm:min-h-[460px]">
+                      {docLoading ? (
+                        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-2">
+                          <div className="w-7 h-7 border-2 border-[#A12D3A] border-t-transparent rounded-full animate-spin" />
+                          <p className="text-xs font-semibold text-[#7A6E62]">
+                            {t.admin.dashboard.approveModal.renderingDoc || "Rendering Word Document..."}
+                          </p>
+                        </div>
+                      ) : docError || !docxHtml ? (
+                        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-3">
+                          <div className="w-12 h-12 rounded-2xl bg-[#FEF3C7] border border-[#FDE68A] flex items-center justify-center text-[#D97706]">
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                          </div>
+                          <p className="text-xs font-semibold text-[#92400E]">
+                            {t.admin.dashboard.approveModal.docPreview || "Word Document Preview"}
+                          </p>
+                          <a
+                            href={docUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            download={docName || undefined}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#A12D3A] text-white text-xs font-semibold hover:bg-[#88222E]"
+                          >
+                            <span>{t.admin.dashboard.approveModal.downloadDocx || "Download / Open DOCX"}</span>
+                          </a>
+                        </div>
+                      ) : (
+                        <div className="flex-1 overflow-y-auto p-5 sm:p-6 text-xs text-[#1E1B18] leading-relaxed prose prose-sm max-w-none docx-preview-content">
+                          <div dangerouslySetInnerHTML={{ __html: docxHtml }} />
+                        </div>
+                      )}
+                    </div>
+                  ) : isDoc ? (
+                    <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-4 bg-white">
+                      <div className="w-14 h-14 rounded-2xl bg-[#FAF7F2] border border-[#E5DDD2] flex items-center justify-center text-[#2563EB] shadow-xs">
+                        <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 13h6m-6 4h4" />
+                        </svg>
+                      </div>
+                      <div className="space-y-1 max-w-sm">
+                        <p className="text-xs sm:text-sm font-bold text-[#1E1B18] break-all">{docName}</p>
+                        <p className="text-xs text-[#7A6E62]">
+                          Legacy Microsoft Word (.doc) format. Open in Word or download to view.
+                        </p>
+                      </div>
+                      <a
+                        href={docUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        download={docName || undefined}
+                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-xs font-bold shadow-xs transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        <span>{t.admin.dashboard.approveModal.downloadView || "Download & View Document"}</span>
+                      </a>
+                    </div>
                   ) : isImage ? (
                     <div className="flex-1 flex items-center justify-center p-4 bg-[#1E1B18]/5">
                       <img
@@ -277,39 +406,24 @@ export function WorkPermitApproveModal({
 
                   {/* Registration Date & Expiration Date */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label
-                        htmlFor="permit-reg-date"
-                        className="block text-[11px] font-bold uppercase tracking-wider text-[#5C4C3E]"
-                      >
-                        {copy.registrationDate} <span className="text-[#DC2626]">*</span>
-                      </label>
-                      <input
-                        id="permit-reg-date"
-                        type="date"
-                        required
-                        value={registrationDate}
-                        onChange={(e) => setRegistrationDate(e.target.value)}
-                        className="w-full h-[42px] px-3 rounded-xl border border-[#E5DDD2] bg-white text-xs sm:text-sm text-[#1E1B18] focus:border-[#A12D3A] focus:ring-2 focus:ring-[#A12D3A]/15 focus:outline-hidden"
-                      />
-                    </div>
+                    <DatePicker
+                      id="permit-reg-date"
+                      label={copy.registrationDate}
+                      required
+                      value={registrationDate}
+                      onChange={(_d, dateStr) => setRegistrationDate(dateStr)}
+                      locale={language}
+                    />
 
-                    <div className="space-y-1">
-                      <label
-                        htmlFor="permit-exp-date"
-                        className="block text-[11px] font-bold uppercase tracking-wider text-[#5C4C3E]"
-                      >
-                        {copy.expirationDate} <span className="text-[#DC2626]">*</span>
-                      </label>
-                      <input
-                        id="permit-exp-date"
-                        type="date"
-                        required
-                        value={expirationDate}
-                        onChange={(e) => setExpirationDate(e.target.value)}
-                        className="w-full h-[42px] px-3 rounded-xl border border-[#E5DDD2] bg-white text-xs sm:text-sm text-[#1E1B18] focus:border-[#A12D3A] focus:ring-2 focus:ring-[#A12D3A]/15 focus:outline-hidden"
-                      />
-                    </div>
+                    <DatePicker
+                      id="permit-exp-date"
+                      label={copy.expirationDate}
+                      required
+                      value={expirationDate}
+                      onChange={(_d, dateStr) => setExpirationDate(dateStr)}
+                      locale={language}
+                      minDate={registrationDate}
+                    />
                   </div>
 
                   {/* Issuing Authority & Authorized Capacity */}

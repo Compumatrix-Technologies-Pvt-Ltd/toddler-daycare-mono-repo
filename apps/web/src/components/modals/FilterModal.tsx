@@ -3,6 +3,16 @@
 import React, { useState, useEffect } from "react";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { FilterState } from "../../types";
+import { Select } from "@repo/ui";
+import {
+  MapPinIcon,
+  FemaleIcon,
+  MaleIcon,
+  PotIcon,
+  BoxIcon,
+  DogIcon,
+  BanIcon,
+} from "../icons/WebIcons";
 
 interface FilterModalProps {
   isOpen: boolean;
@@ -81,7 +91,7 @@ export function FilterModal({
           <div className="space-y-2 p-3 sm:p-3.5 rounded-xl bg-[#FAF7F2] border border-[#E5DDD2]">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-[#1E1B18] flex items-center gap-1.5">
-                <span className="text-[#A12D3A]">📍</span>
+                <MapPinIcon className="w-3.5 h-3.5 text-[#A12D3A]" />
                 <span>{t.modals.filter.radius}</span>
               </label>
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#A12D3A] text-white text-xs font-bold shadow-2xs">
@@ -158,31 +168,31 @@ export function FilterModal({
               {t.modals.filter.startMonthYear}
             </label>
             <div className="grid grid-cols-2 gap-2">
-              <select
+              <Select
                 value={draft.startMonth}
-                onChange={(e) => setDraft((prev) => ({ ...prev, startMonth: e.target.value }))}
-                className="w-full h-10 px-3 rounded-xl border border-[#E5DDD2] bg-white text-xs font-semibold text-[#1E1B18] shadow-2xs"
-              >
-                <option value="">{t.search.anyMonth || "Any month"}</option>
-                {t.search.months.map((m, idx) => (
-                  <option key={idx} value={String(idx)}>
-                    {m}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => setDraft((prev) => ({ ...prev, startMonth: val }))}
+                placeholder={t.search.anyMonth || "Any month"}
+                options={[
+                  { value: "", label: t.search.anyMonth || "Any month" },
+                  ...t.search.months.map((m, idx) => ({
+                    value: String(idx),
+                    label: m,
+                  })),
+                ]}
+              />
 
-              <select
+              <Select
                 value={draft.startYear}
-                onChange={(e) => setDraft((prev) => ({ ...prev, startYear: e.target.value }))}
-                className="w-full h-10 px-3 rounded-xl border border-[#E5DDD2] bg-white text-xs font-semibold text-[#1E1B18] shadow-2xs"
-              >
-                <option value="">{t.search.anyYear || "Any year"}</option>
-                {YEAR_OPTIONS.map((y) => (
-                  <option key={y} value={y}>
-                    {y}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => setDraft((prev) => ({ ...prev, startYear: val }))}
+                placeholder={t.search.anyYear || "Any year"}
+                options={[
+                  { value: "", label: t.search.anyYear || "Any year" },
+                  ...YEAR_OPTIONS.map((y) => ({
+                    value: y,
+                    label: y,
+                  })),
+                ]}
+              />
             </div>
 
             {/* Month Tolerance Buttons */}
@@ -254,28 +264,32 @@ export function FilterModal({
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {[
-                { val: "all", label: t.modals.filter.genderOptions.all },
-                { val: "female", label: `👩 ${t.modals.filter.genderOptions.female}` },
-                { val: "male", label: `👨 ${t.modals.filter.genderOptions.male}` },
-              ].map((opt) => (
-                <button
-                  key={opt.val}
-                  type="button"
-                  onClick={() =>
-                    setDraft((prev) => ({
-                      ...prev,
-                      caretakerGender: opt.val as any,
-                    }))
-                  }
-                  className={`py-2 px-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer min-h-[38px] ${
-                    draft.caretakerGender === opt.val
-                      ? "bg-[#A12D3A] text-white border-[#A12D3A] shadow-2xs"
-                      : "bg-white text-[#4E443B] border-[#E5DDD2] hover:bg-[#FAF7F2]"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
+                { val: "all", label: t.modals.filter.genderOptions.all, icon: null },
+                { val: "female", label: t.modals.filter.genderOptions.female, icon: FemaleIcon },
+                { val: "male", label: t.modals.filter.genderOptions.male, icon: MaleIcon },
+              ].map((opt) => {
+                const IconComponent = opt.icon;
+                return (
+                  <button
+                    key={opt.val}
+                    type="button"
+                    onClick={() =>
+                      setDraft((prev) => ({
+                        ...prev,
+                        caretakerGender: opt.val as any,
+                      }))
+                    }
+                    className={`py-2 px-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer min-h-[38px] flex items-center justify-center gap-1.5 ${
+                      draft.caretakerGender === opt.val
+                        ? "bg-[#A12D3A] text-white border-[#A12D3A] shadow-2xs"
+                        : "bg-white text-[#4E443B] border-[#E5DDD2] hover:bg-[#FAF7F2]"
+                    }`}
+                  >
+                    {IconComponent && <IconComponent className="w-3.5 h-3.5 shrink-0" />}
+                    <span>{opt.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -286,28 +300,32 @@ export function FilterModal({
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {[
-                { val: "any", label: t.modals.filter.foodOptions.any },
-                { val: "self-cooked", label: `🍲 ${t.modals.filter.foodOptions.selfCooked}` },
-                { val: "delivered", label: `📦 ${t.modals.filter.foodOptions.delivered}` },
-              ].map((opt) => (
-                <button
-                  key={opt.val}
-                  type="button"
-                  onClick={() =>
-                    setDraft((prev) => ({
-                      ...prev,
-                      foodPreference: opt.val as any,
-                    }))
-                  }
-                  className={`py-2 px-2 rounded-xl border text-[11px] sm:text-xs font-bold transition-all cursor-pointer min-h-[38px] truncate ${
-                    draft.foodPreference === opt.val
-                      ? "bg-[#A12D3A] text-white border-[#A12D3A] shadow-2xs"
-                      : "bg-white text-[#4E443B] border-[#E5DDD2] hover:bg-[#FAF7F2]"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
+                { val: "any", label: t.modals.filter.foodOptions.any, icon: null },
+                { val: "self-cooked", label: t.modals.filter.foodOptions.selfCooked, icon: PotIcon },
+                { val: "delivered", label: t.modals.filter.foodOptions.delivered, icon: BoxIcon },
+              ].map((opt) => {
+                const IconComponent = opt.icon;
+                return (
+                  <button
+                    key={opt.val}
+                    type="button"
+                    onClick={() =>
+                      setDraft((prev) => ({
+                        ...prev,
+                        foodPreference: opt.val as any,
+                      }))
+                    }
+                    className={`py-2 px-2 rounded-xl border text-[11px] sm:text-xs font-bold transition-all cursor-pointer min-h-[38px] flex items-center justify-center gap-1.5 truncate ${
+                      draft.foodPreference === opt.val
+                        ? "bg-[#A12D3A] text-white border-[#A12D3A] shadow-2xs"
+                        : "bg-white text-[#4E443B] border-[#E5DDD2] hover:bg-[#FAF7F2]"
+                    }`}
+                  >
+                    {IconComponent && <IconComponent className="w-3.5 h-3.5 shrink-0" />}
+                    <span className="truncate">{opt.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -318,28 +336,32 @@ export function FilterModal({
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {[
-                { val: "any", label: t.modals.filter.petsOptions.any },
-                { val: "allowed", label: `🐕 ${t.modals.filter.petsOptions.allowed}` },
-                { val: "not-allowed", label: `🚫 ${t.modals.filter.petsOptions.notAllowed}` },
-              ].map((opt) => (
-                <button
-                  key={opt.val}
-                  type="button"
-                  onClick={() =>
-                    setDraft((prev) => ({
-                      ...prev,
-                      pets: opt.val as any,
-                    }))
-                  }
-                  className={`py-2 px-2 rounded-xl border text-[11px] sm:text-xs font-bold transition-all cursor-pointer min-h-[38px] truncate ${
-                    draft.pets === opt.val
-                      ? "bg-[#A12D3A] text-white border-[#A12D3A] shadow-2xs"
-                      : "bg-white text-[#4E443B] border-[#E5DDD2] hover:bg-[#FAF7F2]"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
+                { val: "any", label: t.modals.filter.petsOptions.any, icon: null },
+                { val: "allowed", label: t.modals.filter.petsOptions.allowed, icon: DogIcon },
+                { val: "not-allowed", label: t.modals.filter.petsOptions.notAllowed, icon: BanIcon },
+              ].map((opt) => {
+                const IconComponent = opt.icon;
+                return (
+                  <button
+                    key={opt.val}
+                    type="button"
+                    onClick={() =>
+                      setDraft((prev) => ({
+                        ...prev,
+                        pets: opt.val as any,
+                      }))
+                    }
+                    className={`py-2 px-2 rounded-xl border text-[11px] sm:text-xs font-bold transition-all cursor-pointer min-h-[38px] flex items-center justify-center gap-1.5 truncate ${
+                      draft.pets === opt.val
+                        ? "bg-[#A12D3A] text-white border-[#A12D3A] shadow-2xs"
+                        : "bg-white text-[#4E443B] border-[#E5DDD2] hover:bg-[#FAF7F2]"
+                    }`}
+                  >
+                    {IconComponent && <IconComponent className="w-3.5 h-3.5 shrink-0" />}
+                    <span className="truncate">{opt.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>

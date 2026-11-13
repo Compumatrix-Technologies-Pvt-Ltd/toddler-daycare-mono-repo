@@ -39,6 +39,8 @@ export interface IDaycare extends Document {
         houseNumber: string;
         postcode: string;
         city: string;
+        areaType?: "urban" | "rural";
+        catchmentRadiusKm?: number;
     };
 
     workPermit: {

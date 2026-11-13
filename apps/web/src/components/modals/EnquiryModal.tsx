@@ -4,6 +4,14 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { submitInquiry } from "../../utils/inquery";
+import { DatePicker, Select } from "@repo/ui";
+import {
+  MailIcon,
+  BabyIcon,
+  CalendarIcon,
+  SparklesIcon,
+  UserIcon,
+} from "../icons/WebIcons";
 
 export type EnquiryScope = "single" | "allMap" | "favorites";
 
@@ -33,7 +41,7 @@ export function EnquiryModal({
   daycareNames = [],
 }: EnquiryModalProps) {
   const router = useRouter();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
 
   // Scope selection
   const [scope, setScope] = useState<EnquiryScope>(initialScope);
@@ -170,7 +178,7 @@ export function EnquiryModal({
         {/* Header */}
         <div className="text-center space-y-1.5 mb-6 pr-8 sm:pr-0">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FAF7F2] border border-[#E5DDD2] text-xs font-semibold text-[#A12D3A] mb-1">
-            <span>✉️</span>
+            <MailIcon className="w-3.5 h-3.5 text-[#A12D3A]" />
             <span>{t.modals.enquiryForm.titleSingle || "Web Daycare Inquiry"}</span>
           </div>
           <h2
@@ -248,7 +256,7 @@ export function EnquiryModal({
           {/* SECTION 1: CHILD DETAILS */}
           <div className="p-3.5 sm:p-4 rounded-2xl bg-[#FAF7F2] border border-[#E5DDD2] space-y-3">
             <div className="flex items-center gap-2 text-xs font-bold uppercase text-[#7A6E62] tracking-wider">
-              <span>👶</span>
+              <BabyIcon className="w-4 h-4 text-[#7A6E62]" />
               <span>1. {t.modals.enquiryForm.childNameLabel} & {t.modals.enquiryForm.childBirthdayLabel}</span>
             </div>
 
@@ -269,24 +277,20 @@ export function EnquiryModal({
               </div>
 
               {/* Child Birthday */}
-              <div className="space-y-1">
-                <label className="block text-xs font-semibold text-[#4E443B]">
-                  {t.modals.enquiryForm.childBirthdayLabel}
-                </label>
-                <input
-                  type="date"
-                  value={childBirthday}
-                  onChange={(e) => setChildBirthday(e.target.value)}
-                  className="w-full bg-white border border-[#D5C9B8] rounded-xl px-3.5 py-2 text-xs sm:text-sm text-[#1E1B18] focus:outline-none focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] min-h-[42px] transition-colors"
-                />
-              </div>
+              <DatePicker
+                label={t.modals.enquiryForm.childBirthdayLabel}
+                value={childBirthday}
+                onChange={(_d, str) => setChildBirthday(str)}
+                locale={language}
+                maxDate={new Date()}
+              />
             </div>
           </div>
 
           {/* SECTION 2: TIMING & SCHEDULE */}
           <div className="p-3.5 sm:p-4 rounded-2xl bg-[#FAF7F2] border border-[#E5DDD2] space-y-3">
             <div className="flex items-center gap-2 text-xs font-bold uppercase text-[#7A6E62] tracking-wider">
-              <span>📅</span>
+              <CalendarIcon className="w-4 h-4 text-[#7A6E62]" />
               <span>2. {t.modals.enquiryForm.desiredStartLabel} & {t.modals.enquiryForm.careHoursLabel}</span>
             </div>
 
@@ -307,19 +311,17 @@ export function EnquiryModal({
               </div>
 
               {/* Estimated Transition */}
-              <div className="space-y-1">
-                <label className="block text-xs font-semibold text-[#4E443B]">
-                  {t.modals.enquiryForm.estTransitionLabel}
-                </label>
-                <select
+              <div>
+                <Select
+                  label={t.modals.enquiryForm.estTransitionLabel}
                   value={estTransition}
-                  onChange={(e) => setEstTransition(e.target.value)}
-                  className="w-full bg-white border border-[#D5C9B8] rounded-xl px-3 py-2 text-xs sm:text-sm text-[#1E1B18] focus:outline-none focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] min-h-[42px] transition-colors"
-                >
-                  <option value="1-2 Weeks">{t.modals.enquiryForm.estTransitionOptions.twoWeeks}</option>
-                  <option value="2-4 Weeks">{t.modals.enquiryForm.estTransitionOptions.fourWeeks}</option>
-                  <option value="4-6 Weeks">{t.modals.enquiryForm.estTransitionOptions.sixWeeks}</option>
-                </select>
+                  onChange={(val) => setEstTransition(val)}
+                  options={[
+                    { value: "1-2 Weeks", label: t.modals.enquiryForm.estTransitionOptions.twoWeeks },
+                    { value: "2-4 Weeks", label: t.modals.enquiryForm.estTransitionOptions.fourWeeks },
+                    { value: "4-6 Weeks", label: t.modals.enquiryForm.estTransitionOptions.sixWeeks },
+                  ]}
+                />
               </div>
 
               {/* Care Hours */}
@@ -332,7 +334,7 @@ export function EnquiryModal({
                   required
                   value={careHours}
                   onChange={(e) => setCareHours(e.target.value)}
-                  placeholder="Mon – Fri • 08:00 – 15:00"
+                  placeholder={t.modals.enquiryForm.careHoursDefault || "Mon – Fri • 08:00 – 15:00"}
                   className="w-full bg-white border border-[#D5C9B8] rounded-xl px-3.5 py-2 text-xs sm:text-sm text-[#1E1B18] focus:outline-none focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] min-h-[42px] transition-colors"
                 />
               </div>
@@ -343,7 +345,7 @@ export function EnquiryModal({
           <div className="p-3.5 sm:p-4 rounded-2xl bg-[#FAF7F2] border border-[#E5DDD2] space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-1.5">
               <div className="flex items-center gap-2 text-xs font-bold uppercase text-[#7A6E62] tracking-wider">
-                <span>✨</span>
+                <SparklesIcon className="w-4 h-4 text-[#7A6E62]" />
                 <span>3. {t.modals.enquiryForm.preferencesLabel}</span>
               </div>
               <span className="text-[11px] text-[#A12D3A] font-semibold">
@@ -426,7 +428,7 @@ export function EnquiryModal({
           {/* SECTION 4: PARENT CONTACT INFORMATION */}
           <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-[#E5DDD2] space-y-3">
             <div className="flex items-center gap-2 text-xs font-bold uppercase text-[#7A6E62] tracking-wider">
-              <span>👤</span>
+              <UserIcon className="w-4 h-4 text-[#7A6E62]" />
               <span>4. {t.modals.enquiryForm.parentNameLabel}</span>
             </div>
 
@@ -581,7 +583,7 @@ export function EnquiryModal({
                 </>
               ) : (
                 <>
-                  <span>✉️</span>
+                  <MailIcon className="w-4 h-4 text-white" />
                   <span>{t.modals.enquiryForm.submitButton}</span>
                 </>
               )}

@@ -181,8 +181,15 @@ export function SearchBar({
                 type="text"
                 value={locationQuery}
                 onChange={(e) => {
-                  setLocationQuery(e.target.value);
-                  setIsSuggestionsOpen(true);
+                  const val = e.target.value;
+                  setLocationQuery(val);
+                  if (!val.trim()) {
+                    setSuggestions([]);
+                    setIsSuggestionsOpen(false);
+                    onClearLocation();
+                  } else {
+                    setIsSuggestionsOpen(true);
+                  }
                 }}
                 onFocus={() => {
                   if (suggestions.length > 0) setIsSuggestionsOpen(true);

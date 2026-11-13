@@ -78,6 +78,18 @@ export function mapDaycareToKita(doc: any): Kita {
     if (parts[1]) openingUntil = parts[1];
   }
 
+  const rawArea = doc.location?.areaType;
+  const areaKeywords = ["dorf", "village", "weiler", "land", "gut ", "hof ", "siedlung", "hamlet", "rural"];
+  const isRural =
+    rawArea === "rural" ||
+    (!rawArea &&
+      areaKeywords.some((kw) =>
+        `${addressStr} ${doc.location?.city || ""}`.toLowerCase().includes(kw)
+      ));
+  const areaType: "urban" | "rural" = isRural ? "rural" : "urban";
+  const catchmentRadiusKm =
+    Number(doc.location?.catchmentRadiusKm) || (areaType === "rural" ? 10 : 3);
+
   return {
     id: String(doc._id || ""),
     caretakerId: String(doc.caretakerId?._id || doc.caretakerId || ""),
@@ -117,5 +129,7 @@ export function mapDaycareToKita(doc: any): Kita {
     phone: doc.contact?.phone ? String(doc.contact.phone).trim() : "",
     openingFrom,
     openingUntil,
+    areaType,
+    catchmentRadiusKm,
   };
 }

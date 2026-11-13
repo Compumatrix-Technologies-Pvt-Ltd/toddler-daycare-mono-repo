@@ -17,20 +17,38 @@ import { getSocket } from "../utils/socket";
 import { caretakerApi } from "../utils/caretakerApi";
 import { mapDaycareToKita } from "../utils/daycareMapper";
 import { calculateDistanceKm } from "../utils/geoDistance";
+import { classifyAreaFromOsm } from "../components/map/mapUtils";
 import { Kita, FilterState } from "../types";
+import {
+  FemaleIcon,
+  MaleIcon,
+  PotIcon,
+  BoxIcon,
+  DogIcon,
+  BanIcon,
+  ClockIcon,
+  CloseIcon,
+} from "../components/icons/WebIcons";
 
-const INITIAL_FILTERS: FilterState = {
-  childrenCount: "",
-  startMonth: "",
-  startYear: "",
-  monthTolerance: 1, // ±1 Month
-  openingFrom: "",
-  openingUntil: "",
-  caretakerGender: "all",
-  foodPreference: "any",
-  pets: "any",
-  radiusKm: 3,
+const getInitialFilters = (): FilterState => {
+  const now = new Date();
+  const nextMonthDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  return {
+    childrenCount: "1",
+    startMonth: String(nextMonthDate.getMonth()),
+    startYear: String(nextMonthDate.getFullYear()),
+    monthTolerance: 1, // ±1 Month
+    openingFrom: "08:00",
+    openingUntil: "16:00",
+    caretakerGender: "all",
+    foodPreference: "any",
+    pets: "any",
+    radiusKm: 3,
+    areaFilter: "all",
+  };
 };
+
+const INITIAL_FILTERS: FilterState = getInitialFilters();
 
 export default function ToddlerLandingPage() {
   const { t } = useLanguage();
@@ -59,7 +77,7 @@ export default function ToddlerLandingPage() {
       const res = await fetch(
         `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(
           trimmed
-        )}&limit=1`
+        )}&limit=1&addressdetails=1`
       );
       if (!res.ok) throw new Error("Search failed");
       const data = await res.json();
@@ -69,6 +87,14 @@ export default function ToddlerLandingPage() {
         if (Number.isFinite(lat) && Number.isFinite(lng)) {
           setParentLocation({ lat, lng });
           setLocationQuery(data[0].display_name || trimmed);
+          // Classify parent location to apply urban (3 km) vs rural (10 km) radius
+          const classified = classifyAreaFromOsm(data[0]);
+          setFilters((prev) => ({
+            ...prev,
+            radiusKm: classified.catchmentRadiusKm,
+            areaFilter: classified.areaType,
+          }));
+          setSelectedKitaId(""); // Default: no daycare in focus on renewed search
           return;
         }
       }
@@ -80,16 +106,46 @@ export default function ToddlerLandingPage() {
     }
   };
 
-  const handleSelectLocation = (coords: { lat: number; lng: number }, label: string) => {
+  const handleSelectLocation = async (coords: { lat: number; lng: number }, label: string) => {
     setLocationError(null);
     setLocationQuery(label);
     setParentLocation(coords);
+    setSelectedKitaId(""); // Clear focus on renewed search
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${coords.lat}&lon=${coords.lng}&zoom=18&addressdetails=1`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const classified = classifyAreaFromOsm(data);
+        setFilters((prev) => ({
+          ...prev,
+          radiusKm: classified.catchmentRadiusKm,
+          areaFilter: classified.areaType,
+        }));
+      }
+    } catch {
+      // Fallback retained
+    }
   };
 
   const handleClearLocation = () => {
     setLocationQuery("");
     setLocationError(null);
-    requestParentLocation();
+    setSelectedKitaId("");
+    setParentLocation(null);
+    setFilters((prev) => ({
+      ...prev,
+      areaFilter: "all",
+      openingFrom: "",
+      openingUntil: "",
+      childrenCount: "",
+      startMonth: "",
+      startYear: "",
+      caretakerGender: "all",
+      foodPreference: "any",
+      pets: "any",
+    }));
   };
 
   // Request Parent's Current GPS Location
@@ -97,23 +153,94 @@ export default function ToddlerLandingPage() {
     if (typeof window !== "undefined" && "geolocation" in navigator) {
       setIsLocating(true);
       navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setParentLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          });
+        async (position) => {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          setParentLocation({ lat, lng });
           setIsLocating(false);
+          setSelectedKitaId(""); // Default: no daycare in focus on renewed search
+          try {
+            const res = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`
+            );
+            if (res.ok) {
+              const data = await res.json();
+              const classified = classifyAreaFromOsm(data);
+              setFilters((prev) => ({
+                ...prev,
+                radiusKm: classified.catchmentRadiusKm,
+                areaFilter: classified.areaType,
+              }));
+              if (data.display_name) {
+                setLocationQuery(data.display_name);
+              }
+            }
+          } catch {
+            // Geocoding failed, coordinates retained
+          }
         },
-        (err) => {
+        async (err) => {
           console.warn("Geolocation permission error/fallback:", err.message);
           setIsLocating(false);
-          // Fallback to cluster coordinates if unavailable
-          setParentLocation((prev) => prev || { lat: 20.571046, lng: 74.94637 });
+          // Fallback to cluster coordinates if GPS unavailable
+          const fallback = { lat: 20.571046, lng: 74.94637 };
+          setParentLocation(fallback);
+          try {
+            const res = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${fallback.lat}&lon=${fallback.lng}&zoom=18&addressdetails=1`
+            );
+            if (res.ok) {
+              const data = await res.json();
+              const classified = classifyAreaFromOsm(data);
+              setFilters((prev) => ({
+                ...prev,
+                radiusKm: classified.catchmentRadiusKm,
+                areaFilter: classified.areaType,
+              }));
+              if (data.display_name) {
+                setLocationQuery(data.display_name);
+              }
+              return;
+            }
+          } catch {
+            // Fallback default
+          }
+          const fallbackClassified = classifyAreaFromOsm({
+            display_name: "Mehunbare, Chalisgaon, Jalgaon, Maharashtra, 424106, India",
+            address: {
+              village: "Mehunbare",
+              county: "Chalisgaon",
+              state: "Maharashtra",
+              postcode: "424106",
+            },
+          });
+          setFilters((prev) => ({
+            ...prev,
+            radiusKm: fallbackClassified.catchmentRadiusKm,
+            areaFilter: fallbackClassified.areaType,
+          }));
+          setLocationQuery("Mehunbare, Chalisgaon, 424106");
         },
         { enableHighAccuracy: true, timeout: 6000 }
       );
     } else {
-      setParentLocation((prev) => prev || { lat: 20.571046, lng: 74.94637 });
+      const fallback = { lat: 20.571046, lng: 74.94637 };
+      setParentLocation(fallback);
+      const fallbackClassified = classifyAreaFromOsm({
+        display_name: "Mehunbare, Chalisgaon, Jalgaon, Maharashtra, 424106, India",
+        address: {
+          village: "Mehunbare",
+          county: "Chalisgaon",
+          state: "Maharashtra",
+          postcode: "424106",
+        },
+      });
+      setFilters((prev) => ({
+        ...prev,
+        radiusKm: fallbackClassified.catchmentRadiusKm,
+        areaFilter: fallbackClassified.areaType,
+      }));
+      setLocationQuery("Mehunbare, Chalisgaon, 424106");
     }
   };
 
@@ -131,7 +258,7 @@ export default function ToddlerLandingPage() {
           const adminRadius = Number(settings?.defaultCatchmentRadiusKm) || 3;
           setFilters((prev) => ({
             ...prev,
-            radiusKm: adminRadius,
+            radiusKm: prev.areaFilter === "rural" ? 10 : prev.radiusKm || adminRadius,
           }));
 
           // Strictly show only active daycares approved by admin
@@ -142,11 +269,7 @@ export default function ToddlerLandingPage() {
             : [];
           setAllKitas(mappedDaycares);
           pruneFavorites(mappedDaycares.map((k) => k.id));
-          if (mappedDaycares.length > 0) {
-            setSelectedKitaId(mappedDaycares[0].id);
-          } else {
-            setSelectedKitaId("");
-          }
+          setSelectedKitaId(""); // Default: no daycare in focus on initial load
         }
       } catch (err) {
         console.warn("Could not load backend daycares or settings:", err);
@@ -200,11 +323,17 @@ export default function ToddlerLandingPage() {
 
   // Comprehensive multi-parameter filtering
   const displayKitas = useMemo(() => {
+    // If location is cleared / empty, show 0 daycares
+    if (!parentLocation && !locationQuery.trim()) {
+      return [];
+    }
+
     return kitasWithDistance
       .filter((k) => {
-        // 1. Radius Filter (when parentLocation exists)
+        // 1. Catchment Reach & Radius Filter (applied relative to parent's location)
         if (parentLocation && k.distanceKm != null) {
-          if (k.distanceKm > filters.radiusKm) return false;
+          const effectiveReach = filters.radiusKm || 3;
+          if (k.distanceKm > effectiveReach) return false;
         }
 
         // 2. Number of Children Filter (1, 2, 3+) - only if user specified a count
@@ -281,15 +410,13 @@ export default function ToddlerLandingPage() {
       .sort((a, b) => (a.distanceKm ?? 999) - (b.distanceKm ?? 999));
   }, [kitasWithDistance, filters, parentLocation]);
 
-  // Ensure an active daycare is selected from the filtered list
+  // If currently selected daycare is filtered out or no longer exists, clear focus (do NOT auto-select)
   useEffect(() => {
-    if (displayKitas.length > 0) {
+    if (selectedKitaId) {
       const exists = displayKitas.some((k) => k.id === selectedKitaId);
       if (!exists) {
-        setSelectedKitaId(displayKitas[0].id);
+        setSelectedKitaId("");
       }
-    } else {
-      setSelectedKitaId("");
     }
   }, [displayKitas, selectedKitaId]);
 
@@ -317,9 +444,9 @@ export default function ToddlerLandingPage() {
   const [galleryKita, setGalleryKita] = useState<Kita | null>(null);
 
   // Active Kita
-  const activeKita =
-    displayKitas.find((k) => k.id === selectedKitaId) ||
-    (displayKitas.length > 0 ? displayKitas[0] : null);
+  const activeKita = selectedKitaId
+    ? displayKitas.find((k) => k.id === selectedKitaId) || null
+    : null;
 
   const handleOpenSingleInquiry = (id?: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -394,7 +521,7 @@ export default function ToddlerLandingPage() {
               </span>
 
               {filters.monthTolerance !== 1 && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#FAF7F2] border border-[#E5DDD2] text-[11px] font-semibold text-[#423223]">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FAF7F2] border border-[#E5DDD2] text-[11px] font-semibold text-[#423223]">
                   <span>
                     {filters.monthTolerance === 0
                       ? t.modals.filter.tolerances.exact
@@ -405,89 +532,111 @@ export default function ToddlerLandingPage() {
                   <button
                     type="button"
                     onClick={() => setFilters((prev) => ({ ...prev, monthTolerance: 1 }))}
-                    className="hover:text-[#A12D3A] ml-0.5 cursor-pointer"
+                    className="hover:text-[#A12D3A] ml-0.5 cursor-pointer inline-flex items-center"
+                    aria-label="Remove filter"
                   >
-                    ✕
+                    <CloseIcon className="w-2.5 h-2.5" />
                   </button>
                 </span>
               )}
 
               {filters.caretakerGender !== "all" && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#FAF7F2] border border-[#E5DDD2] text-[11px] font-semibold text-[#423223]">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FAF7F2] border border-[#E5DDD2] text-[11px] font-semibold text-[#423223]">
+                  {filters.caretakerGender === "female" ? (
+                    <FemaleIcon className="w-3.5 h-3.5 text-[#A12D3A] shrink-0" />
+                  ) : (
+                    <MaleIcon className="w-3.5 h-3.5 text-[#A12D3A] shrink-0" />
+                  )}
                   <span>
                     {filters.caretakerGender === "female"
-                      ? `👩 ${t.modals.filter.genderOptions.female}`
-                      : `👨 ${t.modals.filter.genderOptions.male}`}
+                      ? t.modals.filter.genderOptions.female
+                      : t.modals.filter.genderOptions.male}
                   </span>
                   <button
                     type="button"
                     onClick={() => setFilters((prev) => ({ ...prev, caretakerGender: "all" }))}
-                    className="hover:text-[#A12D3A] ml-0.5 cursor-pointer"
+                    className="hover:text-[#A12D3A] ml-0.5 cursor-pointer inline-flex items-center"
+                    aria-label="Remove filter"
                   >
-                    ✕
+                    <CloseIcon className="w-2.5 h-2.5" />
                   </button>
                 </span>
               )}
 
               {filters.foodPreference !== "any" && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#FAF7F2] border border-[#E5DDD2] text-[11px] font-semibold text-[#423223]">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FAF7F2] border border-[#E5DDD2] text-[11px] font-semibold text-[#423223]">
+                  {filters.foodPreference === "self-cooked" ? (
+                    <PotIcon className="w-3.5 h-3.5 text-[#A12D3A] shrink-0" />
+                  ) : (
+                    <BoxIcon className="w-3.5 h-3.5 text-[#A12D3A] shrink-0" />
+                  )}
                   <span>
                     {filters.foodPreference === "self-cooked"
-                      ? `🍲 ${t.modals.filter.foodOptions.selfCooked}`
-                      : `📦 ${t.modals.filter.foodOptions.delivered}`}
+                      ? t.modals.filter.foodOptions.selfCooked
+                      : t.modals.filter.foodOptions.delivered}
                   </span>
                   <button
                     type="button"
                     onClick={() => setFilters((prev) => ({ ...prev, foodPreference: "any" }))}
-                    className="hover:text-[#A12D3A] ml-0.5 cursor-pointer"
+                    className="hover:text-[#A12D3A] ml-0.5 cursor-pointer inline-flex items-center"
+                    aria-label="Remove filter"
                   >
-                    ✕
+                    <CloseIcon className="w-2.5 h-2.5" />
                   </button>
                 </span>
               )}
 
               {filters.pets !== "any" && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#FAF7F2] border border-[#E5DDD2] text-[11px] font-semibold text-[#423223]">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FAF7F2] border border-[#E5DDD2] text-[11px] font-semibold text-[#423223]">
+                  {filters.pets === "allowed" ? (
+                    <DogIcon className="w-3.5 h-3.5 text-[#A12D3A] shrink-0" />
+                  ) : (
+                    <BanIcon className="w-3.5 h-3.5 text-[#A12D3A] shrink-0" />
+                  )}
                   <span>
                     {filters.pets === "allowed"
-                      ? `🐕 ${t.modals.filter.petsOptions.allowed}`
-                      : `🚫 ${t.modals.filter.petsOptions.notAllowed}`}
+                      ? t.modals.filter.petsOptions.allowed
+                      : t.modals.filter.petsOptions.notAllowed}
                   </span>
                   <button
                     type="button"
                     onClick={() => setFilters((prev) => ({ ...prev, pets: "any" }))}
-                    className="hover:text-[#A12D3A] ml-0.5 cursor-pointer"
+                    className="hover:text-[#A12D3A] ml-0.5 cursor-pointer inline-flex items-center"
+                    aria-label="Remove filter"
                   >
-                    ✕
+                    <CloseIcon className="w-2.5 h-2.5" />
                   </button>
                 </span>
               )}
 
               {(filters.openingFrom || filters.openingUntil) && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#FAF7F2] border border-[#E5DDD2] text-[11px] font-semibold text-[#423223]">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FAF7F2] border border-[#E5DDD2] text-[11px] font-semibold text-[#423223]">
+                  <ClockIcon className="w-3.5 h-3.5 text-[#A12D3A] shrink-0" />
                   <span>
-                    ⏰ {filters.openingFrom || "00:00"} – {filters.openingUntil || "24:00"}
+                    {filters.openingFrom || "00:00"} – {filters.openingUntil || "24:00"}
                   </span>
                   <button
                     type="button"
                     onClick={() =>
                       setFilters((prev) => ({ ...prev, openingFrom: "", openingUntil: "" }))
                     }
-                    className="hover:text-[#A12D3A] ml-0.5 cursor-pointer"
+                    className="hover:text-[#A12D3A] ml-0.5 cursor-pointer inline-flex items-center"
+                    aria-label="Remove filter"
                   >
-                    ✕
+                    <CloseIcon className="w-2.5 h-2.5" />
                   </button>
                 </span>
               )}
 
               <button
                 type="button"
-                onClick={() =>
+                onClick={() => {
                   setFilters((prev) => ({
                     ...INITIAL_FILTERS,
                     radiusKm: prev.radiusKm,
-                  }))
-                }
+                  }));
+                  setSelectedKitaId("");
+                }}
                 className="text-[11px] font-bold text-[#A12D3A] hover:underline ml-1 cursor-pointer"
               >
                 {t.modals.filter.clearAll}
@@ -506,7 +655,7 @@ export default function ToddlerLandingPage() {
               {loading ? (
                 <div className="p-8 text-center bg-[#FAF7F2] rounded-2xl border border-[#E5DDD2] text-[#7A6E62]">
                   <div className="w-7 h-7 border-2 border-[#A12D3A] border-t-transparent rounded-full animate-spin mx-auto mb-2.5" />
-                  <p className="text-xs font-medium">Loading daycares...</p>
+                  <p className="text-xs font-medium">{t.results.loading}</p>
                 </div>
               ) : displayKitas.length === 0 ? (
                 /* Empty state when 0 daycares match active parameters */
@@ -519,12 +668,14 @@ export default function ToddlerLandingPage() {
                   </div>
                   <div>
                     <p className="font-bold text-sm sm:text-base text-[#1E1B18]">
-                      {t.results.noWithinRadius.replace("{radius}", String(filters.radiusKm))}
+                      {!parentLocation && !locationQuery.trim()
+                        ? t.results.pleaseEnterLocation
+                        : t.results.noWithinRadius.replace("{radius}", String(filters.radiusKm))}
                     </p>
                     <p className="text-xs text-[#7A6E62] mt-1">
                       {allKitas.length > 0
-                        ? `There are ${allKitas.length} registered daycares available outside your current search parameters.`
-                        : "There are currently no active daycares registered in the system."}
+                        ? t.results.daycaresOutsideRadius.replace("{count}", String(allKitas.length))
+                        : t.results.noDaycaresRegistered}
                     </p>
                   </div>
                   {allKitas.length > 0 && (
@@ -578,40 +729,53 @@ export default function ToddlerLandingPage() {
                 mobileView === "list" ? "hidden lg:block" : "block"
               }`}
             >
+              {/* Back to list button on mobile */}
+              <div className="lg:hidden pb-1">
+                <button
+                  onClick={() => setMobileView("list")}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-[#A12D3A] bg-[#FFF8F2] px-3.5 py-2 rounded-lg border border-[#F3E2D5] min-h-[40px] active:scale-95 transition-all cursor-pointer"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                  </svg>
+                  <span>{t.results.backToList}</span>
+                </button>
+              </div>
+
+              {/* Map Section with Parent Location & Catchment Circle - ALWAYS RENDERED */}
+              <MapSection
+                kitas={displayKitas}
+                activeKita={activeKita}
+                onSelectKita={(id) => setSelectedKitaId(id)}
+                userLocation={parentLocation}
+                catchmentRadius={filters.radiusKm}
+              />
+
+              {/* Daycare Detail Showcase (if in focus) OR Empty Focus State */}
               {activeKita ? (
-                <>
-                  {/* Back to list button on mobile */}
-                  <div className="lg:hidden pb-1">
-                    <button
-                      onClick={() => setMobileView("list")}
-                      className="flex items-center gap-1.5 text-xs font-semibold text-[#A12D3A] bg-[#FFF8F2] px-3.5 py-2 rounded-lg border border-[#F3E2D5] min-h-[40px] active:scale-95 transition-all"
-                    >
-                      <span>{t.results.backToList}</span>
-                    </button>
-                  </div>
-
-                  {/* Map Section with Parent Location & Catchment Circle */}
-                  <MapSection
-                    kitas={displayKitas}
-                    activeKita={activeKita}
-                    onSelectKita={(id) => setSelectedKitaId(id)}
-                    userLocation={parentLocation}
-                    catchmentRadius={filters.radiusKm}
-                  />
-
-                  {/* Daycare Detail Showcase */}
-                  <KitaDetail
-                    kita={activeKita}
-                    selectedDateFilter={filters.startMonth}
-                    onSelectDateFilter={() => {}}
-                    onOpenInquiry={() => handleOpenSingleInquiry(activeKita.id)}
-                    onOpenGallery={(idx) => handleOpenGallery(activeKita, idx || 0)}
-                    catchmentRadius={filters.radiusKm}
-                  />
-                </>
+                <KitaDetail
+                  kita={activeKita}
+                  selectedDateFilter={filters.startMonth}
+                  onSelectDateFilter={() => {}}
+                  onOpenInquiry={() => handleOpenSingleInquiry(activeKita.id)}
+                  onOpenGallery={(idx) => handleOpenGallery(activeKita, idx || 0)}
+                  catchmentRadius={filters.radiusKm}
+                />
               ) : (
-                <div className="h-[280px] flex items-center justify-center bg-[#FAF8F5] rounded-2xl border border-[#E5DDD2] text-[#7A6E62] text-xs">
-                  {loading ? "Loading interactive map..." : "No daycare selected"}
+                <div className="bg-white border border-[#E5DDD2] rounded-2xl p-6 sm:p-8 text-center shadow-2xs space-y-3">
+                  <div className="w-12 h-12 rounded-2xl bg-[#FAF7F2] border border-[#E5DDD2] flex items-center justify-center text-[#A12D3A] mx-auto shadow-2xs">
+                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="text-sm sm:text-base font-bold text-[#1E1B18]">
+                      {t.results.noFocusTitle}
+                    </h4>
+                    <p className="text-xs sm:text-sm text-[#7A6E62] max-w-md mx-auto mt-1">
+                      {t.results.noFocusDesc}
+                    </p>
+                  </div>
                 </div>
               )}
             </div>

@@ -23,16 +23,24 @@ export const adminSettingsService = {
   async getSettings(): Promise<PlatformSettings> {
     try {
       const res = await api.get("/settings");
-      if (res.data?.data) {
-        return res.data.data;
+      const raw = res.data?.data || res.data;
+      if (raw) {
+        return {
+          ...raw,
+          urbanCatchmentRadiusKm: Number(raw.urbanCatchmentRadiusKm) || 3.0,
+          ruralCatchmentRadiusKm: Number(raw.ruralCatchmentRadiusKm) || 10.0,
+          defaultCatchmentRadiusKm: Number(raw.defaultCatchmentRadiusKm) || 3.0,
+        };
       }
-      return res.data;
+      return raw;
     } catch {
       // Fallback to default settings
       return {
         siteName: "Find Toddler Daycare",
         contactEmail: "admin@toddler-care.de",
         defaultCatchmentRadiusKm: 3.0,
+        urbanCatchmentRadiusKm: 3.0,
+        ruralCatchmentRadiusKm: 10.0,
         autoValidatePermits: true,
         emailNotificationOnInquiry: true,
         dailyDigestEnabled: true,

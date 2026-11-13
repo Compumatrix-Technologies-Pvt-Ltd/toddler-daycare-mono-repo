@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useLanguage } from "../../../i18n/LanguageContext";
 import { BookingItem } from "../../../types/caretakerDashboard";
+import { Select } from "@repo/ui";
 
 interface ManageSlotModalProps {
   isOpen: boolean;
@@ -108,18 +109,16 @@ export function ManageSlotModal({
 
         <form onSubmit={handleSave} className="mt-4 space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-[#344054] mb-1.5 uppercase tracking-wide">
-              {m.status}
-            </label>
-            <select
+            <Select
+              label={m.status}
               value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              className="w-full h-[42px] px-3 rounded-lg border border-[#D0D5DD] text-sm text-[#101828] bg-white focus:outline-hidden focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] transition-all"
-            >
-              <option value="active">{m.statusActive}</option>
-              <option value="transitioning">{m.statusTransitioning}</option>
-              <option value="completed">{m.statusCompleted}</option>
-            </select>
+              onChange={(val) => setStatus(val)}
+              options={[
+                { value: "active", label: m.statusActive },
+                { value: "transitioning", label: m.statusTransitioning },
+                { value: "completed", label: m.statusCompleted },
+              ]}
+            />
           </div>
 
           <div>

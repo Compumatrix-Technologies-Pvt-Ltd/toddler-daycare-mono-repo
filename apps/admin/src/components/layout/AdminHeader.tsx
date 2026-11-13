@@ -1,15 +1,14 @@
-import { BrandSunIcon, MenuIcon, BellIcon } from "../icons/AdminIcons";
+import { BrandSunIcon, MenuIcon, BellIcon, GermanFlagIcon, UkFlagIcon } from "../icons/AdminIcons";
 import { AdminUser } from "../../types/admin";
 import { useLanguage } from "../../context/LanguageContext";
 
 interface AdminHeaderProps {
-  user: AdminUser;
+  user?: AdminUser | null;
   unreadNotificationsCount?: number;
   onToggleMobileSidebar: () => void;
 }
 
 export function AdminHeader({
-  user,
   unreadNotificationsCount = 0,
   onToggleMobileSidebar,
 }: AdminHeaderProps) {
@@ -51,16 +50,26 @@ export function AdminHeader({
           </div>
         </div>
 
-        {/* Right Side: Language Toggle + Notifications + Profile */}
+        {/* Right Side: Language Toggle + Notifications + Logout */}
         <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
           {/* Multi-language Toggle (DE | EN) - Mandatory Rule 5 */}
           <button
             type="button"
             onClick={toggleLanguage}
-            className="flex items-center gap-1 px-2.5 sm:px-3 h-9 sm:h-10 rounded-xl bg-white border border-[#E5DDD2] hover:bg-[#F3ECE2] text-xs font-bold text-[#423223] shadow-2xs transition-all cursor-pointer shrink-0"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 h-9 sm:h-10 rounded-xl bg-white border border-[#E5DDD2] hover:bg-[#F3ECE2] text-xs font-bold text-[#423223] shadow-2xs transition-all cursor-pointer shrink-0"
             aria-label="Toggle language between German and English"
           >
-            <span>{language === "de" ? "🇩🇪 DE" : "🇬🇧 EN"}</span>
+            {language === "de" ? (
+              <>
+                <GermanFlagIcon className="w-4 h-3 rounded-xs overflow-hidden shrink-0" />
+                <span>DE</span>
+              </>
+            ) : (
+              <>
+                <UkFlagIcon className="w-4 h-3 rounded-xs overflow-hidden shrink-0" />
+                <span>EN</span>
+              </>
+            )}
           </button>
 
           {/* Notifications Bell */}
@@ -74,43 +83,6 @@ export function AdminHeader({
               <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#A12D3A] ring-2 ring-[#FAF7F2]" />
             )}
           </button>
-
-          {/* Vertical Divider */}
-          <div className="h-5 sm:h-6 w-px bg-[#E5DDD2] hidden sm:block shrink-0" />
-
-          {/* Profile Name & Avatar (Right Side) */}
-          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 pl-0.5 sm:pl-0">
-            {/* Avatar with Status Dot */}
-            <div className="relative shrink-0">
-              <img
-                src={user.avatarUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80"}
-                alt={user.name}
-                className="w-8 h-8 sm:w-9 sm:h-9 rounded-full object-cover border-2 border-white shadow-2xs bg-[#FAF7F2]"
-              />
-              <span
-                className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ring-2 ring-white ${
-                  user.status === "online"
-                    ? "bg-[#16A34A]"
-                    : user.status === "away"
-                      ? "bg-[#D97706]"
-                      : "bg-[#94A3B8]"
-                }`}
-                title={`Status: ${user.status}`}
-              />
-            </div>
-
-            {/* Profile Info (Name & Role) */}
-            <div className="hidden sm:block text-left leading-tight min-w-0">
-              <div className="font-bold text-[#1E1B18] text-xs sm:text-sm tracking-tight truncate max-w-[120px] xl:max-w-[160px] whitespace-nowrap">
-                {user.name}
-              </div>
-              <div className="text-[10px] sm:text-[11px] font-medium text-[#7A6E62] truncate whitespace-nowrap">
-                {user.role === "super-admin"
-                  ? t.admin.auth.roles.superAdmin
-                  : t.admin.auth.roles.admin}
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </header>

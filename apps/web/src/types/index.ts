@@ -37,6 +37,8 @@ export interface Kita {
   phone?: string;
   openingFrom?: string;
   openingUntil?: string;
+  areaType?: "urban" | "rural";
+  catchmentRadiusKm?: number;
 }
 
 export interface FilterState {
@@ -50,6 +52,7 @@ export interface FilterState {
   foodPreference: "any" | "self-cooked" | "delivered";
   pets: "any" | "allowed" | "not-allowed";
   radiusKm: number; // catchment radius in km
+  areaFilter?: "all" | "urban" | "rural";
 }
 
 export type Language = "de" | "en";

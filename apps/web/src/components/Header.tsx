@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useLanguage } from "../i18n/LanguageContext";
 import { ParentComingSoonModal } from "./modals/ParentComingSoonModal";
+import { GermanFlagIcon, UkFlagIcon } from "./icons/WebIcons";
 import { useSessionFavorites } from "../utils/favoritesSession";
 import { caretakerApi } from "../utils/caretakerApi";
 import { getSocket } from "../utils/socket";
@@ -186,24 +187,26 @@ export function Header() {
             {/* German Button */}
             <button
               onClick={() => setLanguage("de")}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs transition-all cursor-pointer ${language === "de"
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs transition-all cursor-pointer ${language === "de"
                 ? "bg-white text-[#A12D3A] shadow-xs font-bold"
                 : "text-[#6B5E51] hover:text-[#1E1B18] font-medium"
                 }`}
               title="Deutsch (German)"
             >
+              <GermanFlagIcon className="w-3.5 h-2.5 rounded-xs overflow-hidden shrink-0" />
               <span>DE</span>
             </button>
 
             {/* English Button */}
             <button
               onClick={() => setLanguage("en")}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs transition-all cursor-pointer ${language === "en"
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs transition-all cursor-pointer ${language === "en"
                 ? "bg-white text-[#A12D3A] shadow-xs font-bold"
                 : "text-[#6B5E51] hover:text-[#1E1B18] font-medium"
                 }`}
               title="English"
             >
+              <UkFlagIcon className="w-3.5 h-2.5 rounded-xs overflow-hidden shrink-0" />
               <span>EN</span>
             </button>
           </div>
@@ -369,21 +372,23 @@ export function Header() {
             <div className="flex gap-1.5">
               <button
                 onClick={() => setLanguage("de")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all min-h-[36px] cursor-pointer ${language === "de"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all min-h-[36px] cursor-pointer ${language === "de"
                   ? "bg-white text-[#A12D3A] shadow-xs"
                   : "text-[#6B5E51]"
                   }`}
               >
-                🇩🇪 Deutsch
+                <GermanFlagIcon className="w-4 h-3 rounded-xs overflow-hidden shrink-0" />
+                <span>Deutsch</span>
               </button>
               <button
                 onClick={() => setLanguage("en")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all min-h-[36px] cursor-pointer ${language === "en"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all min-h-[36px] cursor-pointer ${language === "en"
                   ? "bg-white text-[#A12D3A] shadow-xs"
                   : "text-[#6B5E51]"
                   }`}
               >
-                🇬🇧 English
+                <UkFlagIcon className="w-4 h-3 rounded-xs overflow-hidden shrink-0" />
+                <span>English</span>
               </button>
             </div>
           </div>

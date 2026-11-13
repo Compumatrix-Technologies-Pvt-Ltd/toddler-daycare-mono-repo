@@ -44,6 +44,8 @@ export interface CaretakerProfileData {
   permitApprovedAt?: string;
   approvalStatus: ApprovalStatus;
   isRegistered: boolean;
+  areaType?: "urban" | "rural";
+  catchmentRadiusKm?: number;
 }
 
 export interface SectionCompletion {
@@ -265,6 +267,8 @@ export function CaretakerProvider({ children }: { children: React.ReactNode }) {
               city: loadedCity || prev.city,
               lat: String(loc.latitude),
               lng: String(loc.longitude),
+              areaType: loc.areaType || prev.areaType,
+              catchmentRadiusKm: loc.catchmentRadiusKm || prev.catchmentRadiusKm,
               isLocationPinned: true,
             }
           : {}),

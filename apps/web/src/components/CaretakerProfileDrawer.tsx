@@ -83,7 +83,10 @@ export function CaretakerProfileDrawer({
             onSelectDateFilter={setSelectedDateFilter}
             onOpenInquiry={() => onSendInquiry(kita)}
             onOpenGallery={onOpenGallery}
-            catchmentRadius={catchmentRadius}
+            catchmentRadius={
+              kita.catchmentRadiusKm ||
+              (kita.areaType === "rural" ? 10 : catchmentRadius)
+            }
           />
         </div>
       </div>

@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { useLanguage } from "../../../i18n/LanguageContext";
 import { BookingItem, InquiryStatus } from "../../../types/caretakerDashboard";
+import { DatePicker } from "@repo/ui";
 
 interface BookingDetailsPanelProps {
   item: BookingItem | null;
@@ -225,19 +226,13 @@ export function BookingDetailsPanel({
             <span className="font-semibold text-[#667085] tracking-wide uppercase text-[11px]">
               {d.dob}
             </span>
-            <div className="flex items-center gap-1.5 bg-[#F2F4F7] px-2.5 py-1.5 rounded-lg text-xs font-medium text-[#101828]">
-              <input
-                type="date"
+            <div className="w-44">
+              <DatePicker
                 value={interactiveDob}
-                onChange={(e) => setInteractiveDob(e.target.value)}
-                className="bg-transparent text-xs text-[#101828] focus:outline-hidden"
+                onChange={(_d, str) => setInteractiveDob(str)}
+                locale={language}
+                maxDate={new Date()}
               />
-              <svg className="w-3.5 h-3.5 text-[#667085]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                <line x1="16" y1="2" x2="16" y2="6" />
-                <line x1="8" y1="2" x2="8" y2="6" />
-                <line x1="3" y1="10" x2="21" y2="10" />
-              </svg>
             </div>
           </div>
         ) : (

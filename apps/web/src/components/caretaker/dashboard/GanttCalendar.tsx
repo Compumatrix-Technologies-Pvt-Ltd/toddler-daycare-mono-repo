@@ -2,6 +2,7 @@
 
 import React, { useState, useRef } from "react";
 import { useLanguage } from "../../../i18n/LanguageContext";
+import { SparklesIcon } from "../../icons/WebIcons";
 import {
   BookingItem,
   GanttMonth,
@@ -262,7 +263,7 @@ export function GanttCalendar({
                     onChange={(e) => setShowInquiryDensity(e.target.checked)}
                     className="rounded text-[#A12D3A] focus:ring-[#A12D3A]"
                   />
-                  <span>Show Match % Indicators</span>
+                  <span>{tb.showMatchIndicators || "Show Match % Indicators"}</span>
                 </label>
               </div>
             )}
@@ -530,8 +531,9 @@ export function GanttCalendar({
                         >
                           <div className="flex items-center gap-1.5 overflow-hidden">
                             <span className="w-1.5 h-1.5 rounded-full bg-[#12B76A] shrink-0 animate-ping" />
-                            <span className="text-[10px] font-bold text-[#175CD3] truncate whitespace-nowrap">
-                              ✨ {tbl.recommendedSlotIndicator.replace("{name}", "Hans")}
+                            <span className="text-[10px] font-bold text-[#175CD3] truncate whitespace-nowrap inline-flex items-center gap-1">
+                              <SparklesIcon className="w-3 h-3 text-[#175CD3] shrink-0" />
+                              <span>{tbl.recommendedSlotIndicator.replace("{name}", "Hans")}</span>
                             </span>
                           </div>
                         </div>

@@ -71,6 +71,8 @@ export interface DaycareApplication {
   authorizedCapacity?: number;
   adminNotes?: string;
   approvedAt?: string;
+  areaType?: "urban" | "rural";
+  catchmentRadiusKm?: number;
 }
 
 export interface AdminMetric {
@@ -95,6 +97,8 @@ export interface PlatformSettings {
   siteName: string;
   contactEmail: string;
   defaultCatchmentRadiusKm: number;
+  urbanCatchmentRadiusKm: number;
+  ruralCatchmentRadiusKm: number;
   autoValidatePermits: boolean;
   emailNotificationOnInquiry: boolean;
   dailyDigestEnabled: boolean;

@@ -229,6 +229,8 @@ export function DaycareOperationsCard() {
           houseNumber: parsedLocation.houseNumber,
           postcode: parsedLocation.postcode,
           city: parsedLocation.city,
+          areaType: profile.areaType,
+          catchmentRadiusKm: profile.catchmentRadiusKm,
         })
       );
       // 1. Identify retained existing photos already saved in MongoDB (filter out newly selected base64/blob files)

@@ -152,8 +152,10 @@ export function DaycaresTableSection({
                   className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-[#9E9080] hover:text-[#1E1B18] transition-colors cursor-pointer"
                   aria-label="Clear search query"
                 >
-                  <span className="w-5 h-5 rounded-full bg-[#FAF7F2] border border-[#E5DDD2] flex items-center justify-center text-[10px] font-bold hover:bg-[#EFE7DC]">
-                    ✕
+                  <span className="w-5 h-5 rounded-full bg-[#FAF7F2] border border-[#E5DDD2] flex items-center justify-center hover:bg-[#EFE7DC]">
+                    <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
                   </span>
                 </button>
               ) : (
@@ -176,6 +178,7 @@ export function DaycaresTableSection({
               <th className="py-2.5 px-4 whitespace-nowrap">{t.admin.dashboard.table.colCaretaker}</th>
               <th className="py-2.5 px-4 whitespace-nowrap">{t.admin.dashboard.table.colPermit}</th>
               <th className="py-2.5 px-4 whitespace-nowrap">{t.admin.dashboard.table.colDistrict}</th>
+              <th className="py-2.5 px-4 whitespace-nowrap">{t.admin.dashboard.table.colArea}</th>
               <th className="py-2.5 px-4 whitespace-nowrap">{t.admin.dashboard.table.colCapacity}</th>
               <th className="py-2.5 px-4 whitespace-nowrap">{t.admin.dashboard.table.colSubmitted}</th>
               <th className="py-2.5 px-4 whitespace-nowrap">{t.admin.dashboard.table.colStatus}</th>
@@ -185,16 +188,18 @@ export function DaycaresTableSection({
           <tbody className="divide-y divide-[#E5DDD2]">
             {isLoading ? (
               <tr>
-                <td colSpan={7} className="py-12 text-center text-[#7A6E62]">
+                <td colSpan={8} className="py-12 text-center text-[#7A6E62]">
                   <div className="flex items-center justify-center gap-2.5">
                     <div className="w-5 h-5 border-2 border-[#A12D3A] border-t-transparent rounded-full animate-spin" />
-                    <span className="font-medium text-xs">Loading registered daycare applications...</span>
+                    <span className="font-medium text-xs">
+                      {t.admin.dashboard.table.loading || "Loading registered daycare applications..."}
+                    </span>
                   </div>
                 </td>
               </tr>
             ) : displayedApplications.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-8 text-center text-[#7A6E62]">
+                <td colSpan={8} className="py-8 text-center text-[#7A6E62]">
                   {t.admin.dashboard.table.noResults}
                 </td>
               </tr>
@@ -230,6 +235,25 @@ export function DaycaresTableSection({
                   <td className="py-3 px-4 text-[#5C4C3E] max-w-[200px]">
                     <div className="font-semibold text-[#1E1B18] truncate">{app.district}</div>
                     <div className="truncate text-[11px] text-[#7A6E62]">{app.location}</div>
+                  </td>
+
+                  <td className="py-3 px-4 whitespace-nowrap">
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                        app.areaType === "rural"
+                          ? "bg-[#FEF3C7] text-[#92400E] border border-[#FDE68A]"
+                          : "bg-[#DCFCE7] text-[#166534] border border-[#BBF7D0]"
+                      }`}
+                    >
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full ${
+                          app.areaType === "rural" ? "bg-[#D97706]" : "bg-[#16A34A]"
+                        }`}
+                      />
+                      {app.areaType === "rural"
+                        ? t.admin.dashboard.table.ruralBadge.replace("{radius}", String(app.catchmentRadiusKm || 10))
+                        : t.admin.dashboard.table.urbanBadge.replace("{radius}", String(app.catchmentRadiusKm || 3))}
+                    </span>
                   </td>
 
                   <td className="py-3 px-4 text-[#1E1B18] font-semibold whitespace-nowrap">

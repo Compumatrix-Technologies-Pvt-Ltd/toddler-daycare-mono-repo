@@ -10,22 +10,30 @@ import {
   formatStreetDisplay,
   parseAddressComponents,
   parseNominatimAddress,
+  classifyAreaFromOsm,
+  detectAreaTypeFromLocation,
+  type AreaClassificationResult,
 } from "../map/mapUtils";
 
 // Dynamically import Leaflet Map to ensure zero SSR / "window is not defined" issues
+function LocationMapFallback() {
+  const { t } = useLanguage();
+  return (
+    <div className="w-full h-full min-h-[300px] flex items-center justify-center bg-[#FAF8F5] text-[#7A6E62] text-[13px] font-medium">
+      <svg className="animate-spin h-5 w-5 text-[#15803D] mr-2.5" viewBox="0 0 24 24" fill="none">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+      </svg>
+      <span>{t.caretakerProfile.location.mapLoading || "Loading Leaflet Map..."}</span>
+    </div>
+  );
+}
+
 const LocationPickerMap = dynamic(
   () => import("../map/LocationPickerMap"),
   {
     ssr: false,
-    loading: () => (
-      <div className="w-full h-full min-h-[300px] flex items-center justify-center bg-[#FAF8F5] text-[#7A6E62] text-[13px] font-medium">
-        <svg className="animate-spin h-5 w-5 text-[#15803D] mr-2.5" viewBox="0 0 24 24" fill="none">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-        </svg>
-        <span>Loading Leaflet Map...</span>
-      </div>
-    ),
+    loading: () => <LocationMapFallback />,
   }
 );
 
@@ -46,6 +54,15 @@ export function PinLocationCard() {
   const [hasSavedLocation, setHasSavedLocation] = useState(initialPinned);
   const [isEditingLocation, setIsEditingLocation] = useState(!initialPinned);
   const [statusMessage, setStatusMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [areaClassification, setAreaClassification] = useState<AreaClassificationResult | null>(() => {
+    if (profile.street || profile.city) {
+      return detectAreaTypeFromLocation({
+        street: profile.street,
+        city: profile.city,
+      });
+    }
+    return null;
+  });
 
   const savedSnapshotRef = useRef<{ street: string; city: string; lat: string; lng: string } | null>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -99,6 +116,15 @@ export function PinLocationCard() {
             if (loadedStreet) setStreet(loadedStreet);
             if (loadedCity) setCity(loadedCity);
 
+            const area = detectAreaTypeFromLocation({
+              street: loc.street,
+              city: loc.city,
+              postcode: loc.postcode,
+              areaType: loc.areaType,
+              catchmentRadiusKm: loc.catchmentRadiusKm,
+            });
+            setAreaClassification(area);
+
             savedSnapshotRef.current = {
               street: loadedStreet || profile.street || "",
               city: loadedCity || profile.city || "",
@@ -113,6 +139,8 @@ export function PinLocationCard() {
               city: loadedCity || profile.city,
               lat: loadedLat,
               lng: loadedLng,
+              areaType: area.areaType,
+              catchmentRadiusKm: area.catchmentRadiusKm,
               isLocationPinned: true,
             });
           }
@@ -136,6 +164,10 @@ export function PinLocationCard() {
     try {
       setIsSaving(true);
       const parsed = parseAddressComponents(targetStreet, targetCity);
+      const currentArea = areaClassification || detectAreaTypeFromLocation({
+        street: targetStreet,
+        city: targetCity,
+      });
 
       const formData = new FormData();
       formData.append(
@@ -147,6 +179,8 @@ export function PinLocationCard() {
           houseNumber: parsed.houseNumber,
           postcode: parsed.postcode,
           city: parsed.city,
+          areaType: currentArea.areaType,
+          catchmentRadiusKm: currentArea.catchmentRadiusKm,
         })
       );
 
@@ -225,6 +259,7 @@ export function PinLocationCard() {
       }
 
       // Fallback to OpenStreetMap Nominatim Reverse Geocoding (zoom=18 resolves buildings/hospitals/POIs)
+      let resolvedArea: AreaClassificationResult | null = null;
       if (!resolvedStreet || !resolvedCity) {
         const osmUrl = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${newLat}&lon=${newLng}&zoom=18&addressdetails=1&namedetails=1`;
         const res = await fetch(osmUrl, {
@@ -239,6 +274,8 @@ export function PinLocationCard() {
         if (!resolvedCity && parsedOsm.cityLabel) {
           resolvedCity = parsedOsm.cityLabel;
         }
+        resolvedArea = classifyAreaFromOsm(data);
+        setAreaClassification(resolvedArea);
       }
 
       if (!resolvedStreet && addressHint) {
@@ -248,6 +285,14 @@ export function PinLocationCard() {
       // Update input fields if address resolved
       const finalStreet = resolvedStreet || street;
       const finalCity = resolvedCity || city;
+
+      if (!resolvedArea) {
+        resolvedArea = detectAreaTypeFromLocation({
+          street: finalStreet,
+          city: finalCity,
+        });
+        setAreaClassification(resolvedArea);
+      }
 
       if (resolvedStreet) setStreet(finalStreet);
       if (resolvedCity) setCity(finalCity);
@@ -262,6 +307,8 @@ export function PinLocationCard() {
         city: finalCity,
         lat: latStr,
         lng: lngStr,
+        areaType: resolvedArea.areaType,
+        catchmentRadiusKm: resolvedArea.catchmentRadiusKm,
         isLocationPinned: true,
       });
 
@@ -309,6 +356,7 @@ export function PinLocationCard() {
       let foundLat: number | null = null;
       let foundLng: number | null = null;
       let formattedPlace = "";
+      let resolvedLookupArea = areaClassification;
 
       // 1. Try Mapbox Forward Geocoding
       if (mapboxToken) {
@@ -336,14 +384,21 @@ export function PinLocationCard() {
         });
         const data = await res.json();
 
+        resolvedLookupArea = areaClassification;
         if (Array.isArray(data) && data.length > 0) {
           foundLat = parseFloat(parseFloat(data[0].lat).toFixed(6));
           foundLng = parseFloat(parseFloat(data[0].lon).toFixed(6));
           formattedPlace = data[0].display_name || "";
+          resolvedLookupArea = classifyAreaFromOsm(data[0]);
+          setAreaClassification(resolvedLookupArea);
         }
       }
 
       if (foundLat !== null && foundLng !== null) {
+        if (!resolvedLookupArea) {
+          resolvedLookupArea = detectAreaTypeFromLocation({ street, city });
+          setAreaClassification(resolvedLookupArea);
+        }
         const latStr = String(foundLat);
         const lngStr = String(foundLng);
 
@@ -362,6 +417,8 @@ export function PinLocationCard() {
           city,
           lat: latStr,
           lng: lngStr,
+          areaType: resolvedLookupArea.areaType,
+          catchmentRadiusKm: resolvedLookupArea.catchmentRadiusKm,
           isLocationPinned: true,
         });
 
@@ -496,7 +553,7 @@ export function PinLocationCard() {
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
               </svg>
-              <span>Updating address fields from map pin...</span>
+              <span>{t.caretakerProfile.location.updatingFromPin || "Updating address fields from map pin..."}</span>
             </div>
           )}
 
@@ -548,6 +605,46 @@ export function PinLocationCard() {
               </div>
             </div>
 
+            {/* OpenStreetMap Area Classification */}
+            {areaClassification && (
+              <div className="p-3.5 rounded-xl border border-[#E5DDD2] bg-[#FAF8F5] flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                      areaClassification.areaType === "rural"
+                        ? "bg-[#FEF3C7] text-[#92400E]"
+                        : "bg-[#DCFCE7] text-[#166534]"
+                    }`}
+                  >
+                    {areaClassification.areaType === "rural" ? (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v18m0-18l-4 5h8l-4-5zm0 5l-6 6h12l-6-6zm0 6l-7 7h14l-7-7z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                      </svg>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-[13px] font-bold text-[#1E1B18] flex items-center gap-2 flex-wrap">
+                      <span>
+                        {areaClassification.areaType === "rural"
+                          ? t.caretakerProfile.location.ruralDetected.replace("{radius}", String(areaClassification.catchmentRadiusKm))
+                          : t.caretakerProfile.location.urbanDetected.replace("{radius}", String(areaClassification.catchmentRadiusKm))}
+                      </span>
+                      <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-white border border-[#E5DDD2] text-[#7A6E62]">
+                        OSM
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-[#7A6E62] mt-0.5 truncate">
+                      {t.caretakerProfile.location.osmNotice}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Action Buttons: Fixed -> Change Location | Editing -> Lookup + Save for Review / Cancel */}
             {isLocked ? (
               <button
@@ -575,7 +672,7 @@ export function PinLocationCard() {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                       </svg>
-                      <span>Searching & Updating Map...</span>
+                      <span>{t.caretakerProfile.location.searchingMap || "Searching & Updating Map..."}</span>
                     </>
                   ) : (
                     <>
@@ -657,7 +754,7 @@ export function PinLocationCard() {
             {parsedLat !== 0 && parsedLng !== 0 ? (
               <span>Lat {parsedLat.toFixed(4)} · Lng {parsedLng.toFixed(4)}</span>
             ) : (
-              <span className="font-sans text-[11px] text-[#D1D5DB]">Location not set</span>
+              <span className="font-sans text-[11px] text-[#D1D5DB]">{t.caretakerProfile.location.notSet || "Location not set"}</span>
             )}
             <span className={`w-1.5 h-1.5 rounded-full ${hasValidated ? "bg-[#22C55E]" : "bg-[#F59E0B]"}`} />
             <span className="text-[#86EFAC] font-sans text-[11px] font-semibold">
@@ -665,7 +762,7 @@ export function PinLocationCard() {
                 ? t.caretakerProfile.location.lockedBadge
                 : hasValidated
                   ? t.caretakerProfile.location.validatedBadge
-                  : "Set Pin"}
+                  : t.caretakerProfile.location.setPin || "Set Pin"}
             </span>
           </div>
 

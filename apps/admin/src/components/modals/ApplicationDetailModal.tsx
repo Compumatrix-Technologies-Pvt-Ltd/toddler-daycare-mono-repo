@@ -1,4 +1,4 @@
-import { CloseIcon, ShieldCheckIcon, BuildingIcon } from "../icons/AdminIcons";
+import { CloseIcon, ShieldCheckIcon, BuildingIcon, CheckCircleIcon } from "../icons/AdminIcons";
 import { DaycareApplication } from "../../types/admin";
 import { useLanguage } from "../../context/LanguageContext";
 
@@ -131,6 +131,32 @@ export function ApplicationDetailModal({
                   {application.location}
                 </span>
               </div>
+              <div className="sm:col-span-2 pt-1">
+                <span className="text-[#7A6E62] block text-[11px]">
+                  {t.admin.dashboard.detailModal.areaClassification}
+                </span>
+                <div className="flex items-center gap-2.5 mt-1">
+                  <span
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${
+                      application.areaType === "rural"
+                        ? "bg-[#FEF3C7] text-[#92400E] border border-[#FDE68A]"
+                        : "bg-[#DCFCE7] text-[#166534] border border-[#BBF7D0]"
+                    }`}
+                  >
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        application.areaType === "rural" ? "bg-[#D97706]" : "bg-[#16A34A]"
+                      }`}
+                    />
+                    {application.areaType === "rural"
+                      ? t.admin.dashboard.table.ruralBadge.replace("{radius}", String(application.catchmentRadiusKm || 10))
+                      : t.admin.dashboard.table.urbanBadge.replace("{radius}", String(application.catchmentRadiusKm || 3))}
+                  </span>
+                  <span className="text-[11px] text-[#7A6E62]">
+                    {t.admin.dashboard.detailModal.osmSourceNotice}
+                  </span>
+                </div>
+              </div>
               {application.adminNotes && (
                 <div className="sm:col-span-2 pt-1">
                   <span className="text-[#7A6E62] block text-[11px]">
@@ -170,7 +196,7 @@ export function ApplicationDetailModal({
                   {t.admin.dashboard.detailModal.attachedDocuments}
                 </span>
                 <div className="inline-flex items-center gap-1.5 px-3 py-1.5 mt-1 rounded-lg bg-[#FAF7F2] border border-[#E5DDD2] text-xs font-semibold text-[#16A34A]">
-                  <span>✓</span>
+                  <CheckCircleIcon className="w-3.5 h-3.5 text-[#16A34A]" />
                   <span>
                     {application.documentsCount} {t.admin.dashboard.detailModal.documentsCount}
                   </span>

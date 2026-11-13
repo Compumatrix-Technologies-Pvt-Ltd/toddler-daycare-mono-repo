@@ -175,4 +175,165 @@ export function parseAddressComponents(rawStreet: string, rawCity: string) {
   };
 }
 
+export type DaycareAreaType = "urban" | "rural";
+
+export interface AreaClassificationResult {
+  areaType: DaycareAreaType;
+  catchmentRadiusKm: number;
+  areaLabel: string;
+  source: "openstreetmap" | "fallback";
+}
+
+/**
+ * Classifies an address or map position into Urban (3 km reach) or Rural (10 km reach)
+ * using OpenStreetMap Nominatim metadata, boundary tags, and place types.
+ */
+export function classifyAreaFromOsm(data?: {
+  type?: string;
+  class?: string;
+  addresstype?: string;
+  display_name?: string;
+  address?: Record<string, string | undefined>;
+}): AreaClassificationResult {
+  const a = data?.address || {};
+  const osmType = String(data?.type || data?.addresstype || "").toLowerCase();
+  const fullText = `${data?.display_name || ""} ${Object.values(a).join(" ")}`.toLowerCase();
+
+  // 1. Explicit rural address keys from OpenStreetMap hierarchy
+  const ruralAddressKeys = [
+    "village",
+    "hamlet",
+    "isolated_dwelling",
+    "farm",
+    "croft",
+    "locality",
+    "allotments",
+  ];
+  const hasRuralAddress = ruralAddressKeys.some((k) => Boolean(a[k]));
+
+  // 2. Rural place/landuse types in OpenStreetMap
+  const ruralOsmTypes = [
+    "village",
+    "hamlet",
+    "isolated_dwelling",
+    "farm",
+    "farmland",
+    "meadow",
+    "forest",
+    "wood",
+    "nature_reserve",
+    "rural",
+    "allotments",
+    "locality",
+  ];
+  const hasRuralType = ruralOsmTypes.includes(osmType);
+
+  // 3. Known rural settlement keywords (checked before generic urban types)
+  const ruralKeywords = [
+    "village", "hamlet", "rural", "countryside", "farm", "ranch",
+    "dorf", "weiler", "landkreis", "ländlich", "bauernhof", "siedlung", "hof ", "gut ",
+    "mehunbare", "chalisgaon", "gaon", "wadi", "kheda", "gram", "taluka", "dehat", "tehsil"
+  ];
+
+  const hasRuralText = ruralKeywords.some((kw) => {
+    if (kw.length <= 4) {
+      const rx = new RegExp(`(?:^|[^a-zäöüß])${kw}(?:[^a-zäöüß]|$)`, "i");
+      return rx.test(fullText);
+    }
+    return fullText.includes(kw);
+  }) || /(?:^|[^a-zäöüß])\w*dorf(?:[^a-zäöüß]|$)/i.test(fullText);
+
+  // If explicit rural indicator or settlement keyword matches -> Rural (10 km)
+  if (hasRuralAddress || hasRuralType || hasRuralText) {
+    const label = a.village || a.hamlet || a.locality || a.county || "Rural Area";
+    return {
+      areaType: "rural",
+      catchmentRadiusKm: 10,
+      areaLabel: label,
+      source: "openstreetmap",
+    };
+  }
+
+  // 4. Urban settlement indicators: true metropolitan cities and city districts
+  const urbanAddressKeys = [
+    "city",
+    "city_district",
+    "suburb",
+    "quarter",
+    "neighbourhood",
+    "borough",
+  ];
+  const hasUrbanAddress = urbanAddressKeys.some((k) => Boolean(a[k]));
+  const hasUrbanType = ["city", "suburb"].includes(osmType);
+
+  if (hasUrbanAddress || hasUrbanType) {
+    const label = a.city_district || a.quarter || a.suburb || a.city || "Urban Area";
+    return {
+      areaType: "urban",
+      catchmentRadiusKm: 3,
+      areaLabel: label,
+      source: "openstreetmap",
+    };
+  }
+
+  // 5. Default fallback based on whether county/state exists without a city
+  if (a.county && !a.city) {
+    return {
+      areaType: "rural",
+      catchmentRadiusKm: 10,
+      areaLabel: a.county || "Rural Area",
+      source: "openstreetmap",
+    };
+  }
+
+  return {
+    areaType: "urban",
+    catchmentRadiusKm: 3,
+    areaLabel: "Urban Area",
+    source: "openstreetmap",
+  };
+}
+
+/**
+ * Offline / fallback classifier for daycare locations based on street, city, and postcode strings.
+ */
+export function detectAreaTypeFromLocation(loc?: {
+  street?: string;
+  city?: string;
+  postcode?: string;
+  areaType?: DaycareAreaType;
+  catchmentRadiusKm?: number;
+}): AreaClassificationResult {
+  if (loc?.areaType === "rural" || loc?.areaType === "urban") {
+    return {
+      areaType: loc.areaType,
+      catchmentRadiusKm: loc.catchmentRadiusKm || (loc.areaType === "rural" ? 10 : 3),
+      areaLabel: loc.areaType === "rural" ? "Rural Area" : "Urban Area",
+      source: "fallback",
+    };
+  }
+
+  const text = `${loc?.street || ""} ${loc?.city || ""} ${loc?.postcode || ""}`.toLowerCase();
+  const ruralKeywords = [
+    "village", "hamlet", "rural", "countryside", "farm", "ranch",
+    "dorf", "weiler", "landkreis", "ländlich", "bauernhof", "siedlung", "hof ", "gut ",
+    "mehunbare", "chalisgaon", "gaon", "wadi", "kheda", "gram", "taluka", "dehat", "tehsil"
+  ];
+  const isRural = ruralKeywords.some((kw) => {
+    if (kw.length <= 4) {
+      const rx = new RegExp(`(?:^|[^a-zäöüß])${kw}(?:[^a-zäöüß]|$)`, "i");
+      return rx.test(text);
+    }
+    return text.includes(kw);
+  }) || /(?:^|[^a-zäöüß])\w*dorf(?:[^a-zäöüß]|$)/i.test(text);
+
+  return {
+    areaType: isRural ? "rural" : "urban",
+    catchmentRadiusKm: isRural ? 10 : 3,
+    areaLabel: isRural ? "Rural Area" : "Urban Area",
+    source: "fallback",
+  };
+}
+
+
 

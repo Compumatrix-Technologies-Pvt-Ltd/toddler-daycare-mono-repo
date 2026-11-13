@@ -6,9 +6,11 @@ import {
   EyeIcon,
   EyeOffIcon,
   ShieldCheckIcon,
+  GermanFlagIcon,
+  UkFlagIcon,
 } from "../icons/AdminIcons";
 import { adminAuthService } from "../../services/adminAuthService";
-import { AdminRole, AdminUser } from "../../types/admin";
+import { AdminUser } from "../../types/admin";
 import { useLanguage } from "../../context/LanguageContext";
 
 interface AdminLoginProps {
@@ -21,25 +23,12 @@ export function AdminLogin({
   onNavigateToForgotPassword,
 }: AdminLoginProps) {
   const { t, language, toggleLanguage } = useLanguage();
-  const [selectedRole, setSelectedRole] = useState<AdminRole>("super-admin");
-  const [email, setEmail] = useState("s.jenkins@toddler-governance.berlin");
-  const [password, setPassword] = useState("Admin@Secure2026!");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  const handleQuickFill = (role: AdminRole) => {
-    setSelectedRole(role);
-    setErrorMessage(null);
-    if (role === "super-admin") {
-      setEmail("s.jenkins@toddler-governance.berlin");
-      setPassword("Admin@Secure2026!");
-    } else {
-      setEmail("m.becker@toddler-governance.berlin");
-      setPassword("Reviewer@2026!");
-    }
-  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -95,57 +84,35 @@ export function AdminLogin({
           className="flex items-center gap-1.5 px-3 h-10 rounded-xl bg-white border border-[#E5DDD2] hover:bg-[#F3ECE2] text-xs font-bold text-[#423223] shadow-2xs transition-all cursor-pointer min-h-[44px]"
           aria-label="Toggle language"
         >
-          <span>{language === "de" ? "🇩🇪 DE" : "🇬🇧 EN"}</span>
+          {language === "de" ? (
+            <>
+              <GermanFlagIcon className="w-4 h-3 rounded-xs overflow-hidden shrink-0" />
+              <span>DE</span>
+            </>
+          ) : (
+            <>
+              <UkFlagIcon className="w-4 h-3 rounded-xs overflow-hidden shrink-0" />
+              <span>EN</span>
+            </>
+          )}
         </button>
       </div>
 
       {/* Main Login Card */}
-      <div className="w-full max-w-md mx-auto my-5 sm:my-8 bg-white rounded-2xl border border-[#E5DDD2] shadow-sm p-5 sm:p-8 space-y-5 sm:space-y-6 animate-in fade-in zoom-in-95 duration-200">
+      <div className="w-full max-w-[420px] mx-auto my-auto bg-white rounded-2xl border border-[#E5DDD2] shadow-[0_4px_24px_rgba(30,27,24,0.06)] p-6 sm:p-8 space-y-6 animate-in fade-in zoom-in-95 duration-200">
         {/* Card Header */}
-        <div className="text-center space-y-1.5">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-[#FAF7F2] border border-[#E5DDD2] text-[#A12D3A] shadow-2xs mx-auto mb-1">
+        <div className="text-center space-y-2">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-[#FAF7F2] border border-[#E5DDD2] text-[#A12D3A] shadow-2xs mx-auto">
             <ShieldCheckIcon className="w-6 h-6 text-[#A12D3A]" />
           </div>
-          <h1 className="text-xl sm:text-2xl font-extrabold text-[#1E1B18] tracking-tight">
-            {t.admin.auth.loginTitle}
-          </h1>
-          <p className="text-xs sm:text-[13px] text-[#7A6E62] leading-snug">
-            {t.admin.auth.loginSubtitle}
-          </p>
-        </div>
-
-        {/* Role Selector Tabs (Super Admin vs Admin) */}
-        <div className="space-y-1.5">
-          <label className="block text-[11px] font-bold uppercase tracking-wider text-[#7A6E62]">
-            {t.admin.auth.roleSelectLabel}
-          </label>
-          <div className="grid grid-cols-2 gap-2 bg-[#FAF7F2] p-1 rounded-xl border border-[#E5DDD2]">
-            <button
-              type="button"
-              onClick={() => handleQuickFill("super-admin")}
-              className={`py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer min-h-[40px] ${selectedRole === "super-admin"
-                  ? "bg-[#A12D3A] text-white shadow-2xs"
-                  : "text-[#5C4C3E] hover:text-[#1E1B18]"
-                }`}
-            >
-              {t.admin.auth.roles.superAdmin}
-            </button>
-            <button
-              type="button"
-              onClick={() => handleQuickFill("admin")}
-              className={`py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer min-h-[40px] ${selectedRole === "admin"
-                  ? "bg-[#1E1B18] text-white shadow-2xs"
-                  : "text-[#5C4C3E] hover:text-[#1E1B18]"
-                }`}
-            >
-              {t.admin.auth.roles.admin}
-            </button>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-extrabold text-[#1E1B18] tracking-tight">
+              {t.admin.auth.loginTitle}
+            </h1>
+            <p className="text-xs text-[#7A6E62] mt-1">
+              {t.admin.auth.loginSubtitle}
+            </p>
           </div>
-          <p className="text-[11px] text-[#8A775C] italic pt-0.5">
-            {selectedRole === "super-admin"
-              ? t.admin.auth.roles.superAdminDesc
-              : t.admin.auth.roles.adminDesc}
-          </p>
         </div>
 
         {/* Error Notification */}
@@ -158,7 +125,7 @@ export function AdminLogin({
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Email */}
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             <label className="block text-xs font-bold text-[#1E1B18]">
               {t.admin.auth.emailLabel}
             </label>
@@ -171,13 +138,13 @@ export function AdminLogin({
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder={t.admin.auth.emailPlaceholder}
-                className="w-full h-11 pl-10 pr-3.5 rounded-xl border border-[#E5DDD2] bg-[#FAF7F2]/40 text-xs sm:text-sm text-[#1E1B18] placeholder-[#9E9080] focus:border-[#A12D3A] focus:ring-2 focus:ring-[#A12D3A]/15 focus:bg-white transition-all min-h-[44px]"
+                className="w-full h-11 pl-10 pr-3.5 rounded-xl border border-[#E5DDD2] bg-[#FAF8F5]/60 text-xs sm:text-sm text-[#1E1B18] placeholder-[#9E9080] focus:border-[#A12D3A] focus:ring-2 focus:ring-[#A12D3A]/15 focus:bg-white transition-all min-h-[44px]"
               />
             </div>
           </div>
 
           {/* Password */}
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <label className="block text-xs font-bold text-[#1E1B18]">
                 {t.admin.auth.passwordLabel}
@@ -199,7 +166,7 @@ export function AdminLogin({
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder={t.admin.auth.passwordPlaceholder}
-                className="w-full h-11 pl-10 pr-10 rounded-xl border border-[#E5DDD2] bg-[#FAF7F2]/40 text-xs sm:text-sm text-[#1E1B18] placeholder-[#9E9080] focus:border-[#A12D3A] focus:ring-2 focus:ring-[#A12D3A]/15 focus:bg-white transition-all min-h-[44px]"
+                className="w-full h-11 pl-10 pr-10 rounded-xl border border-[#E5DDD2] bg-[#FAF8F5]/60 text-xs sm:text-sm text-[#1E1B18] placeholder-[#9E9080] focus:border-[#A12D3A] focus:ring-2 focus:ring-[#A12D3A]/15 focus:bg-white transition-all min-h-[44px]"
               />
               <button
                 type="button"
@@ -217,7 +184,7 @@ export function AdminLogin({
           </div>
 
           {/* Remember Me */}
-          <div className="flex items-center gap-2 pt-1">
+          <div className="flex items-center gap-2 pt-0.5">
             <input
               type="checkbox"
               id="remember-me"
@@ -240,35 +207,15 @@ export function AdminLogin({
             className="w-full h-11 rounded-xl bg-[#A12D3A] hover:bg-[#88222E] active:scale-[0.99] text-white text-xs sm:text-sm font-bold shadow-xs transition-all cursor-pointer flex items-center justify-center gap-2 min-h-[44px]"
           >
             {isLoading ? (
-              <span>{t.admin.auth.signingIn}</span>
+              <span className="flex items-center gap-2">
+                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span>{t.admin.auth.signingIn}</span>
+              </span>
             ) : (
               <span>{t.admin.auth.signInButton}</span>
             )}
           </button>
         </form>
-
-        {/* Quick Demo Credentials Switcher */}
-        <div className="pt-2 border-t border-[#E5DDD2] space-y-2">
-          <div className="text-[11px] font-semibold text-[#8A775C] text-center">
-            {t.admin.auth.quickDemoLabel}
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => handleQuickFill("super-admin")}
-              className="px-2.5 py-2 rounded-lg border border-[#E5DDD2] bg-[#FAF7F2] hover:bg-white text-[11px] font-semibold text-[#423223] transition-colors cursor-pointer min-h-[40px]"
-            >
-              🔑 {t.admin.auth.quickFillSuperAdmin}
-            </button>
-            <button
-              type="button"
-              onClick={() => handleQuickFill("admin")}
-              className="px-2.5 py-2 rounded-lg border border-[#E5DDD2] bg-[#FAF7F2] hover:bg-white text-[11px] font-semibold text-[#423223] transition-colors cursor-pointer min-h-[40px]"
-            >
-              👤 {t.admin.auth.quickFillAdmin}
-            </button>
-          </div>
-        </div>
       </div>
 
       {/* Footer Info */}

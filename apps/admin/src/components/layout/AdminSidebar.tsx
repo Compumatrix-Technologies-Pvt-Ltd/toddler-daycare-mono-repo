@@ -29,7 +29,6 @@ export function AdminSidebar({
   mobileOpen,
   onCloseMobile,
   pendingCount = 0,
-  user,
 }: AdminSidebarProps) {
   const { t } = useLanguage();
 
@@ -90,41 +89,6 @@ export function AdminSidebar({
             <CloseIcon className="w-5 h-5" />
           </button>
         </div>
-
-        {/* Mobile User Profile Card (Visible in Mobile Drawer) */}
-        {user && (
-          <div className="lg:hidden p-3.5 mx-3 mt-3 rounded-xl bg-[#FAF7F2] border border-[#E5DDD2] flex items-center gap-3">
-            <div className="relative shrink-0">
-              <img
-                src={user.avatarUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80"}
-                alt={user.name}
-                className="w-10 h-10 rounded-full object-cover border border-[#E5DDD2]"
-              />
-              <span
-                className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ring-2 ring-white ${
-                  user.status === "online"
-                    ? "bg-[#16A34A]"
-                    : user.status === "away"
-                      ? "bg-[#D97706]"
-                      : "bg-[#94A3B8]"
-                }`}
-              />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="font-bold text-[#1E1B18] text-xs truncate">
-                {user.name}
-              </div>
-              <div className="text-[10px] text-[#7A6E62] truncate">
-                {user.email}
-              </div>
-              <div className="text-[9px] font-bold uppercase tracking-wider text-[#A12D3A] mt-0.5">
-                {user.role === "super-admin"
-                  ? t.admin.auth.roles.superAdmin
-                  : t.admin.auth.roles.admin}
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Navigation Section */}
         <div className="p-3 sm:p-4 space-y-4">

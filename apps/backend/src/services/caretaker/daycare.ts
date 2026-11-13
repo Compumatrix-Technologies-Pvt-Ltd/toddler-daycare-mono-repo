@@ -39,6 +39,158 @@ const deleteUploadedFiles = async (files: UploadedFiles) => {
 };
 
 //create daycare
+const resolveLocationArea = async (loc: any) => {
+    if (!loc) return loc;
+    let areaType = loc.areaType;
+    let catchmentRadiusKm = Number(loc.catchmentRadiusKm);
+
+    if (areaType === "urban" || areaType === "rural") {
+        return {
+            ...loc,
+            areaType,
+            catchmentRadiusKm: catchmentRadiusKm || (areaType === "rural" ? 10 : 3),
+        };
+    }
+
+    const lat = Number(loc.latitude);
+    const lng = Number(loc.longitude);
+
+    // 1. OpenStreetMap Nominatim reverse geocoding via lat/lng
+    if (Number.isFinite(lat) && Number.isFinite(lng) && (lat !== 0 || lng !== 0)) {
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3500);
+            const osmUrl = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
+            const res = await fetch(osmUrl, {
+                headers: {
+                    "User-Agent": "ToddlerCareApp/1.0 (info@toddler.de)",
+                    "Accept-Language": "de,en",
+                },
+                signal: controller.signal,
+            });
+            clearTimeout(timeoutId);
+
+            if (res.ok) {
+                const data: any = await res.json();
+                const a = data?.address || {};
+                const osmType = String(data?.type || data?.addresstype || "").toLowerCase();
+
+                const ruralAddressKeys = [
+                    "village",
+                    "hamlet",
+                    "isolated_dwelling",
+                    "farm",
+                    "croft",
+                    "locality",
+                    "allotments",
+                ];
+                const hasRuralAddress = ruralAddressKeys.some((k) => Boolean(a[k]));
+
+                const ruralOsmTypes = [
+                    "village",
+                    "hamlet",
+                    "isolated_dwelling",
+                    "farm",
+                    "farmland",
+                    "meadow",
+                    "forest",
+                    "wood",
+                    "nature_reserve",
+                    "rural",
+                    "allotments",
+                ];
+                const hasRuralType = ruralOsmTypes.includes(osmType);
+
+                const urbanAddressKeys = [
+                    "city",
+                    "city_district",
+                    "suburb",
+                    "quarter",
+                    "neighbourhood",
+                    "borough",
+                    "town",
+                ];
+                const hasUrbanAddress = urbanAddressKeys.some((k) => Boolean(a[k]));
+
+                if (hasRuralAddress || hasRuralType) {
+                    areaType = "rural";
+                } else if (hasUrbanAddress) {
+                    areaType = "urban";
+                }
+            }
+        } catch {
+            // Geocoding network fallback
+        }
+    }
+
+    // 2. OpenStreetMap Search by Address string if still unresolved
+    if (!areaType && (loc.street || loc.city || loc.postcode)) {
+        try {
+            const query = `${loc.street || ""} ${loc.houseNumber || ""} ${loc.postcode || ""} ${loc.city || ""}`.trim();
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3500);
+            const searchUrl = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(query)}&addressdetails=1&limit=1`;
+            const res = await fetch(searchUrl, {
+                headers: {
+                    "User-Agent": "ToddlerCareApp/1.0 (info@toddler.de)",
+                    "Accept-Language": "de,en",
+                },
+                signal: controller.signal,
+            });
+            clearTimeout(timeoutId);
+
+            if (res.ok) {
+                const list: any = await res.json();
+                if (Array.isArray(list) && list.length > 0) {
+                    const data = list[0];
+                    const a = data?.address || {};
+                    const osmType = String(data?.type || data?.addresstype || "").toLowerCase();
+
+                    const hasRural =
+                        Boolean(a.village) ||
+                        Boolean(a.hamlet) ||
+                        Boolean(a.farm) ||
+                        Boolean(a.locality) ||
+                        ["village", "hamlet", "rural"].includes(osmType);
+
+                    const hasUrban =
+                        Boolean(a.city) ||
+                        Boolean(a.town) ||
+                        Boolean(a.suburb) ||
+                        Boolean(a.city_district);
+
+                    if (hasRural) {
+                        areaType = "rural";
+                    } else if (hasUrban) {
+                        areaType = "urban";
+                    }
+                }
+            }
+        } catch {
+            // Search network fallback
+        }
+    }
+
+    // 3. Fallback heuristic
+    if (!areaType) {
+        const text = `${loc.street || ""} ${loc.city || ""} ${loc.postcode || ""}`.toLowerCase();
+        const ruralKeywords = [
+            "dorf", "village", "weiler", "land", "gut ", "hof ", "siedlung", "hamlet", "rural",
+            "mehunbare", "gaon", "wadi", "kheda", "gram", "taluka", "dehat", "feld"
+        ];
+        const isRural = ruralKeywords.some((kw) => text.includes(kw));
+        areaType = isRural ? "rural" : "urban";
+    }
+
+    catchmentRadiusKm = catchmentRadiusKm || (areaType === "rural" ? 10 : 3);
+
+    return {
+        ...loc,
+        areaType,
+        catchmentRadiusKm,
+    };
+};
+
 export const createDaycareService = async (req: Request) => {
     const files = (req.files || {}) as UploadedFiles;
 
@@ -87,7 +239,7 @@ export const createDaycareService = async (req: Request) => {
         const operations = parseField(req.body.operations);
         const contact = parseField(req.body.contact);
         const additionalDetails = parseField(req.body.additionalDetails);
-        const location = parseField(req.body.location);
+        const location = await resolveLocationArea(parseField(req.body.location));
 
         const daycareData = {
             caretakerId,
@@ -180,7 +332,8 @@ export const updatedDaycareService = async (req: Request) => {
 
         for (const field of fields) {
             if (req.body[field] !== undefined) {
-                (daycare as any)[field] = parseField(req.body[field]);
+                const parsed = parseField(req.body[field]);
+                (daycare as any)[field] = field === "location" ? await resolveLocationArea(parsed) : parsed;
             }
         }
 

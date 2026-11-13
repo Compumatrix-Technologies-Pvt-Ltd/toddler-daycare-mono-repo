@@ -75,6 +75,15 @@ const daycareSchema = new Schema<IDaycare>(
             houseNumber: { type: String, default: "" },
             postcode: { type: String, default: "" },
             city: { type: String, required: true },
+            areaType: {
+                type: String,
+                enum: ["urban", "rural"],
+                default: "urban",
+            },
+            catchmentRadiusKm: {
+                type: Number,
+                default: 3,
+            },
         },
 
         workPermit: {

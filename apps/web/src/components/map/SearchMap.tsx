@@ -9,6 +9,7 @@ interface SearchMapProps {
   kitas: Kita[];
   activeKita?: Kita | null;
   onSelectKita: (id: string) => void;
+  onClearFocus?: () => void;
   className?: string;
   userLocation?: { lat: number; lng: number } | null;
   catchmentRadius?: number;
@@ -41,6 +42,7 @@ export default function SearchMap({
   kitas,
   activeKita,
   onSelectKita,
+  onClearFocus,
   className = "w-full h-full",
   userLocation,
   catchmentRadius = 3,
@@ -50,60 +52,67 @@ export default function SearchMap({
   const markersRef = useRef<{ [id: string]: L.Marker }>({});
   const userMarkerRef = useRef<L.Marker | null>(null);
   const radiusCircleRef = useRef<L.Circle | null>(null);
+  const isProgrammaticMoveRef = useRef<boolean>(false);
+  const prevUserLocationRef = useRef<{ lat: number; lng: number } | null>(null);
+  const onClearFocusRef = useRef(onClearFocus);
+  const onSelectKitaRef = useRef(onSelectKita);
+
+  useEffect(() => {
+    onClearFocusRef.current = onClearFocus;
+    onSelectKitaRef.current = onSelectKita;
+  }, [onClearFocus, onSelectKita]);
 
   const createSunIcon = (isActive: boolean, kita: Kita) => {
     if (isActive) {
+      // In focus:
+      // The pin changes color to crimson red #A12D3A.
+      // The name tag is placed NEXT TO the marker (to the right with margin-left: 8px), not above it.
+      // Pin center is at [16, 20], anchor is [16, 20]. The exact location is 100% visible.
       return L.divIcon({
         className: "custom-active-sun-pin",
-        iconSize: [200, 50],
-        iconAnchor: [100, 50],
+        iconSize: [260, 40],
+        iconAnchor: [16, 20],
         html: `
-          <div style="position: relative; display: flex; flex-direction: column; align-items: center; cursor: pointer; pointer-events: auto;">
+          <div style="position: relative; display: flex; align-items: center; pointer-events: auto; z-index: 1000;">
+            <!-- Marker in focus (changes color to #A12D3A) -->
             <div style="
-              position: relative;
+              width: 32px;
+              height: 32px;
+              border-radius: 9999px;
+              background-color: #A12D3A;
+              color: #FFFFFF;
               display: flex;
               align-items: center;
-              gap: 8px;
+              justify-content: center;
+              box-shadow: 0 4px 12px rgba(161, 45, 58, 0.45);
+              border: 2.5px solid #FFFFFF;
+              cursor: pointer;
+              flex-shrink: 0;
+            ">
+              <svg style="width: 17px; height: 17px;" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" />
+              </svg>
+            </div>
+
+            <!-- Name Tag NEXT TO the marker (to the right, NOT above it) -->
+            <div style="
+              margin-left: 8px;
               background: #FFFFFF;
               border: 1px solid #D5C9B8;
-              padding: 6px 12px;
-              border-radius: 12px;
+              padding: 4px 10px;
+              border-radius: 10px;
               box-shadow: 0 4px 14px rgba(0,0,0,0.12);
-              transform: translateY(-4px);
               white-space: nowrap;
+              pointer-events: auto;
+              cursor: pointer;
             ">
-              <div style="
-                width: 20px;
-                height: 20px;
-                border-radius: 9999px;
-                background-color: #A12D3A;
-                color: #FFFFFF;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                flex-shrink: 0;
-              ">
-                <svg style="width: 12px; height: 12px;" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" />
-                </svg>
+              <div style="font-size: 11px; font-weight: 700; color: #1E1B18; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; max-width: 150px;">
+                ${kita.name}
               </div>
-              <div style="min-width: 0; text-align: left;">
-                <div style="font-size: 12px; font-weight: 700; color: #1E1B18; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; max-width: 140px;">
-                  ${kita.name}
-                </div>
-                <div style="font-size: 10px; color: #7A6E62; overflow: hidden; text-overflow: ellipsis; max-width: 140px;">
-                  ${kita.location}
-                </div>
+              <div style="font-size: 10px; color: #7A6E62; overflow: hidden; text-overflow: ellipsis; max-width: 150px; margin-top: 1px;">
+                ${kita.location}
               </div>
             </div>
-            <div style="
-              width: 0;
-              height: 0;
-              border-left: 6px solid transparent;
-              border-right: 6px solid transparent;
-              border-top: 6px solid #FFFFFF;
-              margin-top: -1px;
-            "></div>
           </div>
         `,
       });
@@ -276,21 +285,25 @@ export default function SearchMap({
       const isActive = activeKita ? kita.id === activeKita.id : false;
       const icon = createSunIcon(isActive, kita);
 
+      const handleClick = (e: L.LeafletMouseEvent) => {
+        L.DomEvent.stopPropagation(e);
+        onSelectKitaRef.current?.(kita.id);
+      };
+
       if (markersRef.current[kita.id]) {
         const marker = markersRef.current[kita.id];
         marker.setIcon(icon);
         marker.setLatLng(coords);
         marker.setZIndexOffset(isActive ? 1000 : 10);
+        marker.off("click");
+        marker.on("click", handleClick);
       } else {
         const marker = L.marker(coords, {
           icon,
           zIndexOffset: isActive ? 1000 : 10,
         }).addTo(map);
 
-        marker.on("click", () => {
-          onSelectKita(kita.id);
-        });
-
+        marker.on("click", handleClick);
         markersRef.current[kita.id] = marker;
       }
     });
@@ -300,7 +313,7 @@ export default function SearchMap({
       const userLatLng: [number, number] = [userLocation.lat, userLocation.lng];
       const radiusMeters = (catchmentRadius || 3) * 1000;
 
-      // Circle
+      // Circle around parent's current location (applies urban / rural radius)
       if (radiusCircleRef.current) {
         radiusCircleRef.current.setLatLng(userLatLng);
         radiusCircleRef.current.setRadius(radiusMeters);
@@ -308,11 +321,11 @@ export default function SearchMap({
         radiusCircleRef.current = L.circle(userLatLng, {
           radius: radiusMeters,
           color: "#A12D3A",
-          weight: 1.5,
-          opacity: 0.7,
+          weight: 2,
+          opacity: 0.8,
           fillColor: "#A12D3A",
           fillOpacity: 0.08,
-          dashArray: "5, 5",
+          dashArray: "6, 6",
         }).addTo(map);
       }
 
@@ -340,6 +353,27 @@ export default function SearchMap({
         }).addTo(map);
         userMarkerRef.current.bindTooltip("Your Location", { permanent: false, direction: "top" });
       }
+
+      // If user location changed or is newly searched, and no active daycare is in focus,
+      // redirect / smoothly fly the map to parent's searched location
+      const prevLoc = prevUserLocationRef.current;
+      const isLocationChanged =
+        !prevLoc ||
+        Math.abs(prevLoc.lat - userLocation.lat) > 0.0001 ||
+        Math.abs(prevLoc.lng - userLocation.lng) > 0.0001;
+
+      if (isLocationChanged) {
+        prevUserLocationRef.current = { lat: userLocation.lat, lng: userLocation.lng };
+        if (!activeKita) {
+          isProgrammaticMoveRef.current = true;
+          // Zoom level 14 fits the catchment circle nicely
+          const searchZoom = (catchmentRadius || 3) > 5 ? 12 : 14;
+          safeMoveMap(map, userLatLng, searchZoom, 0.8);
+          setTimeout(() => {
+            isProgrammaticMoveRef.current = false;
+          }, 900);
+        }
+      }
     } else {
       if (radiusCircleRef.current) {
         radiusCircleRef.current.remove();
@@ -351,14 +385,20 @@ export default function SearchMap({
       }
     }
 
-    // Pan / Fly to active daycare location
+    // Pan / Fly to active daycare location with +4 zoom in
     if (activeKita) {
       const activeIdx = kitas.findIndex((k) => k.id === activeKita.id);
       const activeCoords = getCoordinatesForKita(
         activeKita,
         activeIdx >= 0 ? activeIdx : 0
       );
-      safeMoveMap(map, activeCoords, 14, 0.8);
+      isProgrammaticMoveRef.current = true;
+      const currentZoom = map.getZoom() || 13;
+      const targetZoom = Math.min(Math.max(currentZoom + 4, 16), 18);
+      safeMoveMap(map, activeCoords, targetZoom, 0.8);
+      setTimeout(() => {
+        isProgrammaticMoveRef.current = false;
+      }, 900);
     }
   }, [kitas, activeKita?.id, userLocation?.lat, userLocation?.lng, catchmentRadius]);
 

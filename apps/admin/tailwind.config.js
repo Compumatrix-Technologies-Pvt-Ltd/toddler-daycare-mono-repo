@@ -5,6 +5,15 @@ export default {
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
     "../../packages/ui/src/**/*.{js,ts,jsx,tsx}",
+    "../../packages/ui/dist/**/*.{js,mjs,ts}",
+    "../packages/ui/src/**/*.{js,ts,jsx,tsx}",
+    "../packages/ui/dist/**/*.{js,mjs,ts}",
+  ],
+  safelist: [
+    "grid-cols-7",
+    "grid-cols-3",
+    "grid-cols-4",
+    "aspect-square",
   ],
   theme: {
     extend: {

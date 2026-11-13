@@ -5,11 +5,14 @@ import {
   ClockIcon,
 } from "../icons/AdminIcons";
 import { DaycareApplication } from "../../types/admin";
+import { AdminDashboardStats } from "../../services/adminDaycareService";
 import { useLanguage } from "../../context/LanguageContext";
 import { DaycaresTableSection } from "./DaycaresTableSection";
 
 interface DashboardViewProps {
   applications: DaycareApplication[];
+  inquiriesCount?: number;
+  stats?: AdminDashboardStats | null;
   isLoading?: boolean;
   onViewAllDaycares?: (() => void) | undefined;
   onRequestApprove: (application: DaycareApplication) => void;
@@ -19,6 +22,8 @@ interface DashboardViewProps {
 
 export function DashboardView({
   applications,
+  inquiriesCount = 0,
+  stats,
   isLoading = false,
   onViewAllDaycares,
   onRequestApprove,
@@ -27,8 +32,11 @@ export function DashboardView({
 }: DashboardViewProps) {
   const { t } = useLanguage();
 
-  const pendingCount = applications.filter((a) => a.status === "pending").length;
-  const approvedCount = applications.filter((a) => a.status === "approved").length;
+  const totalDaycaresCount = stats?.totalDaycares ?? applications.length;
+  const pendingCount = stats?.pendingPermits ?? applications.filter((a) => a.status === "pending").length;
+  const approvedCount = stats?.verifiedCaretakers ?? applications.filter((a) => a.status === "approved").length;
+  const totalInquiries = stats?.demandInquiries ?? inquiriesCount;
+  const totalCapacity = stats?.totalCapacity ?? applications.reduce((acc, curr) => acc + (curr.capacity || 0), 0);
 
   return (
     <div className="space-y-4 sm:space-y-5 animate-in fade-in duration-200">
@@ -70,10 +78,10 @@ export function DashboardView({
             </div>
           </div>
           <div className="text-[18px] sm:text-[20px] xl:text-[22px] font-bold text-[#1E1B18] my-1 sm:my-1.5">
-            {applications.length}
+            {totalDaycaresCount}
           </div>
           <div className="text-[11px] font-medium text-[#16A34A] truncate">
-            {applications.length > 0 ? `${applications.length} registered` : "No registered daycares"}
+            {totalDaycaresCount > 0 ? `${totalDaycaresCount} registered` : "No registered daycares"}
           </div>
         </div>
 
@@ -124,10 +132,12 @@ export function DashboardView({
             </div>
           </div>
           <div className="text-[18px] sm:text-[20px] xl:text-[22px] font-bold text-[#1E1B18] my-1 sm:my-1.5">
-            {applications.reduce((acc, curr) => acc + (curr.capacity || 0), 0)}
+            {totalInquiries}
           </div>
           <div className="text-[11px] font-medium text-[#5C4C3E] truncate">
-            {applications.length > 0 ? "Total registered capacity spots" : "0 total spots"}
+            {totalCapacity > 0
+              ? `${totalCapacity} registered capacity spots`
+              : "0 registered capacity spots"}
           </div>
         </div>
       </div>

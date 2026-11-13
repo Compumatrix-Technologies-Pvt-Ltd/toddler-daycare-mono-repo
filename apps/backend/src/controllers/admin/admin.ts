@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { registerService, loginService, profileService } from "@/services/admin/admin";
 import Daycare from "@/modules/caretaker/daycare";
 import Caretaker from "@/modules/caretaker/auth";
+import { Inquiry } from "@/modules/inquiry/inquiry";
 import { emailService } from "@/services/email/emailService";
 import { emitDaycareUpdated } from "@/config/socket";
 
@@ -74,6 +75,47 @@ export const getAllDaycaresAdmin = async (req: Request, res: Response) => {
     }
 };
 
+// Get live dashboard KPI stats for admin
+export const getDashboardStatsAdmin = async (req: Request, res: Response) => {
+    try {
+        const [
+            totalDaycares,
+            pendingPermits,
+            verifiedCaretakers,
+            demandInquiries,
+            allDaycares,
+        ] = await Promise.all([
+            Daycare.countDocuments({}),
+            Daycare.countDocuments({ status: "pending" }),
+            Daycare.countDocuments({ status: "approved" }),
+            Inquiry.countDocuments({}),
+            Daycare.find({}).sort({ createdAt: -1 }),
+        ]);
+
+        const totalCapacity = allDaycares.reduce((sum, d) => {
+            const cap = d.workPermit?.authorizedCapacity ?? d.operations?.maxCapacity ?? 0;
+            return sum + (typeof cap === "number" && Number.isFinite(cap) ? cap : 0);
+        }, 0);
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                totalDaycares,
+                pendingPermits,
+                verifiedCaretakers,
+                demandInquiries,
+                totalCapacity,
+                applications: allDaycares,
+            },
+        });
+    } catch (error: any) {
+        return res.status(500).json({
+            success: false,
+            message: error.message || "Failed to fetch admin dashboard statistics",
+        });
+    }
+};
+
 // Update daycare verification status (approved / rejected / pending) along with verified work permit details
 export const updateDaycareStatusAdmin = async (req: Request, res: Response) => {
     try {
@@ -106,8 +148,24 @@ export const updateDaycareStatusAdmin = async (req: Request, res: Response) => {
         const finalCapacity = details.authorizedCapacity ?? authorizedCapacity;
         const finalNotes = details.adminNotes ?? adminNotes;
 
-        if (finalPermitId !== undefined) {
-            updateDoc["workPermit.permitId"] = String(finalPermitId).trim();
+        // Validation: Ensure permitId / permitNumber is unique across other daycares
+        if (finalPermitId && String(finalPermitId).trim()) {
+            const trimmedPermitId = String(finalPermitId).trim();
+            const duplicate = await Daycare.findOne({
+                _id: { $ne: id },
+                "workPermit.permitId": { $regex: new RegExp(`^${trimmedPermitId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") }
+            }).select("name workPermit.permitId");
+
+            if (duplicate) {
+                return res.status(409).json({
+                    success: false,
+                    message: `Permit Number "${trimmedPermitId}" is already assigned to "${duplicate.name || "another daycare"}". Permit numbers must be unique.`,
+                    errors: {
+                        permitId: ["Permit number is already registered to another daycare."],
+                    },
+                });
+            }
+            updateDoc["workPermit.permitId"] = trimmedPermitId;
         }
         if (finalRegDate !== undefined) {
             updateDoc["workPermit.registrationDate"] = String(finalRegDate).trim();

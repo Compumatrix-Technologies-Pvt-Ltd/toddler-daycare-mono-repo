@@ -4,6 +4,7 @@ import React from "react";
 import Image from "next/image";
 import { Kita } from "../types";
 import { useLanguage } from "../i18n/LanguageContext";
+import { StarIcon } from "./icons/WebIcons";
 
 interface KitaCardProps {
   kita: Kita;
@@ -27,6 +28,9 @@ export function KitaCard({
   catchmentRadius = 3,
 }: KitaCardProps) {
   const { t } = useLanguage();
+  const effectiveRadius =
+    kita.catchmentRadiusKm || (kita.areaType === "rural" ? 10 : catchmentRadius || 3);
+  const isRural = kita.areaType === "rural";
 
   return (
     <div
@@ -131,29 +135,33 @@ export function KitaCard({
               {kita.slots} {t.card.slotsAvailable}
             </span>
             <span className="text-[#C4B7A5]">•</span>
-            <span className="bg-[#FEF3C7] text-[#78350F] font-bold px-2 py-0.5 rounded-full text-[10px] sm:text-[11px]">
-              {Number(kita.rating || 0).toFixed(1)} ★ ({Number(kita.reviewCount || 0)} {t.card.reviews})
+            <span className="bg-[#FEF3C7] text-[#78350F] font-bold px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] inline-flex items-center gap-1">
+              <span>{Number(kita.rating || 0).toFixed(1)}</span>
+              <StarIcon className="w-3 h-3 text-amber-500 fill-amber-500 shrink-0" />
+              <span>({Number(kita.reviewCount || 0)} {t.card.reviews})</span>
             </span>
           </div>
 
           {/* Tag chips */}
           <div className="flex items-center gap-1.5 flex-wrap">
-            {/* Catchment Radius Badge */}
-            <span className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] text-[#8A775C] bg-[#FAF7F2] border border-[#E5DDD2] px-2 py-0.5 rounded-md font-medium">
-              <svg
-                className="w-3 h-3 text-[#A12D3A] shrink-0"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                />
-              </svg>
-              <span>{t.card.reachRadius.replace("{radius}", String(catchmentRadius))}</span>
+            {/* Area Classification & Catchment Radius Badge */}
+            <span
+              className={`inline-flex items-center gap-1.5 text-[10px] sm:text-[11px] px-2 py-0.5 rounded-md font-bold border ${
+                isRural
+                  ? "bg-[#FEF3C7] text-[#92400E] border-[#FDE68A]"
+                  : "bg-[#DCFCE7] text-[#166534] border-[#BBF7D0]"
+              }`}
+            >
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${
+                  isRural ? "bg-[#D97706]" : "bg-[#16A34A]"
+                }`}
+              />
+              <span>
+                {isRural
+                  ? t.card.ruralBadge.replace("{radius}", String(effectiveRadius))
+                  : t.card.urbanBadge.replace("{radius}", String(effectiveRadius))}
+              </span>
             </span>
 
             {kita.tags.map((tag, idx) => (

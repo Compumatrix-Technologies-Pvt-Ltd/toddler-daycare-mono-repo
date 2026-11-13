@@ -35,8 +35,11 @@ app.use(
   adminRouter
 );
 
-//caretaker auth routes (support both /api and /api/v1)
-app.use(["/api/caretaker/auth", "/api/v1/caretaker/auth"], caretaterRouter);
+//caretaker auth & token verification routes (support both /api and /api/v1)
+app.use(
+  ["/api/caretaker/auth", "/api/v1/caretaker/auth", "/api/caretaker", "/api/v1/caretaker"],
+  caretaterRouter
+);
 
 //daycare routes (support both /api and /api/v1)
 app.use(["/api/caretaker/daycare", "/api/v1/caretaker/daycare"], daycareRouter);

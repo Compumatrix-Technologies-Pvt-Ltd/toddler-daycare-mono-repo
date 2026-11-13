@@ -1,7 +1,7 @@
 import { useState, useEffect, type FormEvent } from "react";
 import { AdminRole, PlatformSettings } from "../../types/admin";
 import { useLanguage } from "../../context/LanguageContext";
-import { CheckCircleIcon, ShieldCheckIcon } from "../icons/AdminIcons";
+import { CheckCircleIcon, ShieldCheckIcon, CloseIcon } from "../icons/AdminIcons";
 
 interface SettingsViewProps {
   initialSettings: PlatformSettings;
@@ -76,7 +76,7 @@ export function SettingsView({
             className="w-8 h-8 rounded-lg flex items-center justify-center text-[#15803D] hover:bg-[#DCFCE7] cursor-pointer"
             aria-label="Dismiss toast"
           >
-            ✕
+            <CloseIcon className="w-4 h-4 text-[#15803D]" />
           </button>
         </div>
       )}
@@ -122,24 +122,47 @@ export function SettingsView({
 
             <div>
               <label className="block text-xs font-bold text-[#1E1B18] mb-1">
-                {t.admin.settings.fields.catchmentRadius}
+                {t.admin.settings.fields.urbanCatchmentRadius}
               </label>
               <input
                 type="number"
                 step="0.5"
                 min="1"
-                max="15"
-                value={settings.defaultCatchmentRadiusKm}
+                max="30"
+                value={settings.urbanCatchmentRadiusKm ?? 3.0}
                 onChange={(e) =>
                   setSettings({
                     ...settings,
-                    defaultCatchmentRadiusKm: parseFloat(e.target.value) || 3.0,
+                    urbanCatchmentRadiusKm: parseFloat(e.target.value) || 3.0,
                   })
                 }
                 className="w-full h-10 px-3 rounded-xl border border-[#E5DDD2] text-xs sm:text-sm text-[#1E1B18] focus:border-[#A12D3A] focus:ring-1 focus:ring-[#A12D3A]"
               />
               <p className="text-[11px] text-[#7A6E62] mt-1">
-                {t.admin.settings.fields.catchmentRadiusDesc}
+                {t.admin.settings.fields.urbanCatchmentRadiusDesc}
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-[#1E1B18] mb-1">
+                {t.admin.settings.fields.ruralCatchmentRadius}
+              </label>
+              <input
+                type="number"
+                step="0.5"
+                min="1"
+                max="50"
+                value={settings.ruralCatchmentRadiusKm ?? 10.0}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    ruralCatchmentRadiusKm: parseFloat(e.target.value) || 10.0,
+                  })
+                }
+                className="w-full h-10 px-3 rounded-xl border border-[#E5DDD2] text-xs sm:text-sm text-[#1E1B18] focus:border-[#A12D3A] focus:ring-1 focus:ring-[#A12D3A]"
+              />
+              <p className="text-[11px] text-[#7A6E62] mt-1">
+                {t.admin.settings.fields.ruralCatchmentRadiusDesc}
               </p>
             </div>
 

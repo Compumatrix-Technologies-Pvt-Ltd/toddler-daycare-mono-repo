@@ -40,19 +40,29 @@ export function mapMongoDaycareToApplication(raw: any): DaycareApplication {
 
   const submitted = raw.createdAt
     ? new Date(raw.createdAt).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      })
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    })
     : "Recently";
 
   // If permit file name exists or permit is attached
   const permitFileName = raw.workPermit?.fileName || "";
   const workPermitUrl = resolveAssetUrl(raw.workPermit?.url);
-  const permitId = raw.workPermit?.permitId || "";
-  const permitName = permitId || permitFileName || (workPermitUrl ? "Document-Uploaded.pdf" : "DE-PENDING");
+  const permitId = raw.workPermit?.permitId || raw.permitNumber || "";
+  const permitName = permitId || (permitFileName ? permitFileName : "—");
 
   const docCount = (raw.workPermit?.url ? 1 : 0) + (Array.isArray(raw.photos) ? raw.photos.length : 0);
+
+  const rawArea = loc.areaType;
+  const isRural =
+    rawArea === "rural" ||
+    (!rawArea &&
+      ["dorf", "village", "weiler", "land", "gut ", "hof ", "siedlung", "hamlet", "rural"].some((kw) =>
+        `${fullAddress} ${loc.city || ""}`.toLowerCase().includes(kw)
+      ));
+  const areaType: "urban" | "rural" = isRural ? "rural" : "urban";
+  const catchmentRadiusKm = Number(loc.catchmentRadiusKm) || (areaType === "rural" ? 10 : 3);
 
   return {
     id: raw._id?.toString() || raw.id || "",
@@ -76,10 +86,58 @@ export function mapMongoDaycareToApplication(raw: any): DaycareApplication {
     authorizedCapacity: raw.workPermit?.authorizedCapacity ?? raw.operations?.maxCapacity,
     adminNotes: raw.workPermit?.adminNotes || "",
     approvedAt: raw.workPermit?.approvedAt || "",
+    areaType,
+    catchmentRadiusKm,
   };
 }
 
+export interface AdminDashboardStats {
+  totalDaycares: number;
+  pendingPermits: number;
+  verifiedCaretakers: number;
+  demandInquiries: number;
+  totalCapacity: number;
+  applications: DaycareApplication[];
+}
+
 export const adminDaycareService = {
+  // Fetch dashboard statistics from backend
+  async getDashboardStats(): Promise<AdminDashboardStats | null> {
+    try {
+      const res = await api.get("/dashboard");
+      const d = res.data?.data;
+      if (d) {
+        return {
+          totalDaycares: d.totalDaycares || 0,
+          pendingPermits: d.pendingPermits || 0,
+          verifiedCaretakers: d.verifiedCaretakers || 0,
+          demandInquiries: d.demandInquiries || 0,
+          totalCapacity: d.totalCapacity || 0,
+          applications: Array.isArray(d.applications) ? d.applications.map(mapMongoDaycareToApplication) : [],
+        };
+      }
+      return null;
+    } catch {
+      try {
+        const fallbackRes = await api.get("/stats");
+        const d = fallbackRes.data?.data;
+        if (d) {
+          return {
+            totalDaycares: d.totalDaycares || 0,
+            pendingPermits: d.pendingPermits || 0,
+            verifiedCaretakers: d.verifiedCaretakers || 0,
+            demandInquiries: d.demandInquiries || 0,
+            totalCapacity: d.totalCapacity || 0,
+            applications: Array.isArray(d.applications) ? d.applications.map(mapMongoDaycareToApplication) : [],
+          };
+        }
+      } catch {
+        // Fallback failed
+      }
+      return null;
+    }
+  },
+
   // Fetch real daycares from MongoDB backend
   async getDaycares(): Promise<DaycareApplication[]> {
     try {

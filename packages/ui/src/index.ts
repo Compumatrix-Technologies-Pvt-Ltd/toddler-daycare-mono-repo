@@ -18,8 +18,11 @@ export type { BadgeProps } from "./components/Badge";
 export { Loader } from "./components/Loader";
 export type { LoaderProps } from "./components/Loader";
 
-export { Select } from "./components/Select";
-export type { SelectProps, SelectOption } from "./components/Select";
+export { Select, NativeSelect, SELECT_CLASS } from "./components/Select";
+export type { SelectProps, SelectOption, NativeSelectProps } from "./components/Select";
+
+export { Calendar } from "./components/Calendar";
+export type { CalendarProps } from "./components/Calendar";
 
 export { DatePicker } from "./components/DatePicker";
 export type { DatePickerProps } from "./components/DatePicker";

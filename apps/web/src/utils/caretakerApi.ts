@@ -68,6 +68,28 @@ export const caretakerApi = {
         return result.data;
     },
 
+    // Verify token validity with backend
+    async verifyToken(token?: string): Promise<any> {
+        const activeToken = token || this.getToken();
+        if (!activeToken) {
+            throw new Error("No token provided");
+        }
+
+        const res = await fetch(`${API_BASE_URL}/caretaker/verify`, {
+            method: "GET",
+            headers: {
+                Authorization: `Bearer ${activeToken}`,
+            },
+        });
+
+        const result = await res.json();
+        if (!res.ok || !result.success) {
+            this.logout();
+            throw new Error(result.message || "Invalid or expired token");
+        }
+        return result.data;
+    },
+
     // Submit / Create Daycare with Photos & Work Permit
     async createDaycare(formData: FormData): Promise<any> {
         const token = this.getToken();

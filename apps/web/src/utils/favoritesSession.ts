@@ -212,15 +212,12 @@ export function clearSessionFavorites(): void {
  * React Hook for managing 30-day session favorites with real-time sync across components.
  */
 export function useSessionFavorites() {
-  const [favorites, setFavoritesState] = useState<Record<string, boolean>>(() =>
-    getSessionFavorites()
-  );
-  const [daysRemaining, setDaysRemaining] = useState<number>(() =>
-    getDaysRemaining()
-  );
+  const [favorites, setFavoritesState] = useState<Record<string, boolean>>({});
+  const [daysRemaining, setDaysRemaining] = useState<number>(30);
+  const [isMounted, setIsMounted] = useState<boolean>(false);
 
   useEffect(() => {
-    // Initial sync
+    setIsMounted(true);
     setFavoritesState(getSessionFavorites());
     setDaysRemaining(getDaysRemaining());
 
@@ -239,14 +236,16 @@ export function useSessionFavorites() {
   }, []);
 
   const favoritesCount = useMemo(() => {
+    if (!isMounted) return 0;
     return Object.keys(favorites).filter((key) => favorites[key]).length;
-  }, [favorites]);
+  }, [favorites, isMounted]);
 
   const isFavorite = useCallback(
     (id: string) => {
+      if (!isMounted) return false;
       return Boolean(favorites[id]);
     },
-    [favorites]
+    [favorites, isMounted]
   );
 
   const toggleFavorite = useCallback((id: string, e?: React.MouseEvent) => {
@@ -285,5 +284,6 @@ export function useSessionFavorites() {
     removeFavorite,
     clearFavorites,
     pruneFavorites,
+    isMounted,
   };
 }

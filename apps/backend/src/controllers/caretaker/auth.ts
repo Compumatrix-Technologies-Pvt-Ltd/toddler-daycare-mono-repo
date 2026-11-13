@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { registerService, loginService } from '@/services/caretaker/caretaker';
+import Caretaker from "@/modules/caretaker/auth";
 
 //Register controller
 export const register = async (req: Request, res: Response) => {
@@ -37,3 +38,40 @@ export const login = async (req: Request, res: Response) => {
         })
     }
 }
+
+// Token Verification & Current Profile controller (protected by caretakerMiddleware)
+export const getProfile = async (req: Request, res: Response) => {
+    try {
+        const caretakerId = req.caretaker?.caretakerId;
+        if (!caretakerId) {
+            return res.status(401).json({
+                success: false,
+                message: "Valid authorization token required",
+            });
+        }
+
+        const caretaker = await Caretaker.findById(caretakerId).select("-password");
+        if (!caretaker) {
+            return res.status(401).json({
+                success: false,
+                message: "Caretaker not found",
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Token is valid",
+            data: {
+                caretaker: {
+                    id: caretaker._id.toString(),
+                    email: caretaker.email,
+                },
+            },
+        });
+    } catch (error: any) {
+        return res.status(401).json({
+            success: false,
+            message: "Invalid or expired token",
+        });
+    }
+};

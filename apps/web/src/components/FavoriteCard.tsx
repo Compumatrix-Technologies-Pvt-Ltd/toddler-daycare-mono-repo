@@ -4,6 +4,7 @@ import React from "react";
 import Image from "next/image";
 import { Kita } from "../types";
 import { useLanguage } from "../i18n/LanguageContext";
+import { StarIcon } from "./icons/WebIcons";
 
 interface FavoriteCardProps {
   kita: Kita;
@@ -27,10 +28,9 @@ export function FavoriteCard({
 
   const address = kita.address || `${kita.location} • ${kita.distance}`;
 
-  const ratingLabel = (t.favorites.certifiedCaretaker || "★ {rating} • Certified Caretaker").replace(
-    "{rating}",
-    kita.rating.toFixed(1)
-  );
+  const ratingLabel = (t.favorites.certifiedCaretaker || "{rating} • Certified Caretaker")
+    .replace("{rating}", kita.rating.toFixed(1))
+    .replace(/\u2605\s*/g, "");
 
   const maxPlacementLabel = (t.favorites.maxPlacement || "Max {count} Placement").replace(
     "{count}",
@@ -99,7 +99,8 @@ export function FavoriteCard({
             {kita.name}
           </h2>
 
-          <div className="bg-[#FFFBEB] border border-amber-200/50 px-2.5 py-0.5 rounded-xl flex items-center gap-1 text-[11px] font-semibold text-[#91400D]">
+          <div className="bg-[#FFFBEB] border border-amber-200/50 px-2.5 py-0.5 rounded-xl flex items-center gap-1.5 text-[11px] font-semibold text-[#91400D]">
+            <StarIcon className="w-3.5 h-3.5 text-amber-500 fill-amber-500 shrink-0" />
             <span>{ratingLabel}</span>
           </div>
         </div>

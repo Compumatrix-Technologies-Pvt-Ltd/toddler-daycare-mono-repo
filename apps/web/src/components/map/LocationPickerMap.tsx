@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import { safeMoveMap } from "./mapUtils";
+import { useLanguage } from "../../i18n/LanguageContext";
 
 interface LocationPickerMapProps {
   lat?: number;
@@ -23,6 +24,7 @@ export default function LocationPickerMap({
   onLocationChange,
   className = "w-full h-full min-h-[300px]",
 }: LocationPickerMapProps) {
+  const { t } = useLanguage();
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
@@ -76,7 +78,7 @@ export default function LocationPickerMap({
             text-overflow: ellipsis;
             pointer-events: none;
           ">
-            ${label || "My Daycare"}
+            ${label || t.caretakerProfile.location.myDaycarePin || "My Daycare"}
           </div>
         </div>
       `,
@@ -420,8 +422,8 @@ export default function LocationPickerMap({
           type="button"
           onClick={() => goToCurrentLocation(false)}
           disabled={isLocating}
-          title="Current GPS Location"
-          aria-label="Current GPS Location"
+          title={t.caretakerProfile.location.currentGpsLocation || "Current GPS Location"}
+          aria-label={t.caretakerProfile.location.currentGpsLocation || "Current GPS Location"}
           className="w-11 h-11 rounded-full bg-white hover:bg-[#F9F7F4] active:scale-95 shadow-[0_2px_10px_rgba(0,0,0,0.15)] border border-[#E5DDD2] text-[#15803D] flex items-center justify-center transition-all cursor-pointer group"
         >
           {isLocating ? (

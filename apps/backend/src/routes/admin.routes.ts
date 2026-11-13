@@ -4,6 +4,7 @@ import {
   login,
   getProfile,
   getAllDaycaresAdmin,
+  getDashboardStatsAdmin,
   updateDaycareStatusAdmin,
 } from "@/controllers/admin/admin";
 import {
@@ -21,6 +22,9 @@ router.get("/settings", getPlatformSettings);
 
 // Protected routes
 router.get("/profile", adminMiddleware, getProfile);
+router.get("/dashboard", adminMiddleware, getDashboardStatsAdmin);
+router.get("/api/dashboard", adminMiddleware, getDashboardStatsAdmin);
+router.get("/stats", adminMiddleware, getDashboardStatsAdmin);
 router.get("/daycares", adminMiddleware, getAllDaycaresAdmin);
 router.patch("/daycares/:id/status", adminMiddleware, updateDaycareStatusAdmin);
 router.put("/settings", adminMiddleware, updatePlatformSettings);

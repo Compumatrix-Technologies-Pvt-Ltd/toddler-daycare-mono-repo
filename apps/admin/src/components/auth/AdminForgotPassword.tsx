@@ -5,6 +5,8 @@ import {
   ArrowLeftIcon,
   CheckCircleIcon,
   KeyIcon,
+  GermanFlagIcon,
+  UkFlagIcon,
 } from "../icons/AdminIcons";
 import { useLanguage } from "../../context/LanguageContext";
 
@@ -16,7 +18,7 @@ export function AdminForgotPassword({
   onBackToLogin,
 }: AdminForgotPasswordProps) {
   const { t, language, toggleLanguage } = useLanguage();
-  const [email, setEmail] = useState("s.jenkins@toddler-governance.berlin");
+  const [email, setEmail] = useState("");
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -64,7 +66,17 @@ export function AdminForgotPassword({
           className="flex items-center gap-1.5 px-3 h-10 rounded-xl bg-white border border-[#E5DDD2] hover:bg-[#F3ECE2] text-xs font-bold text-[#423223] shadow-2xs transition-all cursor-pointer min-h-[44px]"
           aria-label="Toggle language"
         >
-          <span>{language === "de" ? "🇩🇪 DE" : "🇬🇧 EN"}</span>
+          {language === "de" ? (
+            <>
+              <GermanFlagIcon className="w-4 h-3 rounded-xs overflow-hidden shrink-0" />
+              <span>DE</span>
+            </>
+          ) : (
+            <>
+              <UkFlagIcon className="w-4 h-3 rounded-xs overflow-hidden shrink-0" />
+              <span>EN</span>
+            </>
+          )}
         </button>
       </div>
 

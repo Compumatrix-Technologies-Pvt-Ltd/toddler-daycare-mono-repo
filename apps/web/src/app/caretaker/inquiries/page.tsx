@@ -8,6 +8,14 @@ import { useLanguage } from "../../../i18n/LanguageContext";
 import { fetchInquiries, updateInquiryStatus } from "../../../utils/inquery";
 import { caretakerApi } from "../../../utils/caretakerApi";
 import { getSocket } from "../../../utils/socket";
+import {
+  MailIcon,
+  RefreshCwIcon,
+  InboxIcon,
+  BabyIcon,
+  PhoneIcon,
+  CloseIcon,
+} from "../../../components/icons/WebIcons";
 
 interface InquiryRecord {
   _id: string;
@@ -37,6 +45,7 @@ interface InquiryRecord {
 
 export default function CaretakerInquiriesPage() {
   const { t, language } = useLanguage();
+  const inqT = t.caretakerProfile.inquiriesPage;
   const [inquiries, setInquiries] = useState<InquiryRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -236,16 +245,16 @@ export default function CaretakerInquiriesPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white border border-[#E5DDD2] text-xs font-semibold text-[#A12D3A] mb-1.5 shadow-2xs">
-              <span>📩</span>
-              <span>Caretaker Portal</span>
+              <MailIcon className="w-3.5 h-3.5 text-[#A12D3A]" />
+              <span>{inqT.badge}</span>
             </div>
             <h1
               className="text-2xl sm:text-3xl font-extrabold text-[#1E1B18] tracking-tight font-heading"
             >
-              {t.caretakerProfile.nav.parentInquiries || "Parent Inquiries"}
+              {inqT.title}
             </h1>
             <p className="text-xs sm:text-sm text-[#7A6E62] mt-0.5">
-              Review and manage daycare inquiries received from families in your area.
+              {inqT.subtitle}
             </p>
           </div>
 
@@ -255,8 +264,8 @@ export default function CaretakerInquiriesPage() {
             disabled={loading}
             className="self-start sm:self-auto px-4 py-2 min-h-[40px] rounded-xl bg-white border border-[#E5DDD2] hover:bg-[#FAF7F2] text-xs font-bold text-[#5C4C3E] shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer"
           >
-            <span className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`}>🔄</span>
-            <span>Refresh</span>
+            <RefreshCwIcon className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+            <span>{inqT.refresh}</span>
           </button>
         </div>
 
@@ -264,39 +273,39 @@ export default function CaretakerInquiriesPage() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
           <div className="bg-white p-4 sm:p-5 rounded-2xl border border-[#E5DDD2] shadow-2xs">
             <span className="text-[11px] font-bold text-[#7A6E62] uppercase tracking-wider block">
-              Total Inquiries
+              {inqT.kpi.total}
             </span>
             <div className="text-2xl sm:text-3xl font-extrabold text-[#1E1B18] mt-1 font-heading">
               {stats.total}
             </div>
             <span className="text-[11px] text-[#8A7A6A] mt-0.5 block">
-              Inquiries received across your daycares
+              {inqT.kpi.totalSub}
             </span>
           </div>
 
           <div className="bg-white p-4 sm:p-5 rounded-2xl border border-[#E5DDD2] shadow-2xs">
             <span className="text-[11px] font-bold text-[#D97706] uppercase tracking-wider block flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-[#D97706] animate-pulse" />
-              <span>Pending Review</span>
+              <span>{inqT.kpi.pending}</span>
             </span>
             <div className="text-2xl sm:text-3xl font-extrabold text-[#D97706] mt-1 font-heading">
               {stats.pending}
             </div>
             <span className="text-[11px] text-[#8A7A6A] mt-0.5 block">
-              Waiting for your initial response
+              {inqT.kpi.pendingSub}
             </span>
           </div>
 
           <div className="bg-white p-4 sm:p-5 rounded-2xl border border-[#E5DDD2] shadow-2xs">
             <span className="text-[11px] font-bold text-[#16A34A] uppercase tracking-wider block flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-[#16A34A]" />
-              <span>Contacted & Accepted</span>
+              <span>{inqT.kpi.contacted}</span>
             </span>
             <div className="text-2xl sm:text-3xl font-extrabold text-[#16A34A] mt-1 font-heading">
               {stats.contacted}
             </div>
             <span className="text-[11px] text-[#8A7A6A] mt-0.5 block">
-              In active communication or spot secured
+              {inqT.kpi.contactedSub}
             </span>
           </div>
         </div>
@@ -406,12 +415,12 @@ export default function CaretakerInquiriesPage() {
             {/* Status Filter Pills */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
               {[
-                { id: "all", label: "All" },
-                { id: "pending", label: "Pending" },
-                { id: "reviewed", label: "Reviewed" },
-                { id: "contacted", label: "Contacted" },
-                { id: "accepted", label: "Accepted" },
-                { id: "declined", label: "Declined" },
+                { id: "all", label: inqT.filters.all },
+                { id: "pending", label: inqT.filters.pending },
+                { id: "reviewed", label: inqT.filters.reviewed },
+                { id: "contacted", label: inqT.filters.contacted },
+                { id: "accepted", label: inqT.filters.accepted },
+                { id: "declined", label: inqT.filters.declined },
               ].map((pill) => (
                 <button
                   key={pill.id}
@@ -487,21 +496,21 @@ export default function CaretakerInquiriesPage() {
         {loading ? (
           <div className="bg-white rounded-3xl border border-[#E5DDD2] p-12 text-center space-y-3">
             <div className="w-8 h-8 border-3 border-[#A12D3A] border-t-transparent rounded-full animate-spin mx-auto" />
-            <p className="text-xs text-[#7A6E62]">Loading inquiries from database...</p>
+            <p className="text-xs text-[#7A6E62]">{inqT.loading}</p>
           </div>
         ) : filteredInquiries.length === 0 ? (
           <div className="bg-white rounded-3xl border border-[#E5DDD2] p-6 sm:p-14 text-center max-w-[560px] mx-auto space-y-4">
-            <div className="w-16 h-16 rounded-2xl bg-[#FAF7F2] border border-[#E5DDD2] flex items-center justify-center mx-auto text-3xl">
-              📬
+            <div className="w-16 h-16 rounded-2xl bg-[#FAF7F2] border border-[#E5DDD2] flex items-center justify-center mx-auto text-[#A12D3A]">
+              <InboxIcon className="w-8 h-8" />
             </div>
             <div className="space-y-1">
               <h3 className="text-lg font-bold text-[#1E1B18] font-heading">
-                No Inquiries Found
+                {inqT.emptyTitle}
               </h3>
               <p className="text-xs sm:text-sm text-[#7A6E62] leading-relaxed">
                 {searchQuery || statusFilter !== "all"
-                  ? "No daycare inquiries match your selected filters. Try resetting the search."
-                  : "You haven't received any parent inquiries yet. As parents find your daycare on the map, their inquiries will appear here."}
+                  ? inqT.emptyDescFiltered
+                  : inqT.emptyDescDefault}
               </p>
             </div>
             {(searchQuery || statusFilter !== "all") && (
@@ -513,7 +522,7 @@ export default function CaretakerInquiriesPage() {
                 }}
                 className="px-4 py-2 rounded-xl bg-[#FAF7F2] border border-[#E5DDD2] text-xs font-bold text-[#5C4C3E] hover:bg-white cursor-pointer"
               >
-                Clear Filters
+                {inqT.clearFilters}
               </button>
             )}
           </div>
@@ -527,8 +536,8 @@ export default function CaretakerInquiriesPage() {
                 {/* Header Row: Child Name, Reference ID, Status Badge */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3.5 border-b border-[#F0E8DC]">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-[#FAF7F2] border border-[#E5DDD2] flex items-center justify-center text-lg font-bold text-[#A12D3A] shrink-0">
-                      👶
+                    <div className="w-10 h-10 rounded-xl bg-[#FAF7F2] border border-[#E5DDD2] flex items-center justify-center text-[#A12D3A] shrink-0">
+                      <BabyIcon className="w-5 h-5" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
@@ -631,7 +640,7 @@ export default function CaretakerInquiriesPage() {
                 {/* Parent Note (if present) */}
                 {inquiry.note && (
                   <div className="mt-1 p-3 rounded-xl bg-[#FAF7F2] border border-[#E5DDD2] text-xs text-[#5C4C3E] leading-relaxed">
-                    <span className="font-bold text-[#1E1B18] block mb-0.5">Parent Note:</span>
+                    <span className="font-bold text-[#1E1B18] block mb-0.5">{inqT.parentNoteLabel}</span>
                     <p className="whitespace-pre-line">{inquiry.note}</p>
                   </div>
                 )}
@@ -639,7 +648,7 @@ export default function CaretakerInquiriesPage() {
                 {/* Card Action Footer */}
                 <div className="flex flex-wrap items-center justify-between gap-2.5 pt-3 mt-3 border-t border-[#F0E8DC]">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-[#7A6E62]">Set Status:</span>
+                    <span className="text-xs text-[#7A6E62]">{inqT.setStatusLabel}</span>
                     {(["reviewed", "contacted", "accepted", "declined"] as const).map((st) => (
                       <button
                         key={st}
@@ -652,7 +661,7 @@ export default function CaretakerInquiriesPage() {
                             : "bg-white text-[#5C4C3E] border-[#E5DDD2] hover:bg-[#FAF7F2]"
                         }`}
                       >
-                        {st}
+                        {inqT.filters[st] || st}
                       </button>
                     ))}
                   </div>
@@ -662,8 +671,8 @@ export default function CaretakerInquiriesPage() {
                       href={`tel:${inquiry.phone}`}
                       className="px-3.5 py-1.5 rounded-xl bg-white border border-[#16A34A] text-[#16A34A] hover:bg-[#16A34A] hover:text-white text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5"
                     >
-                      <span>📞</span>
-                      <span>Call Parent</span>
+                      <PhoneIcon className="w-3.5 h-3.5" />
+                      <span>{inqT.callParent}</span>
                     </a>
                     <a
                       href={`mailto:${inquiry.email}?subject=Betreuungsanfrage%20${inquiry.referenceId}&body=Hallo%20${encodeURIComponent(
@@ -673,8 +682,8 @@ export default function CaretakerInquiriesPage() {
                       )}.`}
                       className="px-3.5 py-1.5 rounded-xl bg-[#A12D3A] hover:bg-[#88222E] text-white text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5"
                     >
-                      <span>✉️</span>
-                      <span>Email Parent</span>
+                      <MailIcon className="w-3.5 h-3.5" />
+                      <span>{inqT.emailParent}</span>
                     </a>
                   </div>
                 </div>
@@ -707,8 +716,9 @@ export default function CaretakerInquiriesPage() {
                   type="button"
                   onClick={() => setSelectedInquiry(null)}
                   className="w-8 h-8 rounded-full flex items-center justify-center text-[#7A6E62] hover:bg-[#FAF7F2] cursor-pointer"
+                  aria-label="Close modal"
                 >
-                  ✕
+                  <CloseIcon className="w-3.5 h-3.5" />
                 </button>
               </div>
 
@@ -716,36 +726,36 @@ export default function CaretakerInquiriesPage() {
               <div className="py-4 space-y-4 text-xs">
                 <div className="p-3.5 rounded-xl bg-[#FAF7F2] border border-[#E5DDD2] space-y-2">
                   <span className="font-bold text-[#7A6E62] uppercase tracking-wider block text-[10px]">
-                    1. Child Details
+                    {inqT.modal.secChild}
                   </span>
                   <div className="flex justify-between">
-                    <span className="text-[#6D6154]">Child Name:</span>
+                    <span className="text-[#6D6154]">{inqT.modal.childName}:</span>
                     <span className="font-bold text-[#1E1B18]">{selectedInquiry.childName}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-[#6D6154]">Date of Birth:</span>
-                    <span className="font-bold text-[#1E1B18]">{selectedInquiry.childBirthday || "Not specified"}</span>
+                    <span className="text-[#6D6154]">{inqT.modal.childDob}:</span>
+                    <span className="font-bold text-[#1E1B18]">{selectedInquiry.childBirthday || (language === "de" ? "Nicht angegeben" : "Not specified")}</span>
                   </div>
                 </div>
 
                 <div className="p-3.5 rounded-xl bg-[#FAF7F2] border border-[#E5DDD2] space-y-2">
                   <span className="font-bold text-[#7A6E62] uppercase tracking-wider block text-[10px]">
-                    2. Timing & Schedule
+                    {inqT.modal.secSchedule}
                   </span>
                   <div className="flex justify-between">
-                    <span className="text-[#6D6154]">Desired Start:</span>
+                    <span className="text-[#6D6154]">{inqT.modal.desiredStart}:</span>
                     <span className="font-bold text-[#1E1B18]">{selectedInquiry.desiredStart}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-[#6D6154]">Est. Transition:</span>
+                    <span className="text-[#6D6154]">{inqT.modal.estTransition}:</span>
                     <span className="font-bold text-[#1E1B18]">{selectedInquiry.estTransition || "2-4 Weeks"}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-[#6D6154]">Care Hours:</span>
+                    <span className="text-[#6D6154]">{inqT.modal.careHours}:</span>
                     <span className="font-bold text-[#1E1B18]">{selectedInquiry.careHours}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-[#6D6154]">Preferences:</span>
+                    <span className="text-[#6D6154]">{inqT.modal.secPreferences}:</span>
                     <span className="font-bold text-[#1E1B18]">
                       {selectedInquiry.preferences?.gender} &bull; {selectedInquiry.preferences?.food} &bull; {selectedInquiry.preferences?.pets}
                     </span>
@@ -754,20 +764,20 @@ export default function CaretakerInquiriesPage() {
 
                 <div className="p-3.5 rounded-xl bg-[#FAF7F2] border border-[#E5DDD2] space-y-2">
                   <span className="font-bold text-[#7A6E62] uppercase tracking-wider block text-[10px]">
-                    3. Parent Contact Information
+                    {inqT.modal.secContact}
                   </span>
                   <div className="flex justify-between">
-                    <span className="text-[#6D6154]">Contact Name:</span>
+                    <span className="text-[#6D6154]">{inqT.modal.parentName}:</span>
                     <span className="font-bold text-[#1E1B18]">{selectedInquiry.parentName}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-[#6D6154]">Phone:</span>
+                    <span className="text-[#6D6154]">{inqT.modal.phone}:</span>
                     <a href={`tel:${selectedInquiry.phone}`} className="font-bold text-[#A12D3A] hover:underline">
                       {selectedInquiry.phone}
                     </a>
                   </div>
                   <div className="flex justify-between gap-3">
-                    <span className="text-[#6D6154] shrink-0">Email:</span>
+                    <span className="text-[#6D6154] shrink-0">{inqT.modal.email}:</span>
                     <a href={`mailto:${selectedInquiry.email}`} className="font-bold text-[#A12D3A] hover:underline break-all text-right">
                       {selectedInquiry.email}
                     </a>
@@ -777,7 +787,7 @@ export default function CaretakerInquiriesPage() {
                 {selectedInquiry.note && (
                   <div className="p-3.5 rounded-xl bg-white border border-[#E5DDD2] space-y-1">
                     <span className="font-bold text-[#7A6E62] uppercase tracking-wider block text-[10px]">
-                      4. Parent Message / Note
+                      {inqT.modal.secNote}
                     </span>
                     <p className="text-[#4E443B] leading-relaxed whitespace-pre-line">
                       {selectedInquiry.note}
@@ -793,20 +803,20 @@ export default function CaretakerInquiriesPage() {
                   onClick={() => setSelectedInquiry(null)}
                   className="px-4 py-2 rounded-xl border border-[#E5DDD2] bg-white hover:bg-[#FAF7F2] text-xs font-bold text-[#5C4C3E] cursor-pointer min-h-[42px]"
                 >
-                  Close
+                  {inqT.modal.close}
                 </button>
                 <div className="flex flex-wrap items-center gap-2">
                   <a
                     href={`tel:${selectedInquiry.phone}`}
                     className="inline-flex items-center justify-center px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-2xs min-h-[42px]"
                   >
-                    Call Parent
+                    {inqT.callParent}
                   </a>
                   <a
                     href={`mailto:${selectedInquiry.email}`}
                     className="inline-flex items-center justify-center px-3.5 py-2 rounded-xl bg-[#A12D3A] hover:bg-[#88222E] text-white text-xs font-bold shadow-2xs min-h-[42px]"
                   >
-                    Email Parent
+                    {inqT.emailParent}
                   </a>
                 </div>
               </div>

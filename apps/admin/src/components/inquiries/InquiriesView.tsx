@@ -1,14 +1,26 @@
 import { useState, useEffect, useMemo } from "react";
 import { AdminInquiry } from "../../types/admin";
 import { adminInquiryService } from "../../services/adminInquiryService";
+import { useLanguage } from "../../context/LanguageContext";
+import { Select } from "@repo/ui";
+import {
+  MailIcon,
+  SearchIcon,
+  RefreshCwIcon,
+  InboxIcon,
+  CloseIcon,
+} from "../icons/AdminIcons";
 
 export function InquiriesView() {
+  const { t } = useLanguage();
   const [inquiries, setInquiries] = useState<AdminInquiry[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedInquiry, setSelectedInquiry] = useState<AdminInquiry | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  const inqT = t.admin.inquiries;
 
   const loadData = async () => {
     try {
@@ -91,14 +103,14 @@ export function InquiriesView() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FAF7F2] border border-[#E5DDD2] text-xs font-semibold text-[#A12D3A] mb-1">
-            <span>✉️</span>
-            <span>Platform Inquiries</span>
+            <MailIcon className="w-3.5 h-3.5 text-[#A12D3A]" />
+            <span>{inqT.badge}</span>
           </div>
           <h1 className="text-xl sm:text-2xl font-extrabold text-[#1E1B18] tracking-tight font-heading">
-            Daycare Search Inquiries
+            {inqT.title}
           </h1>
           <p className="text-xs sm:text-sm text-[#7A6E62]">
-            Monitor all inquiry forms submitted by families across certified daycare centers.
+            {inqT.subtitle}
           </p>
         </div>
 
@@ -108,8 +120,8 @@ export function InquiriesView() {
           disabled={loading}
           className="self-start sm:self-auto px-4 py-2 rounded-xl bg-white border border-[#E5DDD2] hover:bg-[#FAF7F2] text-xs font-bold text-[#5C4C3E] shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer"
         >
-          <span className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`}>🔄</span>
-          <span>Refresh</span>
+          <RefreshCwIcon className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+          <span>{inqT.refresh}</span>
         </button>
       </div>
 
@@ -117,52 +129,52 @@ export function InquiriesView() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-[#E5DDD2] shadow-2xs">
           <span className="text-[10px] sm:text-[11px] font-bold text-[#7A6E62] uppercase tracking-wider block">
-            Total Inquiries
+            {inqT.kpi.total}
           </span>
           <div className="text-xl sm:text-2xl font-extrabold text-[#1E1B18] mt-1 font-heading">
             {stats.total}
           </div>
           <span className="text-[10px] sm:text-[11px] text-[#8A7A6A] mt-0.5 block truncate">
-            Submitted via web form
+            {inqT.kpi.totalSub}
           </span>
         </div>
 
         <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-[#E5DDD2] shadow-2xs">
           <span className="text-[10px] sm:text-[11px] font-bold text-[#D97706] uppercase tracking-wider block flex items-center gap-1">
             <span className="w-2 h-2 rounded-full bg-[#D97706] animate-pulse" />
-            <span>Pending Action</span>
+            <span>{inqT.kpi.pending}</span>
           </span>
           <div className="text-xl sm:text-2xl font-extrabold text-[#D97706] mt-1 font-heading">
             {stats.pending}
           </div>
           <span className="text-[10px] sm:text-[11px] text-[#8A7A6A] mt-0.5 block truncate">
-            Awaiting daycare review
+            {inqT.kpi.pendingSub}
           </span>
         </div>
 
         <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-[#E5DDD2] shadow-2xs">
           <span className="text-[10px] sm:text-[11px] font-bold text-[#2563EB] uppercase tracking-wider block flex items-center gap-1">
             <span className="w-2 h-2 rounded-full bg-[#2563EB]" />
-            <span>Contacted</span>
+            <span>{inqT.kpi.contacted}</span>
           </span>
           <div className="text-xl sm:text-2xl font-extrabold text-[#2563EB] mt-1 font-heading">
             {stats.contacted}
           </div>
           <span className="text-[10px] sm:text-[11px] text-[#8A7A6A] mt-0.5 block truncate">
-            Caretaker reached out
+            {inqT.kpi.contactedSub}
           </span>
         </div>
 
         <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-[#E5DDD2] shadow-2xs">
           <span className="text-[10px] sm:text-[11px] font-bold text-[#16A34A] uppercase tracking-wider block flex items-center gap-1">
             <span className="w-2 h-2 rounded-full bg-[#16A34A]" />
-            <span>Accepted</span>
+            <span>{inqT.kpi.accepted}</span>
           </span>
           <div className="text-xl sm:text-2xl font-extrabold text-[#16A34A] mt-1 font-heading">
             {stats.accepted}
           </div>
           <span className="text-[10px] sm:text-[11px] text-[#8A7A6A] mt-0.5 block truncate">
-            Placement confirmed
+            {inqT.kpi.acceptedSub}
           </span>
         </div>
       </div>
@@ -174,20 +186,20 @@ export function InquiriesView() {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by Ref ID, Child name, Parent, Email, Phone, or Daycare..."
+            placeholder={inqT.searchPlaceholder}
             className="w-full bg-[#FAF7F2] border border-[#E5DDD2] rounded-xl pl-9 pr-4 py-2 text-xs sm:text-sm text-[#1E1B18] placeholder-[#9C8E7E] focus:outline-none focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] transition-colors min-h-[40px]"
           />
-          <span className="absolute left-3 top-2.5 text-[#9C8E7E] text-sm">🔍</span>
+          <SearchIcon className="w-4 h-4 absolute left-3 top-3 text-[#9C8E7E]" />
         </div>
 
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
           {[
-            { id: "all", label: "All" },
-            { id: "pending", label: "Pending" },
-            { id: "reviewed", label: "Reviewed" },
-            { id: "contacted", label: "Contacted" },
-            { id: "accepted", label: "Accepted" },
-            { id: "declined", label: "Declined" },
+            { id: "all", label: inqT.filters.all },
+            { id: "pending", label: inqT.filters.pending },
+            { id: "reviewed", label: inqT.filters.reviewed },
+            { id: "contacted", label: inqT.filters.contacted },
+            { id: "accepted", label: inqT.filters.accepted },
+            { id: "declined", label: inqT.filters.declined },
           ].map((pill) => (
             <button
               key={pill.id}
@@ -210,29 +222,29 @@ export function InquiriesView() {
         {loading ? (
           <div className="p-12 text-center space-y-3">
             <div className="w-8 h-8 border-3 border-[#A12D3A] border-t-transparent rounded-full animate-spin mx-auto" />
-            <p className="text-xs text-[#7A6E62]">Loading inquiries...</p>
+            <p className="text-xs text-[#7A6E62]">{inqT.loading}</p>
           </div>
         ) : filteredInquiries.length === 0 ? (
           <div className="p-10 text-center space-y-3">
-            <div className="w-12 h-12 rounded-xl bg-[#FAF7F2] border border-[#E5DDD2] flex items-center justify-center mx-auto text-2xl">
-              📬
+            <div className="w-12 h-12 rounded-xl bg-[#FAF7F2] border border-[#E5DDD2] flex items-center justify-center mx-auto text-[#A12D3A]">
+              <InboxIcon className="w-6 h-6 text-[#A12D3A]" />
             </div>
-            <h3 className="text-sm font-bold text-[#1E1B18]">No inquiries found</h3>
-            <p className="text-xs text-[#7A6E62]">No submissions match the current filter.</p>
+            <h3 className="text-sm font-bold text-[#1E1B18]">{inqT.noInquiries}</h3>
+            <p className="text-xs text-[#7A6E62]">{inqT.noInquiriesDesc}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead className="bg-[#FAF7F2] border-b border-[#E5DDD2] text-[#7A6E62] uppercase font-bold text-[10px] tracking-wider">
                 <tr>
-                  <th className="py-3 px-4">Ref ID</th>
-                  <th className="py-3 px-4">Child Information</th>
-                  <th className="py-3 px-4">Parent Contact</th>
-                  <th className="py-3 px-4">Timing & Hours</th>
-                  <th className="py-3 px-4">Preferences</th>
-                  <th className="py-3 px-4">Target Daycare</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
+                  <th className="py-3 px-4">{inqT.table.colRefId}</th>
+                  <th className="py-3 px-4">{inqT.table.colChild}</th>
+                  <th className="py-3 px-4">{inqT.table.colParent}</th>
+                  <th className="py-3 px-4">{inqT.table.colTiming}</th>
+                  <th className="py-3 px-4">{inqT.table.colPreferences}</th>
+                  <th className="py-3 px-4">{inqT.table.colDaycare}</th>
+                  <th className="py-3 px-4">{inqT.table.colStatus}</th>
+                  <th className="py-3 px-4 text-right">{inqT.table.colActions}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#F0E8DC]">
@@ -249,7 +261,7 @@ export function InquiriesView() {
                         {inquiry.childName}
                       </div>
                       <div className="text-[11px] text-[#7A6E62]">
-                        {inquiry.childBirthday ? `DOB: ${inquiry.childBirthday}` : "Age specified"}
+                        {inquiry.childBirthday ? `${inqT.table.dob}: ${inquiry.childBirthday}` : inqT.table.ageSpecified}
                       </div>
                     </td>
 
@@ -277,7 +289,7 @@ export function InquiriesView() {
                         {inquiry.careHours}
                       </div>
                       <div className="text-[10px] text-[#8A7A6A]">
-                        Transition: {inquiry.estTransition || "2-4 Weeks"}
+                        {inqT.table.transition}: {inquiry.estTransition || "2-4 Weeks"}
                       </div>
                     </td>
 
@@ -290,25 +302,27 @@ export function InquiriesView() {
 
                     {/* Target Daycare */}
                     <td className="py-3.5 px-4 font-medium text-[#1E1B18]">
-                      {inquiry.daycareNames?.join(", ") || "General Inquiry"}
+                      {inquiry.daycareNames?.join(", ") || inqT.table.generalInquiry}
                     </td>
 
                     {/* Status */}
-                    <td className="py-3.5 px-4">
-                      <select
+                    <td className="py-2 px-4 w-40">
+                      <Select
+                        size="sm"
                         value={inquiry.status}
                         disabled={updatingId === inquiry._id}
-                        onChange={(e) => handleStatusChange(inquiry._id, e.target.value)}
-                        className={`text-[11px] font-bold rounded-lg px-2.5 py-1 border uppercase tracking-wider cursor-pointer ${getStatusBadge(
+                        onChange={(val) => handleStatusChange(inquiry._id, val)}
+                        className={`text-[11px] font-bold uppercase tracking-wider ${getStatusBadge(
                           inquiry.status
                         )}`}
-                      >
-                        <option value="pending">Pending</option>
-                        <option value="reviewed">Reviewed</option>
-                        <option value="contacted">Contacted</option>
-                        <option value="accepted">Accepted</option>
-                        <option value="declined">Declined</option>
-                      </select>
+                        options={[
+                          { value: "pending", label: inqT.filters.pending },
+                          { value: "reviewed", label: inqT.filters.reviewed },
+                          { value: "contacted", label: inqT.filters.contacted },
+                          { value: "accepted", label: inqT.filters.accepted },
+                          { value: "declined", label: inqT.filters.declined },
+                        ]}
+                      />
                     </td>
 
                     {/* Action */}
@@ -318,7 +332,7 @@ export function InquiriesView() {
                         onClick={() => setSelectedInquiry(inquiry)}
                         className="px-3 py-1.5 rounded-lg border border-[#E5DDD2] bg-white hover:bg-[#FAF7F2] text-xs font-bold text-[#5C4C3E] shadow-2xs transition-colors cursor-pointer"
                       >
-                        View Form
+                        {inqT.table.viewForm}
                       </button>
                     </td>
                   </tr>
@@ -346,18 +360,19 @@ export function InquiriesView() {
                   {selectedInquiry.referenceId}
                 </span>
                 <h3 className="font-bold text-lg text-[#1E1B18] font-heading">
-                  Inquiry: {selectedInquiry.childName}
+                  {inqT.modal.inquiryFor.replace("{name}", selectedInquiry.childName)}
                 </h3>
                 <span className="text-xs text-[#7A6E62]">
-                  Submitted on {new Date(selectedInquiry.createdAt).toLocaleString()}
+                  {inqT.modal.submittedOn.replace("{date}", new Date(selectedInquiry.createdAt).toLocaleString())}
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => setSelectedInquiry(null)}
                 className="w-8 h-8 rounded-full flex items-center justify-center text-[#7A6E62] hover:bg-[#FAF7F2] cursor-pointer"
+                aria-label="Close modal"
               >
-                ✕
+                <CloseIcon className="w-4 h-4 text-[#7A6E62]" />
               </button>
             </div>
 
@@ -366,16 +381,16 @@ export function InquiriesView() {
               {/* Section 1: Child */}
               <div className="p-3.5 rounded-xl bg-[#FAF7F2] border border-[#E5DDD2] space-y-2">
                 <span className="font-bold text-[#7A6E62] uppercase tracking-wider block text-[10px]">
-                  1. Child Information
+                  {inqT.modal.secChild}
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div>
-                    <span className="text-[#7A6E62] block text-[11px]">Child Name:</span>
+                    <span className="text-[#7A6E62] block text-[11px]">{inqT.modal.childName}:</span>
                     <span className="font-bold text-[#1E1B18] text-sm">{selectedInquiry.childName}</span>
                   </div>
                   <div>
-                    <span className="text-[#7A6E62] block text-[11px]">Birthday:</span>
-                    <span className="font-bold text-[#1E1B18]">{selectedInquiry.childBirthday || "Not specified"}</span>
+                    <span className="text-[#7A6E62] block text-[11px]">{inqT.modal.birthday}:</span>
+                    <span className="font-bold text-[#1E1B18]">{selectedInquiry.childBirthday || inqT.modal.notSpecified}</span>
                   </div>
                 </div>
               </div>
@@ -383,23 +398,23 @@ export function InquiriesView() {
               {/* Section 2: Timing & Schedule */}
               <div className="p-3.5 rounded-xl bg-[#FAF7F2] border border-[#E5DDD2] space-y-2">
                 <span className="font-bold text-[#7A6E62] uppercase tracking-wider block text-[10px]">
-                  2. Timing & Schedule
+                  {inqT.modal.secTiming}
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div>
-                    <span className="text-[#7A6E62] block text-[11px]">Desired Start:</span>
+                    <span className="text-[#7A6E62] block text-[11px]">{inqT.modal.desiredStart}:</span>
                     <span className="font-bold text-[#1E1B18]">{selectedInquiry.desiredStart}</span>
                   </div>
                   <div>
-                    <span className="text-[#7A6E62] block text-[11px]">Est. Transition:</span>
+                    <span className="text-[#7A6E62] block text-[11px]">{inqT.modal.estTransition}:</span>
                     <span className="font-bold text-[#1E1B18]">{selectedInquiry.estTransition || "2-4 Weeks"}</span>
                   </div>
                   <div>
-                    <span className="text-[#7A6E62] block text-[11px]">Care Hours:</span>
+                    <span className="text-[#7A6E62] block text-[11px]">{inqT.modal.careHours}:</span>
                     <span className="font-bold text-[#1E1B18]">{selectedInquiry.careHours}</span>
                   </div>
                   <div>
-                    <span className="text-[#7A6E62] block text-[11px]">Preferences:</span>
+                    <span className="text-[#7A6E62] block text-[11px]">{inqT.modal.preferences}:</span>
                     <span className="font-bold text-[#1E1B18]">
                       {selectedInquiry.preferences?.gender} &bull; {selectedInquiry.preferences?.food} &bull; {selectedInquiry.preferences?.pets}
                     </span>
@@ -410,21 +425,21 @@ export function InquiriesView() {
               {/* Section 3: Parent Contact */}
               <div className="p-3.5 rounded-xl bg-[#FAF7F2] border border-[#E5DDD2] space-y-2">
                 <span className="font-bold text-[#7A6E62] uppercase tracking-wider block text-[10px]">
-                  3. Parent Contact Details
+                  {inqT.modal.secParent}
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <div>
-                    <span className="text-[#7A6E62] block text-[11px]">Parent Name:</span>
+                    <span className="text-[#7A6E62] block text-[11px]">{inqT.modal.parentName}:</span>
                     <span className="font-bold text-[#1E1B18]">{selectedInquiry.parentName}</span>
                   </div>
                   <div>
-                    <span className="text-[#7A6E62] block text-[11px]">Phone:</span>
+                    <span className="text-[#7A6E62] block text-[11px]">{inqT.modal.phone}:</span>
                     <a href={`tel:${selectedInquiry.phone}`} className="font-bold text-[#A12D3A] hover:underline">
                       {selectedInquiry.phone}
                     </a>
                   </div>
                   <div>
-                    <span className="text-[#7A6E62] block text-[11px]">Email:</span>
+                    <span className="text-[#7A6E62] block text-[11px]">{inqT.modal.email}:</span>
                     <a href={`mailto:${selectedInquiry.email}`} className="font-bold text-[#A12D3A] hover:underline truncate block">
                       {selectedInquiry.email}
                     </a>
@@ -435,17 +450,17 @@ export function InquiriesView() {
               {/* Section 4: Target Daycares */}
               <div className="p-3.5 rounded-xl bg-[#FAF7F2] border border-[#E5DDD2] space-y-1">
                 <span className="font-bold text-[#7A6E62] uppercase tracking-wider block text-[10px]">
-                  4. Contacted Daycare Centers
+                  {inqT.modal.secDaycare}
                 </span>
                 <div className="font-bold text-[#1E1B18]">
-                  {selectedInquiry.daycareNames?.join(", ") || "All Map Results"}
+                  {selectedInquiry.daycareNames?.join(", ") || inqT.modal.allMapResults}
                 </div>
                 <div className="text-[11px] text-[#7A6E62]">
-                  Scope: <strong className="capitalize">{selectedInquiry.scope}</strong>
+                  {inqT.modal.scope}: <strong className="capitalize">{selectedInquiry.scope}</strong>
                 </div>
                 {selectedInquiry.caretakerId && (
                   <div className="text-[11px] text-[#7A6E62]">
-                    Caretaker ID: <code className="font-mono bg-white px-1.5 py-0.5 rounded border border-[#E5DDD2]">{selectedInquiry.caretakerId}</code>
+                    {inqT.modal.caretakerId}: <code className="font-mono bg-white px-1.5 py-0.5 rounded border border-[#E5DDD2]">{selectedInquiry.caretakerId}</code>
                   </div>
                 )}
               </div>
@@ -454,7 +469,7 @@ export function InquiriesView() {
               {selectedInquiry.note && (
                 <div className="p-3.5 rounded-xl bg-white border border-[#E5DDD2] space-y-1">
                   <span className="font-bold text-[#7A6E62] uppercase tracking-wider block text-[10px]">
-                    5. Personal Note from Parent
+                    {inqT.modal.secNote}
                   </span>
                   <p className="text-[#4E443B] leading-relaxed whitespace-pre-line bg-[#FAF7F2] p-3 rounded-lg border border-[#E5DDD2]">
                     {selectedInquiry.note}
@@ -470,7 +485,7 @@ export function InquiriesView() {
                 onClick={() => setSelectedInquiry(null)}
                 className="px-4 py-2 rounded-xl border border-[#E5DDD2] bg-white hover:bg-[#FAF7F2] text-xs font-bold text-[#5C4C3E] cursor-pointer"
               >
-                Close
+                {inqT.modal.close}
               </button>
 
               <div className="flex items-center gap-2">
@@ -478,7 +493,7 @@ export function InquiriesView() {
                   href={`tel:${selectedInquiry.phone}`}
                   className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-2xs"
                 >
-                  Call Parent
+                  {inqT.modal.callParent}
                 </a>
                 <a
                   href={`mailto:${selectedInquiry.email}?subject=Betreuungsanfrage%20${selectedInquiry.referenceId}&body=Hallo%20${encodeURIComponent(
@@ -488,7 +503,7 @@ export function InquiriesView() {
                   )}...`}
                   className="px-3.5 py-2 rounded-xl bg-[#A12D3A] hover:bg-[#88222E] text-white text-xs font-bold shadow-2xs"
                 >
-                  Email Parent
+                  {inqT.modal.emailParent}
                 </a>
               </div>
             </div>

@@ -90,10 +90,10 @@ export function DemandRadiusModal({
           />
 
           <div className="flex justify-between gap-1 text-[10px] sm:text-[11px] text-[#98A2B3] font-medium">
-            <span>1 km (Hyper-local)</span>
-            <span>3 km (Standard Urban)</span>
+            <span>{m.hyperLocal || "1 km (Hyper-local)"}</span>
+            <span>{m.standardUrban || "3 km (Standard Urban)"}</span>
             <span>5 km</span>
-            <span>10 km (Metro)</span>
+            <span>{m.metro || "10 km (Metro)"}</span>
           </div>
         </div>
 

@@ -14,6 +14,84 @@ interface KitaDetailProps {
   catchmentRadius?: number;
 }
 
+function formatMonthYear(dateStr?: string, lang: string = "de"): string {
+  if (!dateStr || typeof dateStr !== "string") return "";
+  const trimmed = dateStr.trim();
+  if (!trimmed) return "";
+
+  const deMonths = ["", "Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
+  const enMonths = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const targetMonths = lang === "de" ? deMonths : enMonths;
+
+  let monthNum = 0;
+  let yearStr = "";
+
+  // 1) MM/YYYY or M/YYYY or MM.YYYY or MM-YYYY
+  const slashMatch = trimmed.match(/^(\d{1,2})[\/\.-](\d{4})$/);
+  if (slashMatch) {
+    monthNum = parseInt(slashMatch[1], 10);
+    yearStr = slashMatch[2];
+  }
+
+  // 2) DD.MM.YYYY or D.M.YYYY
+  if (!monthNum) {
+    const deDotMatch = trimmed.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+    if (deDotMatch) {
+      monthNum = parseInt(deDotMatch[2], 10);
+      yearStr = deDotMatch[3];
+    }
+  }
+
+  // 3) YYYY-MM-DD or YYYY-MM
+  if (!monthNum) {
+    const isoMatch = trimmed.match(/^(\d{4})-(\d{1,2})(?:-\d{1,2})?/);
+    if (isoMatch) {
+      yearStr = isoMatch[1];
+      monthNum = parseInt(isoMatch[2], 10);
+    }
+  }
+
+  // 4) Named month with year: e.g. 'Feb 10, 2027', 'Februar 2027', 'Feb, 2027', 'Feb,2027', 'Oktober 2025'
+  if (!monthNum) {
+    const monthsMap: Record<string, number> = {
+      januar: 1, jan: 1, january: 1,
+      februar: 2, feb: 2, february: 2,
+      märz: 3, maerz: 3, mar: 3, march: 3, mär: 3,
+      april: 4, apr: 4,
+      mai: 5, may: 5,
+      juni: 6, jun: 6, june: 6,
+      juli: 7, jul: 7, july: 7,
+      august: 8, aug: 8,
+      september: 9, sep: 9, sept: 9,
+      oktober: 10, okt: 10, oct: 10, october: 10,
+      november: 11, nov: 11,
+      dezember: 12, dez: 12, dec: 12, december: 12,
+    };
+
+    const match = trimmed.match(/([a-zA-ZäöüÄÖÜ]+)[^\d]*(\d{4})/i);
+    if (match) {
+      const key = match[1].toLowerCase();
+      monthNum = monthsMap[key] || monthsMap[key.slice(0, 3)] || 0;
+      yearStr = match[2];
+    }
+  }
+
+  // 5) Fallback native Date
+  if (!monthNum) {
+    const parsed = new Date(trimmed);
+    if (!isNaN(parsed.getTime())) {
+      monthNum = parsed.getMonth() + 1;
+      yearStr = String(parsed.getFullYear());
+    }
+  }
+
+  if (monthNum >= 1 && monthNum <= 12 && yearStr) {
+    return `${targetMonths[monthNum]}, ${yearStr}`;
+  }
+
+  return trimmed;
+}
+
 export function KitaDetail({
   kita,
   selectedDateFilter,
@@ -154,13 +232,6 @@ export function KitaDetail({
             )}
           </div>
         </div>
-
-        <button
-          onClick={onOpenInquiry}
-          className="w-full sm:w-auto bg-[#A12D3A] hover:bg-[#88222E] text-white font-semibold px-8 py-2.5 rounded-lg text-sm shadow-xs transition-colors min-h-[42px]"
-        >
-          {t.detail.sendInquiry}
-        </button>
       </div>
 
       {/* Next Available Highlight Card */}
@@ -187,32 +258,22 @@ export function KitaDetail({
             </div>
             <div className="flex items-baseline gap-2">
               <span className="text-lg sm:text-2xl font-bold text-[#1E293B]">
-                {kita.nextDate}
-              </span>
-              <span className="text-xs text-[#64748B] font-medium">
-                {kita.nextDay}
+                {formatMonthYear(kita.nextDate, language)}
               </span>
             </div>
           </div>
         </div>
 
-        <div className="sm:text-right flex items-center sm:block justify-between pt-1 sm:pt-0 border-t sm:border-0 border-[#DCFCE7]">
-          <div className="inline-flex items-center gap-1.5 text-xs font-bold text-[#15803D] bg-white border border-[#DCFCE7] px-3 py-1 rounded-full shadow-2xs">
-            <span className="w-2 h-2 rounded-full bg-[#16A34A]" />
-            {kita.slots} {t.detail.spotsLeft}
-          </div>
-          <div className="text-[11px] sm:text-xs text-[#64748B] mt-0.5 sm:mt-1 font-medium">
+        <div className="flex flex-col sm:items-end justify-between gap-1.5 pt-2 sm:pt-0 border-t sm:border-0 border-[#DCFCE7]">
+          <div className="text-xs sm:text-sm font-semibold text-[#15803D]">
             {t.detail.secureSpot}
           </div>
-        </div>
-      </div>
-
-      {/* Parents Catchment Reach Card - Dynamic from Admin Settings */}
-      <div className="bg-[#FAF7F2] border border-[#E5DDD2] rounded-2xl p-3.5 sm:p-4 flex items-center justify-between gap-3 shadow-2xs">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-10 h-10 rounded-xl bg-white border border-[#E5DDD2] flex items-center justify-center text-[#A12D3A] shrink-0 shadow-2xs">
+          <button
+            onClick={onOpenInquiry}
+            className="w-full sm:w-auto bg-[#A12D3A] hover:bg-[#88222E] text-white font-semibold px-5 py-2.5 rounded-xl text-xs sm:text-sm shadow-xs transition-colors min-h-[40px] flex items-center justify-center gap-2 cursor-pointer"
+          >
             <svg
-              className="w-5 h-5 text-[#A12D3A]"
+              className="w-4 h-4"
               fill="none"
               stroke="currentColor"
               strokeWidth="2"
@@ -221,33 +282,11 @@ export function KitaDetail({
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-              />
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
               />
             </svg>
-          </div>
-          <div className="min-w-0">
-            <div className="text-[10px] sm:text-[11px] font-bold text-[#A12D3A] tracking-wider uppercase">
-              {language === "de" ? "EINZUGSBEREICH & SICHTBARKEIT" : "VISIBILITY & REACH"}
-            </div>
-            <div className="text-xs sm:text-sm font-bold text-[#1E1B18] leading-tight">
-              {t.detail.parentsReach.replace("{radius}", String(catchmentRadius))}
-            </div>
-            <div className="text-[11px] text-[#7A6E62] mt-0.5 hidden sm:block truncate">
-              {t.detail.catchmentDesc}
-            </div>
-          </div>
-        </div>
-
-        <div className="shrink-0">
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#FEF3C7] border border-[#FDE68A] text-[#92400E] text-[11px] font-bold whitespace-nowrap shadow-2xs">
-            <span>📍</span>
-            <span>{catchmentRadius} km</span>
-          </span>
+            <span>{t.detail.sendInquiry}</span>
+          </button>
         </div>
       </div>
 
@@ -260,9 +299,9 @@ export function KitaDetail({
           <div className="flex items-center gap-2 overflow-x-auto sm:flex-wrap pb-1.5 scrollbar-none">
             <button
               onClick={() => onSelectDateFilter(kita.nextDate)}
-              className="text-xs font-medium px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl border transition-all shrink-0 min-h-[36px] bg-[#A12D3A] text-white border-[#A12D3A] shadow-xs"
+              className="text-xs font-medium px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl border transition-all shrink-0 min-h-[36px] bg-[#A12D3A] text-white border-[#A12D3A] shadow-xs cursor-pointer"
             >
-              {kita.nextDate}
+              {formatMonthYear(kita.nextDate, language)}
             </button>
           </div>
         </div>
