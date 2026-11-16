@@ -4,7 +4,7 @@ import React from "react";
 import Image from "next/image";
 import { Kita } from "../types";
 import { useLanguage } from "../i18n/LanguageContext";
-import { StarIcon } from "./icons/WebIcons";
+import { StarIcon, CutleryIcon, PawIcon, UserIcon } from "./icons/WebIcons";
 
 interface KitaCardProps {
   kita: Kita;
@@ -17,6 +17,40 @@ interface KitaCardProps {
   catchmentRadius?: number;
 }
 
+function parseGender(genderStr?: string): "female" | "male" | "other" {
+  if (!genderStr) return "female";
+  const g = genderStr.trim().toLowerCase();
+
+  // Check female first to prevent substring collision ("female".includes("male") is true!)
+  if (
+    g === "female" ||
+    g === "f" ||
+    g === "w" ||
+    g.includes("weib") ||
+    g.includes("frau") ||
+    g.includes("mutter")
+  ) {
+    return "female";
+  }
+
+  // Check male (exact "male", "m", or German roots)
+  if (
+    g === "male" ||
+    g === "m" ||
+    g.includes("männ") ||
+    g.includes("herr") ||
+    g.includes("vater")
+  ) {
+    return "male";
+  }
+
+  if (g === "other" || g.includes("divers") || g === "d") {
+    return "other";
+  }
+
+  return "female";
+}
+
 export function KitaCard({
   kita,
   isSelected,
@@ -27,10 +61,71 @@ export function KitaCard({
   onOpenGallery,
   catchmentRadius = 3,
 }: KitaCardProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const effectiveRadius =
     kita.catchmentRadiusKm || (kita.areaType === "rural" ? 10 : catchmentRadius || 3);
   const isRural = kita.areaType === "rural";
+
+  // 1. Gender label (accurately distinguishes female vs male without substring collisions)
+  const detectedGender = parseGender(kita.gender);
+  const isMale = detectedGender === "male";
+  const genderLabel = isMale
+    ? (t.card?.tagesvater || "Male")
+    : (t.card?.tagesmutter || "Female");
+
+  // 2. Cooking / Fresh meals label
+  const rawCooking = (
+    kita.mealsType ||
+    (language === "de" && kita.mealsTypeDe ? kita.mealsTypeDe : "") ||
+    kita.tags?.find((tag) => /gekocht|küche|essen|food|meal|cook|cater/i.test(tag)) ||
+    ""
+  ).trim();
+  const lowerCooking = rawCooking.toLowerCase();
+  const cookingLabel =
+    !rawCooking ||
+    lowerCooking.includes("self") ||
+    lowerCooking.includes("frisch") ||
+    lowerCooking.includes("fresh") ||
+    lowerCooking.includes("cook") ||
+    lowerCooking.includes("gekocht") ||
+    lowerCooking.includes("bio")
+      ? (t.card.freshCooking || (language === "de" ? "Frisch gekocht" : "Freshly cooked"))
+      : lowerCooking.includes("deliver") ||
+        lowerCooking.includes("geliefert") ||
+        lowerCooking.includes("cater") ||
+        lowerCooking.includes("angeliefert")
+      ? (t.card.deliveredCooking || (language === "de" ? "Catering / Geliefert" : "Catered meals"))
+      : (language === "de" && kita.mealsTypeDe ? kita.mealsTypeDe : rawCooking);
+
+  // 3. Pets policy label
+  const rawPets = (
+    kita.petsPolicy ||
+    (language === "de" && kita.petsPolicyDe ? kita.petsPolicyDe : "") ||
+    kita.tags?.find((tag) => /haustier|tier|pet|dog|cat|hund|katze/i.test(tag)) ||
+    ""
+  ).trim();
+  const lowerPets = rawPets.toLowerCase();
+  const petsLabel =
+    !rawPets ||
+    lowerPets.includes("no-pet") ||
+    lowerPets.includes("not-allow") ||
+    lowerPets.includes("keine") ||
+    lowerPets.includes("free") ||
+    lowerPets.includes("frei") ||
+    lowerPets.includes("ohne") ||
+    lowerPets.includes("nein") ||
+    lowerPets === "no" ||
+    lowerPets === "no pets"
+      ? (t.card.noPets || (language === "de" ? "Keine Haustiere" : "No pets"))
+      : lowerPets.includes("have-pet") ||
+        lowerPets.includes("allow") ||
+        lowerPets.includes("erlaubt") ||
+        lowerPets.includes("vorhanden") ||
+        lowerPets.includes("pets ok") ||
+        lowerPets === "ja" ||
+        lowerPets === "yes"
+      ? (t.card.hasPets || (language === "de" ? "Haustiere vorhanden" : "Pets in home"))
+      : (language === "de" && kita.petsPolicyDe ? kita.petsPolicyDe : rawPets);
 
   return (
     <div
@@ -49,7 +144,7 @@ export function KitaCard({
               onOpenGallery(e);
             }
           }}
-          className="relative w-24 h-24 sm:w-32 sm:h-32 md:w-36 md:h-32 rounded-xl overflow-hidden bg-[#F3ECE2] shrink-0 cursor-pointer group/thumb"
+          className="relative w-28 sm:w-36 md:w-40 self-stretch min-h-[130px] sm:min-h-[150px] rounded-xl overflow-hidden bg-[#F3ECE2] shrink-0 cursor-pointer group/thumb"
           title={t.gallery.viewAllPhotos}
         >
           {kita.image ? (
@@ -78,7 +173,7 @@ export function KitaCard({
         </div>
 
         {/* Info Details */}
-        <div className="flex-1 min-w-0 flex flex-col justify-between">
+        <div className="flex-1 min-w-0 flex flex-col justify-start">
           {/* Title and Favorite */}
           <div className="flex items-start justify-between gap-1">
             <div className="min-w-0">
@@ -128,25 +223,19 @@ export function KitaCard({
             </button>
           </div>
 
-          {/* Availability and Rating */}
-          <div className="flex items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs flex-wrap my-1">
-            <span className="inline-flex items-center gap-1 font-semibold text-[#16A34A]">
+          {/* Availability, Rating & Catchment Radius Badges */}
+          <div className="flex items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs flex-wrap my-1.5">
+            <span className="inline-flex items-center gap-1 font-semibold text-[#16A34A] shrink-0">
               <span className="w-2 h-2 rounded-full bg-[#16A34A]" />
               {kita.slots} {t.card.slotsAvailable}
             </span>
-            <span className="text-[#C4B7A5]">•</span>
-            <span className="bg-[#FEF3C7] text-[#78350F] font-bold px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] inline-flex items-center gap-1">
+            <span className="bg-[#FEF3C7] text-[#78350F] font-bold px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] inline-flex items-center gap-1 shrink-0">
               <span>{Number(kita.rating || 0).toFixed(1)}</span>
               <StarIcon className="w-3 h-3 text-amber-500 fill-amber-500 shrink-0" />
               <span>({Number(kita.reviewCount || 0)} {t.card.reviews})</span>
             </span>
-          </div>
-
-          {/* Tag chips */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {/* Area Classification & Catchment Radius Badge */}
             <span
-              className={`inline-flex items-center gap-1.5 text-[10px] sm:text-[11px] px-2 py-0.5 rounded-md font-bold border ${
+              className={`inline-flex items-center gap-1 text-[10px] sm:text-[11px] px-2 py-0.5 rounded-full font-bold border shrink-0 ${
                 isRural
                   ? "bg-[#FEF3C7] text-[#92400E] border-[#FDE68A]"
                   : "bg-[#DCFCE7] text-[#166534] border-[#BBF7D0]"
@@ -163,48 +252,40 @@ export function KitaCard({
                   : t.card.urbanBadge.replace("{radius}", String(effectiveRadius))}
               </span>
             </span>
+          </div>
 
-            {kita.tags.map((tag, idx) => (
-              <span
-                key={idx}
-                className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] text-[#554A3D] bg-[#F7F4EE] border border-[#E9E2D8] px-2 py-0.5 rounded-md"
-              >
-                {tag.toLowerCase().includes("gekocht") ||
-                  tag.toLowerCase().includes("food") ? (
-                  <svg
-                    className="w-3 h-3 text-[#7A6D60] shrink-0"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
-                    />
-                  </svg>
-                ) : (
-                  <svg
-                    className="w-3 h-3 text-[#7A6D60] shrink-0"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" />
-                  </svg>
-                )}
-                <span className="truncate max-w-[110px] sm:max-w-[130px]">
-                  {tag}
-                </span>
+          {/* Caretaker Attributes: Chips wrapping naturally */}
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 my-2">
+            {/* 1. Caretaker Gender: Tagesmutter OR Tagesvater */}
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FAF7F2] border border-[#E8DFD3] text-xs shrink-0 shadow-2xs">
+              <span className="w-4.5 h-4.5 rounded-full bg-white border border-[#E5DDD2] flex items-center justify-center text-[#A12D3A] shrink-0">
+                <UserIcon className="w-2.5 h-2.5 text-[#A12D3A]" />
               </span>
-            ))}
+              <span className="font-bold text-[#1E1B18] tracking-tight">{genderLabel}</span>
+            </div>
+
+            {/* 2. Cooking / Fresh Meals */}
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FAF7F2] border border-[#E8DFD3] text-xs text-[#3D332A] shrink-0 shadow-2xs">
+              <span className="w-4.5 h-4.5 rounded-full bg-white border border-[#E5DDD2] flex items-center justify-center text-[#855C1B] shrink-0">
+                <CutleryIcon className="w-2.5 h-2.5 text-[#855C1B]" />
+              </span>
+              <span className="font-semibold text-[#3D332A]">{cookingLabel}</span>
+            </div>
+
+            {/* 3. Pets Policy */}
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FAF7F2] border border-[#E8DFD3] text-xs text-[#3D332A] shrink-0 shadow-2xs">
+              <span className="w-4.5 h-4.5 rounded-full bg-white border border-[#E5DDD2] flex items-center justify-center text-[#6E6153] shrink-0">
+                <PawIcon className="w-2.5 h-2.5 text-[#6E6153]" />
+              </span>
+              <span className="font-semibold text-[#3D332A]">{petsLabel}</span>
+            </div>
           </div>
 
           {/* Send Inquiry Button */}
-          <div className="pt-2">
+          <div className="pt-2 mt-auto">
             <button
               onClick={onOpenInquiry}
-              className="w-full bg-[#A12D3A] hover:bg-[#88222E] text-white text-xs font-semibold py-2.5 rounded-lg transition-colors shadow-xs min-h-[40px] flex items-center justify-center"
+              className="w-full bg-[#A12D3A] hover:bg-[#88222E] text-white text-xs font-semibold py-2.5 rounded-xl transition-colors shadow-xs min-h-[40px] flex items-center justify-center cursor-pointer"
             >
               {t.card.sendInquiry}
             </button>

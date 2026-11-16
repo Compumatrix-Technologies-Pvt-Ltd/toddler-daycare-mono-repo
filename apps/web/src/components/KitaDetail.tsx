@@ -4,6 +4,7 @@ import React from "react";
 import Image from "next/image";
 import { Kita } from "../types";
 import { useLanguage } from "../i18n/LanguageContext";
+import { CutleryIcon, PawIcon, StarIcon, UserIcon } from "./icons/WebIcons";
 
 interface KitaDetailProps {
   kita: Kita;
@@ -18,6 +19,11 @@ function formatMonthYear(dateStr?: string, lang: string = "de"): string {
   if (!dateStr || typeof dateStr !== "string") return "";
   const trimmed = dateStr.trim();
   if (!trimmed) return "";
+
+  // Immediate availability
+  if (/sofort|immediate/i.test(trimmed)) {
+    return lang === "de" ? "Ab sofort" : "Available immediately";
+  }
 
   const deMonths = ["", "Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
   const enMonths = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -92,6 +98,197 @@ function formatMonthYear(dateStr?: string, lang: string = "de"): string {
   return trimmed;
 }
 
+function parseGender(genderStr?: string): "female" | "male" | "other" {
+  if (!genderStr) return "female";
+  const g = genderStr.trim().toLowerCase();
+
+  // Check female first to prevent substring collision ("female".includes("male") is true!)
+  if (
+    g === "female" ||
+    g === "f" ||
+    g === "w" ||
+    g.includes("weib") ||
+    g.includes("frau") ||
+    g.includes("mutter")
+  ) {
+    return "female";
+  }
+
+  // Check male (exact "male", "m", or German roots)
+  if (
+    g === "male" ||
+    g === "m" ||
+    g.includes("männ") ||
+    g.includes("herr") ||
+    g.includes("vater")
+  ) {
+    return "male";
+  }
+
+  if (g === "other" || g.includes("divers") || g === "d") {
+    return "other";
+  }
+
+  return "female";
+}
+
+function getTranslatedGender(gender: string | undefined, t: any): string {
+  if (!gender) return "";
+  const detected = parseGender(gender);
+  if (detected === "female") return t.detail?.genderFemale || "Weiblich";
+  if (detected === "male") return t.detail?.genderMale || "Männlich";
+  if (detected === "other") return t.detail?.genderOther || "Divers";
+  return gender;
+}
+
+function getTranslatedMeals(
+  meals: string | undefined,
+  mealsDe: string | undefined,
+  lang: string,
+  t: any
+): string {
+  const raw = (meals || "").trim();
+  if (!raw && !mealsDe) return "";
+
+  const lower = (raw || mealsDe || "").toLowerCase();
+
+  // Freshly cooked / self-cooked
+  if (
+    lower.includes("self") ||
+    lower.includes("frisch") ||
+    lower.includes("fresh") ||
+    lower.includes("selbst") ||
+    lower.includes("cook") ||
+    lower.includes("gekocht")
+  ) {
+    return t.card?.freshCooking || (lang === "de" ? "Frisch gekocht" : "Freshly cooked");
+  }
+
+  // Delivered / Catering
+  if (
+    lower.includes("deliver") ||
+    lower.includes("geliefert") ||
+    lower.includes("cater") ||
+    lower.includes("angeliefert")
+  ) {
+    return t.card?.deliveredCooking || (lang === "de" ? "Catering / Geliefert" : "Catered meals");
+  }
+
+  // Bio / Organic
+  if (lower.includes("bio") || lower.includes("organic")) {
+    return t.tags?.bioFood || (lang === "de" ? "Bio Food" : "Organic Food");
+  }
+
+  return lang === "de" && mealsDe ? mealsDe : raw;
+}
+
+function getTranslatedPets(
+  pets: string | undefined,
+  petsDe: string | undefined,
+  lang: string,
+  t: any
+): string {
+  const raw = (pets || "").trim();
+  if (!raw && !petsDe) return "";
+
+  const lower = (raw || petsDe || "").toLowerCase();
+
+  // No pets / pet-free
+  if (
+    lower.includes("no-pet") ||
+    lower.includes("not-allow") ||
+    lower.includes("keine") ||
+    lower.includes("free") ||
+    lower.includes("frei") ||
+    lower.includes("ohne") ||
+    lower.includes("nein") ||
+    lower === "no" ||
+    lower === "no pets"
+  ) {
+    return t.card?.noPets || (lang === "de" ? "Keine Haustiere" : "No pets");
+  }
+
+  // Small Dog / Kleiner Hund
+  if (lower.includes("small dog") || lower.includes("kleiner hund")) {
+    return lang === "de" ? "Kleiner Hund" : "Small dog";
+  }
+  // Dog / Hund
+  if (lower.includes("dog") || lower.includes("hund")) {
+    return lang === "de" ? "Hund im Haushalt" : "Dog in home";
+  }
+  // Cat / Katze
+  if (lower.includes("cat") || lower.includes("katze")) {
+    return lang === "de" ? "Katze im Haushalt" : "Cat in home";
+  }
+
+  // Have pets / allowed
+  if (
+    lower.includes("have-pet") ||
+    lower.includes("allow") ||
+    lower.includes("erlaubt") ||
+    lower.includes("vorhanden") ||
+    lower.includes("pets ok") ||
+    lower === "ja" ||
+    lower === "yes"
+  ) {
+    return t.card?.hasPets || (lang === "de" ? "Haustiere vorhanden" : "Pets in home");
+  }
+
+  return lang === "de" && petsDe ? petsDe : raw;
+}
+
+function getTranslatedAgeRange(ageRange: string | undefined, lang: string): string {
+  if (!ageRange) return "";
+  const trimmed = ageRange.trim();
+  if (lang === "de") {
+    return trimmed
+      .replace(/\byears?\b/gi, "Jahre")
+      .replace(/\bto\b/gi, "bis")
+      .replace(/\bfrom\b/gi, "ab")
+      .replace(/\bmonths?\b/gi, "Monate");
+  } else {
+    return trimmed
+      .replace(/\bJahre\b/gi, "years")
+      .replace(/\bJahr\b/gi, "year")
+      .replace(/\bbis\b/gi, "to")
+      .replace(/\bab\b/gi, "from")
+      .replace(/\bMonate\b/gi, "months")
+      .replace(/\bMonat\b/gi, "month");
+  }
+}
+
+function getTranslatedHours(hours: string | undefined, lang: string): string {
+  if (!hours) return "";
+  const trimmed = hours.trim();
+  if (lang === "de") {
+    return trimmed
+      .replace(/Mon\s*-\s*Fri/gi, "Mo - Fr")
+      .replace(/Mon\s*to\s*Fri/gi, "Mo bis Fr");
+  } else {
+    return trimmed
+      .replace(/Mo\s*-\s*Fr/gi, "Mon - Fri")
+      .replace(/Mo\s*bis\s*Fr/gi, "Mon to Fri")
+      .replace(/\s*Uhr\b/gi, "");
+  }
+}
+
+function getTranslatedDistance(distance: string | undefined, lang: string): string {
+  if (!distance) return "";
+  const trimmed = distance.trim();
+  if (lang === "de") {
+    return trimmed
+      .replace(/\baway\b/gi, "entfernt")
+      .replace(/\bwalk(ing)?\b/gi, "zu Fuß")
+      .replace(/\bmins?\b/gi, "Min.");
+  } else {
+    return trimmed
+      .replace(/\bentfernt\b/gi, "away")
+      .replace(/\bzu Fuß\b/gi, "walking")
+      .replace(/\bFußweg\b/gi, "walk")
+      .replace(/\bMin\.\b/gi, "min");
+  }
+}
+
 export function KitaDetail({
   kita,
   selectedDateFilter,
@@ -101,6 +298,35 @@ export function KitaDetail({
   catchmentRadius = 3,
 }: KitaDetailProps) {
   const { t, language } = useLanguage();
+
+  const effectiveRadius =
+    kita.catchmentRadiusKm || (kita.areaType === "rural" ? 10 : catchmentRadius || 3);
+  const isRural = kita.areaType === "rural";
+
+  const detectedGender = parseGender(kita.gender);
+  const isMale = detectedGender === "male";
+  const caretakerRole = kita.gender
+    ? isMale
+      ? (t.card?.tagesvater || "Tagesvater")
+      : (t.card?.tagesmutter || "Tagesmutter")
+    : "";
+  const translatedGender = getTranslatedGender(kita.gender, t);
+
+  const rawMeals =
+    kita.mealsType ||
+    kita.tags?.find((tag) => /gekocht|küche|essen|food|meal|cook|cater/i.test(tag)) ||
+    "";
+  const translatedMeals = getTranslatedMeals(rawMeals, kita.mealsTypeDe, language, t);
+
+  const rawPets =
+    kita.petsPolicy ||
+    kita.tags?.find((tag) => /haustier|tier|pet|dog|cat|hund|katze/i.test(tag)) ||
+    "";
+  const translatedPets = getTranslatedPets(rawPets, kita.petsPolicyDe, language, t);
+
+  const translatedHours = getTranslatedHours(kita.hours, language);
+  const translatedAgeRange = getTranslatedAgeRange(kita.ageRange, language);
+  const translatedDistance = getTranslatedDistance(kita.distance, language);
 
   return (
     <div className="space-y-4 sm:space-y-5">
@@ -231,6 +457,45 @@ export function KitaDetail({
               </>
             )}
           </div>
+
+          {/* Availability, Rating & Catchment Radius Badges */}
+          <div className="flex items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs flex-wrap mt-2">
+            {kita.slots > 0 && (
+              <>
+                <span className="inline-flex items-center gap-1 font-semibold text-[#16A34A]">
+                  <span className="w-2 h-2 rounded-full bg-[#16A34A]" />
+                  {kita.slots} {t.card?.slotsAvailable || t.detail?.spotsLeft || "slots available"}
+                </span>
+                <span className="text-[#C4B7A5]">•</span>
+              </>
+            )}
+            {kita.rating > 0 && (
+              <>
+                <span className="bg-[#FEF3C7] text-[#78350F] font-bold px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] inline-flex items-center gap-1">
+                  <span>{Number(kita.rating || 0).toFixed(1)}</span>
+                  <StarIcon className="w-3 h-3 text-amber-500 fill-amber-500 shrink-0" />
+                  <span>({Number(kita.reviewCount || 0)} {t.card?.reviews || "Reviews"})</span>
+                </span>
+                <span className="text-[#C4B7A5]">•</span>
+              </>
+            )}
+            <span
+              className={`inline-flex items-center gap-1 text-[10px] sm:text-[11px] px-2 py-0.5 rounded-full font-bold border ${isRural
+                ? "bg-[#FEF3C7] text-[#92400E] border-[#FDE68A]"
+                : "bg-[#DCFCE7] text-[#166534] border-[#BBF7D0]"
+                }`}
+            >
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${isRural ? "bg-[#D97706]" : "bg-[#16A34A]"
+                  }`}
+              />
+              <span>
+                {isRural
+                  ? t.card?.ruralBadge?.replace("{radius}", String(effectiveRadius)) || `Rural • ${effectiveRadius} km`
+                  : t.card?.urbanBadge?.replace("{radius}", String(effectiveRadius)) || `Urban • ${effectiveRadius} km`}
+              </span>
+            </span>
+          </div>
         </div>
       </div>
 
@@ -329,7 +594,7 @@ export function KitaDetail({
                 </svg>
               </div>
               <div className="text-[11px] sm:text-xs font-semibold text-[#1E1B18] truncate">
-                {kita.hours}
+                {translatedHours}
               </div>
             </div>
           ) : (
@@ -355,7 +620,7 @@ export function KitaDetail({
                 </svg>
               </div>
               <div className="text-[11px] sm:text-xs font-semibold text-[#1E1B18] truncate">
-                {kita.ageRange}
+                {translatedAgeRange}
               </div>
             </div>
           ) : (
@@ -376,7 +641,7 @@ export function KitaDetail({
                 </svg>
               </div>
               <div className="text-[11px] sm:text-xs font-semibold text-[#1E1B18] truncate">
-                {kita.distance}
+                {translatedDistance}
               </div>
             </div>
           ) : (
@@ -391,22 +656,14 @@ export function KitaDetail({
           {kita.gender && (
             <div className="flex items-center gap-2 min-w-0">
               <div className="w-7 h-7 rounded-lg bg-[#F7F4EE] flex items-center justify-center text-[#7A6E62] shrink-0">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
+                <UserIcon className="w-3.5 h-3.5 text-[#A12D3A]" />
               </div>
               <div className="min-w-0">
                 <div className="text-[10px] font-medium text-[#7A6E62] truncate">
                   {t.detail.caretakerGender}
                 </div>
                 <div className="text-xs font-semibold text-[#1E1B18] truncate">
-                  {kita.gender.toLowerCase() === "female"
-                    ? t.detail.genderFemale
-                    : kita.gender.toLowerCase() === "male"
-                    ? t.detail.genderMale
-                    : kita.gender.toLowerCase() === "other"
-                    ? t.detail.genderOther
-                    : kita.gender}
+                  {caretakerRole ? `${caretakerRole}` : ""}
                 </div>
               </div>
             </div>
@@ -463,37 +720,19 @@ export function KitaDetail({
         </div>
       )}
 
-      {/* Bottom Feature Tags - renders raw daycare meal/pets details */}
-      {(kita.mealsType || kita.petsPolicy) && (
+      {/* Bottom Feature Tags - renders properly translated daycare meal/pets details */}
+      {(translatedMeals || translatedPets) && (
         <div className="flex items-center gap-2 flex-wrap">
-          {kita.mealsType && (
-            <span className="inline-flex items-center gap-1.5 text-xs text-[#52463A] bg-[#F7F4EE] border border-[#E9E2D8] px-3 py-1.5 rounded-lg font-medium">
-              <svg
-                className="w-3.5 h-3.5 text-[#7A6E62] shrink-0"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
-                />
-              </svg>
-              <span>{kita.mealsType}</span>
+          {translatedMeals && (
+            <span className="inline-flex items-center gap-1.5 text-xs text-[#52463A] bg-[#F7F4EE] border border-[#E9E2D8] px-3 py-1.5 rounded-lg font-medium shadow-2xs">
+              <CutleryIcon className="w-3.5 h-3.5 text-[#855C1B] shrink-0" />
+              <span>{translatedMeals}</span>
             </span>
           )}
-          {kita.petsPolicy && (
-            <span className="inline-flex items-center gap-1.5 text-xs text-[#52463A] bg-[#F7F4EE] border border-[#E9E2D8] px-3 py-1.5 rounded-lg font-medium">
-              <svg
-                className="w-3.5 h-3.5 text-[#7A6E62] shrink-0"
-                fill="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" />
-              </svg>
-              <span>{kita.petsPolicy}</span>
+          {translatedPets && (
+            <span className="inline-flex items-center gap-1.5 text-xs text-[#52463A] bg-[#F7F4EE] border border-[#E9E2D8] px-3 py-1.5 rounded-lg font-medium shadow-2xs">
+              <PawIcon className="w-3.5 h-3.5 text-[#6E6153] shrink-0" />
+              <span>{translatedPets}</span>
             </span>
           )}
         </div>

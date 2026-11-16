@@ -197,3 +197,26 @@ export function StarIcon({ className = "w-3.5 h-3.5", ...props }: IconProps) {
     </svg>
   );
 }
+
+export function CutleryIcon({ className = "w-3.5 h-3.5", ...props }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true" {...props}>
+      {/* Fork */}
+      <path d="M5 2a.75.75 0 0 0-.75.75V7a2 2 0 0 0 1.25 1.86V21a1 1 0 1 0 2 0V8.86A2 2 0 0 0 8.75 7V2.75A.75.75 0 0 0 8 2a.75.75 0 0 0-.75.75V6h-.5V2.75a.75.75 0 0 0-1.5 0V6h-.5V2.75A.75.75 0 0 0 5 2z" />
+      {/* Knife */}
+      <path d="M16 2c2.8 0 4.5 2.2 4.5 6v3.25a.75.75 0 0 1-.75.75H18v9a1 1 0 1 1-2 0V2z" />
+    </svg>
+  );
+}
+
+export function PawIcon({ className = "w-3.5 h-3.5", ...props }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true" {...props}>
+      <ellipse cx="4.5" cy="9.5" rx="1.9" ry="2.5" transform="rotate(-20 4.5 9.5)" />
+      <ellipse cx="9.5" cy="5.5" rx="2" ry="2.7" transform="rotate(-6 9.5 5.5)" />
+      <ellipse cx="14.5" cy="5.5" rx="2" ry="2.7" transform="rotate(6 14.5 5.5)" />
+      <ellipse cx="19.5" cy="9.5" rx="1.9" ry="2.5" transform="rotate(20 19.5 9.5)" />
+      <path d="M12 11.5c-3.1 0-5.6 2-5.6 4.6 0 2.1 1.6 3.9 3.5 3.9.9 0 1.6-.4 2.1-.9.5.5 1.2.9 2.1.9 1.9 0 3.5-1.8 3.5-3.9 0-2.6-2.5-4.6-5.6-4.6z" />
+    </svg>
+  );
+}

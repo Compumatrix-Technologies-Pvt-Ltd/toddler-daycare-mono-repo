@@ -102,6 +102,12 @@ export const en = {
     urbanBadge: "Urban • {radius} km",
     ruralBadge: "Rural • {radius} km",
     osmVerified: "Identified via OpenStreetMap",
+    tagesmutter: "Female",
+    tagesvater: "Male",
+    freshCooking: "Freshly cooked",
+    deliveredCooking: "Catered meals",
+    noPets: "No pets",
+    hasPets: "Pets in home",
   },
   detail: {
     nextAvailable: "Spot available from",
