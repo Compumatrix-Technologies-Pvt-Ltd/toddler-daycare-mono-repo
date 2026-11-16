@@ -3,15 +3,12 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { CaretakerHeader } from "../../../components/caretaker/CaretakerHeader";
 import { Footer } from "../../../components/Footer";
-import { StatCardsOverview } from "../../../components/caretaker/dashboard/StatCardsOverview";
 import { GanttCalendar } from "../../../components/caretaker/dashboard/GanttCalendar";
 import { BookingDetailsPanel } from "../../../components/caretaker/dashboard/BookingDetailsPanel";
 import { AddBookingModal } from "../../../components/caretaker/dashboard/AddBookingModal";
 import { ManageSlotModal } from "../../../components/caretaker/dashboard/ManageSlotModal";
 import { ContactParentsModal } from "../../../components/caretaker/dashboard/ContactParentsModal";
 import { ExportModal } from "../../../components/caretaker/dashboard/ExportModal";
-import { WorkPermitModal } from "../../../components/caretaker/dashboard/WorkPermitModal";
-import { DemandRadiusModal } from "../../../components/caretaker/dashboard/DemandRadiusModal";
 import { useLanguage } from "../../../i18n/LanguageContext";
 import { useCaretaker } from "../../../context/CaretakerContext";
 import { caretakerApi } from "../../../utils/caretakerApi";
@@ -170,7 +167,6 @@ export default function CaretakerDashboardPage() {
     parseCapacity(profile.permitAuthorizedCapacity || profile.maxCapacity)
   );
   const [catchmentRadius, setCatchmentRadius] = useState<number>(3);
-  const [isBaselineActive, setIsBaselineActive] = useState(false);
 
   const loadDashboardData = useCallback(async () => {
     const token = caretakerApi.getToken();
@@ -182,9 +178,9 @@ export default function CaretakerDashboardPage() {
         token ? caretakerApi.getDaycare().catch(() => null) : Promise.resolve(null),
         token
           ? fetchInquiries({
-              ...(caretakerId ? { caretakerId } : {}),
-              token,
-            }).catch(() => [])
+            ...(caretakerId ? { caretakerId } : {}),
+            token,
+          }).catch(() => [])
           : Promise.resolve([]),
       ]);
 
@@ -195,9 +191,9 @@ export default function CaretakerDashboardPage() {
       if (daycareRes) {
         const cap = parseCapacity(
           daycareRes.operations?.maxCapacity ??
-            daycareRes.workPermit?.authorizedCapacity ??
-            profile.permitAuthorizedCapacity ??
-            profile.maxCapacity
+          daycareRes.workPermit?.authorizedCapacity ??
+          profile.permitAuthorizedCapacity ??
+          profile.maxCapacity
         );
         setTotalSlots(cap);
       }
@@ -286,8 +282,6 @@ export default function CaretakerDashboardPage() {
   const [isManageSlotOpen, setIsManageSlotOpen] = useState(false);
   const [isContactParentsOpen, setIsContactParentsOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
-  const [isWorkPermitOpen, setIsWorkPermitOpen] = useState(false);
-  const [isDemandRadiusOpen, setIsDemandRadiusOpen] = useState(false);
   const [activeModalItem, setActiveModalItem] = useState<BookingItem | null>(null);
 
   // Ref to Fitting Inquiries for smooth scrolling from top stat card
@@ -382,7 +376,7 @@ export default function CaretakerDashboardPage() {
 
     // Persist accepted status to backend when inquiry is a backend record
     if (inquiry.id && !inquiry.id.startsWith("manual-")) {
-      updateInquiryStatus(inquiry.id, "accepted").catch(() => {});
+      updateInquiryStatus(inquiry.id, "accepted").catch(() => { });
     }
 
     // Remove from inquiries and add to future bookings
@@ -396,7 +390,7 @@ export default function CaretakerDashboardPage() {
       type: "success",
       onUndo: () => {
         if (inquiry.id && !inquiry.id.startsWith("manual-")) {
-          updateInquiryStatus(inquiry.id, "pending").catch(() => {});
+          updateInquiryStatus(inquiry.id, "pending").catch(() => { });
         }
         setFutureBookings((prev) => prev.filter((b) => b.id !== inquiry.id));
         setFittingInquiries((prev) => [inquiry, ...prev]);
@@ -410,31 +404,10 @@ export default function CaretakerDashboardPage() {
     }, 6000);
   };
 
-  // Functional Auto Schedule AI: allocates the first fitting inquiry to an upcoming vacancy
-  const handleTriggerAutoSchedule = () => {
-    const targetInquiry = fittingInquiries[0];
-    if (targetInquiry) {
-      handleMarkAsBooked(targetInquiry);
-      setNotificationMsg({
-        text: tb.aiScheduledSuccess,
-        type: "success",
-      });
-    } else {
-      setNotificationMsg({
-        text:
-          language === "de"
-            ? "Keine offenen Anfragen für die automatische Zuteilung vorhanden."
-            : "No pending inquiries available to auto-schedule.",
-        type: "info",
-      });
-    }
-    setTimeout(() => setNotificationMsg(null), 5500);
-  };
-
   // Update status of an inquiry (New -> Reviewing -> Invited -> Accepted)
   const handleUpdateInquiryStatus = (id: string, status: InquiryStatus) => {
     if (id && !id.startsWith("manual-")) {
-      updateInquiryStatus(id, mapDashboardStatusToBackend(status)).catch(() => {});
+      updateInquiryStatus(id, mapDashboardStatusToBackend(status)).catch(() => { });
     }
     setFittingInquiries((prev) =>
       prev.map((item) => (item.id === id ? { ...item, inquiryStatus: status } : item))
@@ -456,35 +429,7 @@ export default function CaretakerDashboardPage() {
     setIsContactParentsOpen(true);
   };
 
-  // Scroll to Fitting Inquiries from Stat Card
-  const handleScrollToInquiries = () => {
-    inquiriesSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-  };
-
-  // Open Demand Radius Simulation Modal
-  const handleViewRadius = () => {
-    setIsDemandRadiusOpen(true);
-  };
-
-  // Highlight Slot Vacancies info toast
   const allBookings = [...currentBookings, ...futureBookings, ...fittingInquiries];
-  const openVacanciesCount = Math.max(0, totalSlots - currentBookings.length);
-
-  const handleViewVacancies = () => {
-    setNotificationMsg({
-      text:
-        language === "de"
-          ? `Freie Plätze: ${openVacanciesCount} von ${totalSlots} Plätzen aktuell verfügbar.`
-          : `Slot vacancies: ${openVacanciesCount} of ${totalSlots} spots currently available.`,
-      type: "info",
-    });
-    setTimeout(() => setNotificationMsg(null), 4000);
-  };
-
-  // Open Work Permit Compliance Modal
-  const handleViewPermit = () => {
-    setIsWorkPermitOpen(true);
-  };
 
   return (
     <div className="min-h-screen flex flex-col bg-[#FAF7F2] text-[#1E1B18] overflow-x-clip">
@@ -497,8 +442,8 @@ export default function CaretakerDashboardPage() {
         {notificationMsg && (
           <div
             className={`p-3.5 sm:p-4 rounded-xl border flex items-center justify-between gap-3 shadow-sm animate-in fade-in slide-in-from-top-2 ${notificationMsg.type === "success"
-                ? "bg-[#F0FDF4] border-[#BBF7D0] text-[#15803D]"
-                : "bg-[#EFF8FF] border-[#B2DDFF] text-[#175CD3]"
+              ? "bg-[#F0FDF4] border-[#BBF7D0] text-[#15803D]"
+              : "bg-[#EFF8FF] border-[#B2DDFF] text-[#175CD3]"
               }`}
           >
             <div className="flex items-center gap-2.5 text-xs sm:text-sm font-semibold">
@@ -539,26 +484,14 @@ export default function CaretakerDashboardPage() {
           </div>
         )}
 
-        {/* 13b Stat Cards Overview (Figma node 580:1661) */}
-        <StatCardsOverview
-          inquiriesCount={fittingInquiries.length}
-          openVacancies={openVacanciesCount}
-          totalSlots={totalSlots}
-          radiusValue={catchmentRadius}
-          onFilterInquiries={handleScrollToInquiries}
-          onViewRadius={handleViewRadius}
-          onViewVacancies={handleViewVacancies}
-          onViewPermit={handleViewPermit}
-        />
-
         {/* Mobile View Switcher (< lg) */}
         <div className="lg:hidden flex items-center justify-center p-1 bg-[#F0EAE1] rounded-2xl border border-[#DDD3C4] max-w-sm mx-auto shadow-2xs">
           <button
             type="button"
             onClick={() => setMobileView("calendar")}
             className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all min-h-[40px] flex items-center justify-center gap-1.5 cursor-pointer ${mobileView === "calendar"
-                ? "bg-white text-[#7C5800] shadow-xs"
-                : "text-[#6B5E51] hover:text-[#1E1B18]"
+              ? "bg-white text-[#7C5800] shadow-xs"
+              : "text-[#6B5E51] hover:text-[#1E1B18]"
               }`}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -573,8 +506,8 @@ export default function CaretakerDashboardPage() {
             type="button"
             onClick={() => setMobileView("details")}
             className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all min-h-[40px] flex items-center justify-center gap-1.5 cursor-pointer ${mobileView === "details"
-                ? "bg-white text-[#7C5800] shadow-xs"
-                : "text-[#6B5E51] hover:text-[#1E1B18]"
+              ? "bg-white text-[#7C5800] shadow-xs"
+              : "text-[#6B5E51] hover:text-[#1E1B18]"
               }`}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -617,9 +550,6 @@ export default function CaretakerDashboardPage() {
               onSelectItem={handleSelectItem}
               onOpenAddBooking={() => setIsAddBookingOpen(true)}
               onOpenExport={() => setIsExportOpen(true)}
-              isBaselineActive={isBaselineActive}
-              onToggleBaseline={() => setIsBaselineActive(!isBaselineActive)}
-              onTriggerAutoSchedule={handleTriggerAutoSchedule}
               onAllocateInquiry={handleMarkAsBooked}
               inquiriesSectionRef={inquiriesSectionRef}
             />
@@ -670,28 +600,6 @@ export default function CaretakerDashboardPage() {
         isOpen={isExportOpen}
         onClose={() => setIsExportOpen(false)}
         bookings={allBookings}
-      />
-
-      <WorkPermitModal
-        isOpen={isWorkPermitOpen}
-        onClose={() => setIsWorkPermitOpen(false)}
-      />
-
-      <DemandRadiusModal
-        isOpen={isDemandRadiusOpen}
-        onClose={() => setIsDemandRadiusOpen(false)}
-        currentRadius={catchmentRadius}
-        onUpdateRadius={(r) => {
-          setCatchmentRadius(r);
-          setNotificationMsg({
-            text:
-              language === "de"
-                ? `Einzugsradius auf ${r} km kalibriert (~${Math.round(r * 4)} passende Familien im Umkreis).`
-                : `Catchment radius calibrated to ${r} km (~${Math.round(r * 4)} matching parent inquiries).`,
-            type: "info",
-          });
-          setTimeout(() => setNotificationMsg(null), 4500);
-        }}
       />
     </div>
   );
