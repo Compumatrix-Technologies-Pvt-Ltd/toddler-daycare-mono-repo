@@ -16,6 +16,7 @@ interface DashboardViewProps {
   isLoading?: boolean;
   onViewAllDaycares?: (() => void) | undefined;
   onRequestApprove: (application: DaycareApplication) => void;
+  onRequestReject?: ((application: DaycareApplication) => void) | undefined;
   onReject: (id: string) => void;
   onOpenDetails: (application: DaycareApplication) => void;
 }
@@ -27,6 +28,7 @@ export function DashboardView({
   isLoading = false,
   onViewAllDaycares,
   onRequestApprove,
+  onRequestReject,
   onReject,
   onOpenDetails,
 }: DashboardViewProps) {
@@ -149,6 +151,7 @@ export function DashboardView({
         mode="recent"
         onViewAll={onViewAllDaycares}
         onRequestApprove={onRequestApprove}
+        onRequestReject={onRequestReject}
         onReject={onReject}
         onOpenDetails={onOpenDetails}
       />

@@ -25,6 +25,7 @@ export interface CaretakerProfileData {
   visibilityWindow: string;
   operatingHours: string;
   maxCapacity: string;
+  childAge?: string;
   email: string;
   website: string;
   phone: string;
@@ -129,6 +130,7 @@ export const EMPTY_PROFILE: CaretakerProfileData = {
   visibilityWindow: "",
   operatingHours: "",
   maxCapacity: "",
+  childAge: "0 – 3 years",
   email: "",
   website: "",
   phone: "",
@@ -243,6 +245,13 @@ export function CaretakerProvider({ children }: { children: React.ReactNode }) {
         caregiverGender: mappedGender ?? prev.caregiverGender,
         visibilityWindow: data.operations?.visibilityWindow ?? prev.visibilityWindow,
         operatingHours: data.operations?.operatingHours ?? prev.operatingHours,
+        childAge:
+          data.operations?.childAge ??
+          data.operations?.ageRange ??
+          data.childAge ??
+          data.ageRange ??
+          prev.childAge ??
+          "0 – 3 years",
         email: data.contact?.email ?? prev.email,
         website: data.contact?.website ?? prev.website,
         phone: data.contact?.phone ?? prev.phone,

@@ -30,33 +30,12 @@ export function WorkPermitApproveModal({
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    if (!application) return;
-    const today = new Date();
-    const defaultReg = application.registrationDate || today.toISOString().slice(0, 10);
-    const twoYearsLater = new Date(today);
-    twoYearsLater.setFullYear(today.getFullYear() + 2);
-    const defaultExp = application.expirationDate || twoYearsLater.toISOString().slice(0, 10);
+  const [docxHtml, setDocxHtml] = useState<string | null>(null);
+  const [docLoading, setDocLoading] = useState<boolean>(false);
+  const [docError, setDocError] = useState<string | null>(null);
 
-    setPermitId(application.permitId || "");
-    setRegistrationDate(defaultReg);
-    setExpirationDate(defaultExp);
-    setIssuingAuthority(
-      application.issuingAuthority ||
-        (application.district ? `Jugendamt ${application.district}` : "")
-    );
-    setAuthorizedCapacity(
-      String(application.authorizedCapacity ?? application.capacity ?? 5)
-    );
-    setAdminNotes(application.adminNotes || "");
-    setError(null);
-    setIsSubmitting(false);
-  }, [application]);
-
-  if (!application) return null;
-
-  const docUrl = application.workPermitUrl || "";
-  const docName = application.workPermitFileName || (docUrl ? docUrl.split("/").pop() || "work-permit" : "");
+  const docUrl = application?.workPermitUrl || "";
+  const docName = application?.workPermitFileName || (docUrl ? docUrl.split("/").pop() || "work-permit" : "");
   const lowerUrl = (docUrl || docName).toLowerCase();
   const isPdf = lowerUrl.endsWith(".pdf");
   const isDocx = lowerUrl.endsWith(".docx");
@@ -67,9 +46,28 @@ export function WorkPermitApproveModal({
     lowerUrl.endsWith(".jpeg") ||
     lowerUrl.endsWith(".webp");
 
-  const [docxHtml, setDocxHtml] = useState<string | null>(null);
-  const [docLoading, setDocLoading] = useState<boolean>(false);
-  const [docError, setDocError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!application) return;
+
+    setPermitId(
+      application.permitId && application.permitId !== "—"
+        ? application.permitId.trim()
+        : ""
+    );
+    setRegistrationDate(application.registrationDate ? application.registrationDate.trim() : "");
+    setExpirationDate(application.expirationDate ? application.expirationDate.trim() : "");
+    setIssuingAuthority(application.issuingAuthority ? application.issuingAuthority.trim() : "");
+    setAuthorizedCapacity(
+      application.authorizedCapacity !== undefined && application.authorizedCapacity !== null
+        ? String(application.authorizedCapacity)
+        : application.capacity !== undefined && application.capacity !== null
+          ? String(application.capacity)
+          : ""
+    );
+    setAdminNotes(application.adminNotes ? application.adminNotes.trim() : "");
+    setError(null);
+    setIsSubmitting(false);
+  }, [application]);
 
   // Load and convert .docx documents to formatted HTML using mammoth
   useEffect(() => {
@@ -109,6 +107,8 @@ export function WorkPermitApproveModal({
     };
   }, [docUrl, isDocx]);
 
+  if (!application) return null;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -118,13 +118,13 @@ export function WorkPermitApproveModal({
       return;
     }
 
-    // Validation: Permit Number can not be duplicate / same across registered daycares
+    // Validation: Permit Number can not be duplicate across other registered daycares with a permitId
     const trimmedPermit = permitId.trim().toLowerCase();
     const isDuplicate = applications.some(
       (app) =>
         app.id !== application.id &&
-        (app.permitId?.trim().toLowerCase() === trimmedPermit ||
-          app.permitNumber?.trim().toLowerCase() === trimmedPermit)
+        Boolean(app.permitId?.trim()) &&
+        app.permitId?.trim().toLowerCase() === trimmedPermit
     );
 
     if (isDuplicate) {
@@ -206,7 +206,7 @@ export function WorkPermitApproveModal({
 
         {/* Scrollable Two-Column Body */}
         <form onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col overflow-hidden">
-          <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6">
+          <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 pb-44">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6">
               {/* Left Column: Document Review (7 cols on lg) */}
               <div className="lg:col-span-7 flex flex-col space-y-3 min-w-0">
@@ -384,7 +384,7 @@ export function WorkPermitApproveModal({
                   </h3>
                 </div>
 
-                <div className="p-4 rounded-2xl border border-[#E5DDD2] bg-[#FAF7F2]/50 space-y-3.5">
+                <div className="p-4 rounded-2xl border border-[#E5DDD2] bg-[#FAF7F2]/50 space-y-3.5 relative overflow-visible">
                   {/* Work Permit ID */}
                   <div className="space-y-1">
                     <label
@@ -405,25 +405,31 @@ export function WorkPermitApproveModal({
                   </div>
 
                   {/* Registration Date & Expiration Date */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <DatePicker
-                      id="permit-reg-date"
-                      label={copy.registrationDate}
-                      required
-                      value={registrationDate}
-                      onChange={(_d, dateStr) => setRegistrationDate(dateStr)}
-                      locale={language}
-                    />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div className="relative z-30">
+                      <DatePicker
+                        id="permit-reg-date"
+                        label={copy.registrationDate}
+                        required
+                        value={registrationDate}
+                        onChange={(_d, dateStr) => setRegistrationDate(dateStr)}
+                        locale={language}
+                        align="left"
+                      />
+                    </div>
 
-                    <DatePicker
-                      id="permit-exp-date"
-                      label={copy.expirationDate}
-                      required
-                      value={expirationDate}
-                      onChange={(_d, dateStr) => setExpirationDate(dateStr)}
-                      locale={language}
-                      minDate={registrationDate}
-                    />
+                    <div className="relative z-20">
+                      <DatePicker
+                        id="permit-exp-date"
+                        label={copy.expirationDate}
+                        required
+                        value={expirationDate}
+                        onChange={(_d, dateStr) => setExpirationDate(dateStr)}
+                        locale={language}
+                        minDate={registrationDate}
+                        align="right"
+                      />
+                    </div>
                   </div>
 
                   {/* Issuing Authority & Authorized Capacity */}

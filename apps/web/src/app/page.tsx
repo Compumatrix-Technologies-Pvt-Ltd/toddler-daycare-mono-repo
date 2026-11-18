@@ -30,6 +30,68 @@ import {
   CloseIcon,
 } from "../components/icons/WebIcons";
 
+const parseDaycareDate = (str?: string): { year: number; month: number } | null => {
+  if (!str || typeof str !== "string") return null;
+  const clean = str.trim();
+  if (!clean) return null;
+  const lower = clean.toLowerCase();
+
+  // Find 4-digit year (e.g. 2026, 2027, 2028)
+  const yearMatch = lower.match(/\b(20\d{2})\b/);
+
+  // Month word mapping (both English and German, 0-indexed)
+  const monthMap = [
+    { names: ["januar", "january", "jan"], month: 0 },
+    { names: ["februar", "february", "feb"], month: 1 },
+    { names: ["märz", "maerz", "march", "mär", "mar"], month: 2 },
+    { names: ["april", "apr"], month: 3 },
+    { names: ["mai", "may"], month: 4 },
+    { names: ["juni", "june", "jun"], month: 5 },
+    { names: ["juli", "july", "jul"], month: 6 },
+    { names: ["august", "aug"], month: 7 },
+    { names: ["september", "sept", "sep"], month: 8 },
+    { names: ["oktober", "october", "okt", "oct"], month: 9 },
+    { names: ["november", "nov"], month: 10 },
+    { names: ["dezember", "december", "dez", "dec"], month: 11 },
+  ];
+
+  if (yearMatch) {
+    const year = parseInt(yearMatch[1], 10);
+    for (const entry of monthMap) {
+      for (const name of entry.names) {
+        const regex = new RegExp(`(^|[^a-zäöüß])${name}([^a-zäöüß]|$)`, "i");
+        if (regex.test(lower)) {
+          return { year, month: entry.month };
+        }
+      }
+    }
+  }
+
+  // Check ISO format: YYYY-MM-DD or YYYY-MM
+  const isoMatch = lower.match(/\b(20\d{2})[-/](\d{1,2})([-/]\d{1,2})?\b/);
+  if (isoMatch) {
+    const y = parseInt(isoMatch[1], 10);
+    const m = parseInt(isoMatch[2], 10) - 1;
+    if (m >= 0 && m <= 11) return { year: y, month: m };
+  }
+
+  // Check German/European format: DD.MM.YYYY
+  const deMatch = lower.match(/\b(\d{1,2})\.(\d{1,2})\.(20\d{2})\b/);
+  if (deMatch) {
+    const y = parseInt(deMatch[3], 10);
+    const m = parseInt(deMatch[2], 10) - 1;
+    if (m >= 0 && m <= 11) return { year: y, month: m };
+  }
+
+  // Fallback to standard Date object
+  const stdDate = new Date(clean);
+  if (!isNaN(stdDate.getTime())) {
+    return { year: stdDate.getFullYear(), month: stdDate.getMonth() };
+  }
+
+  return null;
+};
+
 const getInitialFilters = (): FilterState => {
   const now = new Date();
   const nextMonthDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
@@ -37,7 +99,7 @@ const getInitialFilters = (): FilterState => {
     childrenCount: "1",
     startMonth: String(nextMonthDate.getMonth()),
     startYear: String(nextMonthDate.getFullYear()),
-    monthTolerance: 1, // ±1 Month
+    monthTolerance: 0, // Exact (0 tolerance) by default
     openingFrom: "08:00",
     openingUntil: "16:00",
     caretakerGender: "all",
@@ -264,8 +326,8 @@ export default function ToddlerLandingPage() {
           // Strictly show only active daycares approved by admin
           const mappedDaycares = Array.isArray(daycares)
             ? daycares
-                .filter((d: any) => d.status === "approved")
-                .map(mapDaycareToKita)
+              .filter((d: any) => d.status === "approved")
+              .map(mapDaycareToKita)
             : [];
           setAllKitas(mappedDaycares);
           pruneFavorites(mappedDaycares.map((k) => k.id));
@@ -347,16 +409,19 @@ export default function ToddlerLandingPage() {
         }
 
         // 3. Month & Year with Month Tolerance (Exact to ±3 Months) - only if month and year are specified
-        if (filters.startMonth !== "" && filters.startYear && k.nextDate) {
-          const dDate = new Date(k.nextDate);
-          if (!isNaN(dDate.getTime())) {
-            const targetTotalMonths =
-              parseInt(filters.startYear, 10) * 12 + parseInt(filters.startMonth, 10);
-            const daycareTotalMonths = dDate.getFullYear() * 12 + dDate.getMonth();
-            const diffMonths = Math.abs(targetTotalMonths - daycareTotalMonths);
-            if (diffMonths > filters.monthTolerance) {
-              return false;
-            }
+        if (filters.startMonth !== "" && filters.startYear) {
+          const rawDateStr = k.nextDate || k.vacancyDate || "";
+          const parsed = parseDaycareDate(rawDateStr);
+          if (!parsed) {
+            // Daycare has no verifiable availability date, filter it out when user asked for a specific month & year
+            return false;
+          }
+          const targetTotalMonths =
+            parseInt(filters.startYear, 10) * 12 + parseInt(filters.startMonth, 10);
+          const daycareTotalMonths = parsed.year * 12 + parsed.month;
+          const diffMonths = Math.abs(targetTotalMonths - daycareTotalMonths);
+          if (diffMonths > filters.monthTolerance) {
+            return false;
           }
         }
 
@@ -410,13 +475,15 @@ export default function ToddlerLandingPage() {
       .sort((a, b) => (a.distanceKm ?? 999) - (b.distanceKm ?? 999));
   }, [kitasWithDistance, filters, parentLocation]);
 
-  // If currently selected daycare is filtered out or no longer exists, clear focus (do NOT auto-select)
+  // When parent searches and daycares are listed, auto-select the best matching daycare and focus it on the map
   useEffect(() => {
-    if (selectedKitaId) {
+    if (displayKitas.length > 0) {
       const exists = displayKitas.some((k) => k.id === selectedKitaId);
       if (!exists) {
-        setSelectedKitaId("");
+        setSelectedKitaId(displayKitas[0].id);
       }
+    } else {
+      setSelectedKitaId("");
     }
   }, [displayKitas, selectedKitaId]);
 
@@ -425,6 +492,7 @@ export default function ToddlerLandingPage() {
     let count = 0;
     if (filters.childrenCount) count++;
     if (filters.startMonth !== "" || filters.startYear) count++;
+    if (filters.monthTolerance > 0) count++;
     if (filters.openingFrom || filters.openingUntil) count++;
     if (filters.caretakerGender !== "all") count++;
     if (filters.foodPreference !== "any") count++;
@@ -520,18 +588,18 @@ export default function ToddlerLandingPage() {
                 {t.modals.filter.activeFilters}:
               </span>
 
-              {filters.monthTolerance !== 1 && (
+              {filters.monthTolerance > 0 && (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FAF7F2] border border-[#E5DDD2] text-[11px] font-semibold text-[#423223]">
                   <span>
-                    {filters.monthTolerance === 0
-                      ? t.modals.filter.tolerances.exact
+                    {filters.monthTolerance === 1
+                      ? t.modals.filter.tolerances.oneMonth
                       : filters.monthTolerance === 2
                         ? t.modals.filter.tolerances.twoMonths
                         : t.modals.filter.tolerances.threeMonths}
                   </span>
                   <button
                     type="button"
-                    onClick={() => setFilters((prev) => ({ ...prev, monthTolerance: 1 }))}
+                    onClick={() => setFilters((prev) => ({ ...prev, monthTolerance: 0 }))}
                     className="hover:text-[#A12D3A] ml-0.5 cursor-pointer inline-flex items-center"
                     aria-label="Remove filter"
                   >
@@ -648,9 +716,8 @@ export default function ToddlerLandingPage() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 pt-4 sm:pt-6 items-start">
             {/* Left Column: Kita Cards List */}
             <div
-              className={`lg:col-span-5 ${
-                mobileView === "detail" ? "hidden lg:block" : "block"
-              }`}
+              className={`lg:col-span-5 ${mobileView === "detail" ? "hidden lg:block" : "block"
+                }`}
             >
               {loading ? (
                 <div className="p-8 text-center bg-[#FAF7F2] rounded-2xl border border-[#E5DDD2] text-[#7A6E62]">
@@ -725,9 +792,8 @@ export default function ToddlerLandingPage() {
 
             {/* Right Column: Interactive Map & Detail Showcase */}
             <div
-              className={`lg:col-span-7 space-y-5 ${
-                mobileView === "list" ? "hidden lg:block" : "block"
-              }`}
+              className={`lg:col-span-7 space-y-5 ${mobileView === "list" ? "hidden lg:block" : "block"
+                }`}
             >
               {/* Back to list button on mobile */}
               <div className="lg:hidden pb-1">
@@ -756,10 +822,14 @@ export default function ToddlerLandingPage() {
                 <KitaDetail
                   kita={activeKita}
                   selectedDateFilter={filters.startMonth}
-                  onSelectDateFilter={() => {}}
+                  onSelectDateFilter={() => {
+                    // Clicking an other slot date updates local daycare focus without triggering a search re-query
+                  }}
                   onOpenInquiry={() => handleOpenSingleInquiry(activeKita.id)}
                   onOpenGallery={(idx) => handleOpenGallery(activeKita, idx || 0)}
                   catchmentRadius={filters.radiusKm}
+                  childrenCount={filters.childrenCount}
+                  filters={filters}
                 />
               ) : (
                 <div className="bg-white border border-[#E5DDD2] rounded-2xl p-6 sm:p-8 text-center shadow-2xs space-y-3">
@@ -798,6 +868,35 @@ export default function ToddlerLandingPage() {
           favoritesCount={Object.values(favorites).filter(Boolean).length}
           daycareIds={displayKitas.map((k) => k.id)}
           daycareNames={displayKitas.map((k) => k.name)}
+          searchLocation={
+            parentLocation
+              ? {
+                  lat: parentLocation.lat,
+                  lng: parentLocation.lng,
+                  area: locationQuery.trim() || "Berlin",
+                  address: locationQuery.trim() || "Berlin",
+                }
+              : undefined
+          }
+          currentLocation={
+            parentLocation
+              ? {
+                  lat: parentLocation.lat,
+                  lng: parentLocation.lng,
+                  area: locationQuery.trim() || "Current Location",
+                }
+              : undefined
+          }
+          searchFilters={{
+            child: parseInt(filters.childrenCount) || 1,
+            month: filters.startMonth,
+            year: filters.startYear,
+            tolerance: String(filters.monthTolerance),
+            hours: `${filters.openingFrom} - ${filters.openingUntil}`,
+            food: filters.foodPreference,
+            pet: filters.pets,
+            gender: filters.caretakerGender,
+          }}
           onClose={() => setEnquiryModalOpen(false)}
         />
       )}

@@ -31,4 +31,11 @@ export const API_ROUTES = {
     STATUS: (id: string | number) => `/inquiries/${id}`,
     BULK: "/inquiries/bulk",
   },
+  CONTACT: {
+    SUBMIT: "/contact",
+    ADMIN_LIST: "/admin/contact-messages",
+    ADMIN_DETAIL: (id: string | number) => `/admin/contact-messages/${id}`,
+    ADMIN_STATUS: (id: string | number) => `/admin/contact-messages/${id}/status`,
+    ADMIN_REPLY: (id: string | number) => `/admin/contact-messages/${id}/reply`,
+  },
 } as const;

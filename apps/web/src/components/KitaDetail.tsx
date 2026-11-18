@@ -1,10 +1,12 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
-import { Kita } from "../types";
+import { Kita, AvailableDateOption } from "../types";
 import { useLanguage } from "../i18n/LanguageContext";
 import { CutleryIcon, PawIcon, StarIcon, UserIcon } from "./icons/WebIcons";
+import { caretakerApi } from "../utils/caretakerApi";
+import { getSocket } from "../utils/socket";
 
 interface KitaDetailProps {
   kita: Kita;
@@ -13,6 +15,8 @@ interface KitaDetailProps {
   onOpenInquiry: () => void;
   onOpenGallery?: (initialIndex?: number) => void;
   catchmentRadius?: number;
+  childrenCount?: number | string;
+  filters?: any;
 }
 
 function formatMonthYear(dateStr?: string, lang: string = "de"): string {
@@ -296,6 +300,8 @@ export function KitaDetail({
   onOpenInquiry,
   onOpenGallery,
   catchmentRadius = 3,
+  childrenCount,
+  filters,
 }: KitaDetailProps) {
   const { t, language } = useLanguage();
 
@@ -327,6 +333,89 @@ export function KitaDetail({
   const translatedHours = getTranslatedHours(kita.hours, language);
   const translatedAgeRange = getTranslatedAgeRange(kita.ageRange, language);
   const translatedDistance = getTranslatedDistance(kita.distance, language);
+
+  // Minimum required slots from active children filter (e.g. "1" -> 1, "2" -> 2, "3+" -> 3)
+  const requiredSlots = useMemo(() => {
+    const raw = childrenCount ?? filters?.childrenCount;
+    const num = parseInt(String(raw || "1").replace(/\D/g, ""), 10);
+    return isNaN(num) || num < 1 ? 1 : num;
+  }, [childrenCount, filters?.childrenCount]);
+
+  // Dynamic availability data state (synced with real caretaker bookings)
+  const [liveAvailability, setLiveAvailability] = useState<{
+    nextDate?: string;
+    availableSlots?: number;
+    totalSlots?: number;
+    otherAvailableDates?: AvailableDateOption[];
+  } | null>(null);
+
+  // Local selection for other slot dates (does not trigger global search re-filtering)
+  const [selectedSlotDate, setSelectedSlotDate] = useState<string>("");
+
+  useEffect(() => {
+    setSelectedSlotDate("");
+  }, [kita.id, requiredSlots]);
+
+  // Fetch live availability on mount or when kita.id / requiredSlots change or on daycare:updated socket
+  useEffect(() => {
+    if (!kita.id) return;
+    let isMounted = true;
+
+    const fetchAvailability = async () => {
+      try {
+        const data = await caretakerApi.getDaycareAvailability(kita.id, requiredSlots);
+        if (isMounted && data) {
+          setLiveAvailability(data);
+        }
+      } catch (err) {
+        console.warn("Could not fetch live daycare availability:", err);
+      }
+    };
+
+    fetchAvailability();
+
+    const socket = getSocket();
+    const handleDaycareUpdate = (payload: any) => {
+      if (!payload || payload.daycareId === kita.id || (payload.caretakerId && payload.caretakerId === kita.caretakerId)) {
+        fetchAvailability();
+      }
+    };
+
+    if (socket) {
+      socket.on("daycare:updated", handleDaycareUpdate);
+    }
+
+    return () => {
+      isMounted = false;
+      if (socket) {
+        socket.off("daycare:updated", handleDaycareUpdate);
+      }
+    };
+  }, [kita.id, kita.caretakerId, requiredSlots]);
+
+  // Only genuinely available dates matching the active children filter (max 4 options, availableSlots >= requiredSlots, non-past)
+  const availableDates: AvailableDateOption[] = useMemo(() => {
+    const list = liveAvailability?.otherAvailableDates || kita.otherAvailableDates || [];
+    return list.filter((opt) => opt.availableSlots >= requiredSlots).slice(0, 4);
+  }, [liveAvailability, kita.otherAvailableDates, requiredSlots]);
+
+  const effectiveNextDate =
+    selectedSlotDate ||
+    (availableDates.length > 0 ? availableDates[0].date : null) ||
+    liveAvailability?.nextDate ||
+    kita.nextDate;
+
+  const primaryAvailableSlots =
+    liveAvailability?.availableSlots ??
+    (availableDates.length > 0
+      ? availableDates[0].availableSlots
+      : (kita.availableSlots ?? kita.slots ?? 5));
+
+  const primaryTotalSlots =
+    liveAvailability?.totalSlots ??
+    (availableDates.length > 0
+      ? availableDates[0].totalSlots
+      : (kita.totalSlots ?? kita.maxChildren ?? 5));
 
   return (
     <div className="space-y-4 sm:space-y-5">
@@ -523,7 +612,7 @@ export function KitaDetail({
             </div>
             <div className="flex items-baseline gap-2">
               <span className="text-lg sm:text-2xl font-bold text-[#1E293B]">
-                {formatMonthYear(kita.nextDate, language)}
+                {formatMonthYear(effectiveNextDate, language)}
               </span>
             </div>
           </div>
@@ -555,19 +644,39 @@ export function KitaDetail({
         </div>
       </div>
 
-      {/* Date Selector */}
-      {kita.nextDate && (
+      {/* Date Selector - Other Dates (Up to 4 genuinely available dates matching child filter) */}
+      {availableDates.length > 0 && (
         <div className="space-y-2">
           <div className="text-xs font-semibold text-[#1E1B18] tracking-wide">
             {t.detail.otherDates}
           </div>
           <div className="flex items-center gap-2 overflow-x-auto sm:flex-wrap pb-1.5 scrollbar-none">
-            <button
-              onClick={() => onSelectDateFilter(kita.nextDate)}
-              className="text-xs font-medium px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl border transition-all shrink-0 min-h-[36px] bg-[#A12D3A] text-white border-[#A12D3A] shadow-xs cursor-pointer"
-            >
-              {formatMonthYear(kita.nextDate, language)}
-            </button>
+            {availableDates.map((opt, idx) => {
+              const isSelected = selectedSlotDate
+                ? selectedSlotDate === opt.date
+                : (selectedDateFilter === opt.date || idx === 0);
+              const formattedDate =
+                formatMonthYear(opt.date, language) ||
+                (language === "de" ? opt.labelDe || opt.label : opt.label);
+
+              return (
+                <button
+                  key={opt.date || idx}
+                  type="button"
+                  onClick={() => {
+                    setSelectedSlotDate(opt.date);
+                    onSelectDateFilter?.(opt.date);
+                  }}
+                  className={`text-xs font-medium px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl border transition-all shrink-0 min-h-[36px] cursor-pointer ${
+                    isSelected
+                      ? "bg-[#A12D3A] text-white border-[#A12D3A] shadow-xs font-semibold"
+                      : "bg-white text-[#1E1B18] border-[#E5DDD2] hover:border-[#A12D3A]/40 hover:bg-[#FAF8F5]"
+                  }`}
+                >
+                  {formattedDate}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}

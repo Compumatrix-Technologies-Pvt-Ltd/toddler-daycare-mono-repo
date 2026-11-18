@@ -49,8 +49,9 @@ export function mapMongoDaycareToApplication(raw: any): DaycareApplication {
   // If permit file name exists or permit is attached
   const permitFileName = raw.workPermit?.fileName || "";
   const workPermitUrl = resolveAssetUrl(raw.workPermit?.url);
-  const permitId = raw.workPermit?.permitId || raw.permitNumber || "";
-  const permitName = permitId || (permitFileName ? permitFileName : "—");
+  const rawPermitId = raw.workPermit?.permitId || raw.permitNumber || "";
+  const permitId = rawPermitId && rawPermitId !== "—" ? rawPermitId.trim() : "";
+  const permitName = permitId || "—";
 
   const docCount = (raw.workPermit?.url ? 1 : 0) + (Array.isArray(raw.photos) ? raw.photos.length : 0);
 
@@ -84,6 +85,7 @@ export function mapMongoDaycareToApplication(raw: any): DaycareApplication {
     expirationDate: raw.workPermit?.expirationDate || "",
     issuingAuthority: raw.workPermit?.issuingAuthority || "",
     authorizedCapacity: raw.workPermit?.authorizedCapacity ?? raw.operations?.maxCapacity,
+    childAge: raw.operations?.childAge || raw.childAge || raw.ageRange || "0 – 3 years",
     adminNotes: raw.workPermit?.adminNotes || "",
     approvedAt: raw.workPermit?.approvedAt || "",
     areaType,
@@ -169,12 +171,25 @@ export const adminDaycareService = {
     status: "approved" | "rejected" | "pending",
     workPermitDetails?: WorkPermitDetails
   ): Promise<DaycareApplication | null> {
-    const res = await api.patch(`/daycares/${id}/status`, {
-      status,
-      ...(workPermitDetails ? { workPermitDetails } : {}),
-    });
-    const updatedRaw = res.data?.data;
-    return updatedRaw ? mapMongoDaycareToApplication(updatedRaw) : null;
+    try {
+      const res = await api.patch(`/daycares/${id}/status`, {
+        status,
+        ...(workPermitDetails ? { workPermitDetails } : {}),
+      });
+      const updatedRaw = res.data?.data;
+      return updatedRaw ? mapMongoDaycareToApplication(updatedRaw) : null;
+    } catch (err: any) {
+      try {
+        const fallbackRes = await api.put(`/daycares/${id}/status`, {
+          status,
+          ...(workPermitDetails ? { workPermitDetails } : {}),
+        });
+        const updatedRaw = fallbackRes.data?.data;
+        return updatedRaw ? mapMongoDaycareToApplication(updatedRaw) : null;
+      } catch {
+        throw err;
+      }
+    }
   },
 };
 

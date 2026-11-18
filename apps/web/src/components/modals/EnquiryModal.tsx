@@ -4,13 +4,12 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { submitInquiry } from "../../utils/inquery";
-import { DatePicker, Select } from "@repo/ui";
+import { addSessionFavorite, addMultipleSessionFavorites } from "../../utils/favoritesSession";
 import {
   MailIcon,
-  BabyIcon,
-  CalendarIcon,
-  SparklesIcon,
   UserIcon,
+  PhoneIcon,
+  CloseIcon,
 } from "../icons/WebIcons";
 
 export type EnquiryScope = "single" | "allMap" | "favorites";
@@ -26,6 +25,29 @@ interface EnquiryModalProps {
   favoritesCount?: number;
   daycareIds?: string[];
   daycareNames?: string[];
+  searchLocation?: {
+    lat?: number;
+    log?: number;
+    lng?: number;
+    area?: string;
+    address?: string;
+  };
+  currentLocation?: {
+    lat?: number;
+    log?: number;
+    lng?: number;
+    area?: string;
+  };
+  searchFilters?: {
+    child?: number;
+    month?: string;
+    year?: string;
+    tolerance?: string;
+    hours?: string;
+    food?: string;
+    pet?: string;
+    gender?: string;
+  };
 }
 
 export function EnquiryModal({
@@ -39,40 +61,50 @@ export function EnquiryModal({
   favoritesCount = 2,
   daycareIds = [],
   daycareNames = [],
+  searchLocation,
+  currentLocation,
+  searchFilters,
 }: EnquiryModalProps) {
   const router = useRouter();
-  const { t, language } = useLanguage();
+  const { t } = useLanguage();
 
   // Scope selection
   const [scope, setScope] = useState<EnquiryScope>(initialScope);
 
-  // 1. Child Information
-  const [childName, setChildName] = useState("");
-  const [childBirthday, setChildBirthday] = useState("");
+  // Form Fields: Dein Name, Deine Email, Deine Phone, Deine Nachricht
+  const [parentName, setParentName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [note, setNote] = useState("");
 
-  // 2. Timing & Transition
-  const [desiredStart, setDesiredStart] = useState("August 2026");
-  const [estTransition, setEstTransition] = useState("2-4 Weeks");
-
-  // 3. Care Hours (default "Mon – Fri • 08:00 – 15:00")
-  const [careHours, setCareHours] = useState(
-    t.modals.enquiryForm.careHoursDefault || "Mon – Fri • 08:00 – 15:00"
-  );
-
-  // 4. Preferences (Gender, Meals, Pets)
-  const [prefGender, setPrefGender] = useState<"Female" | "Male" | "Any">("Female");
-  const [prefFood, setPrefFood] = useState<"Self-cooked" | "Delivered" | "Any">("Self-cooked");
-  const [prefPets, setPrefPets] = useState<"Pets OK" | "No Pets" | "Any">("Pets OK");
-
-  // 5. Parent Contact Information
-  const [parentName, setParentName] = useState("Maximilian Schmidt");
-  const [phone, setPhone] = useState("+49 170 1234567");
-  const [email, setEmail] = useState("max@example.com");
-  const [note, setNote] = useState(t.modals.enquiryForm.messageDefault);
-
-  // Consent & Learn More
+  // Consent & Learn More (30-day map visibility)
   const [consent, setConsent] = useState(true);
   const [showLearnMore, setShowLearnMore] = useState(false);
+
+  // Parent Location resolution (GPS coordinates)
+  const [resolvedCurrentLocation, setResolvedCurrentLocation] = useState(currentLocation);
+
+  React.useEffect(() => {
+    if (currentLocation?.lat && (currentLocation?.lng || currentLocation?.log)) {
+      setResolvedCurrentLocation(currentLocation);
+      return;
+    }
+    if (typeof window !== "undefined" && navigator?.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setResolvedCurrentLocation({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            area: "Current Location",
+          });
+        },
+        (err) => {
+          console.warn("[EnquiryModal] Geolocation unavailable:", err?.message);
+        },
+        { timeout: 6000, enableHighAccuracy: false }
+      );
+    }
+  }, [currentLocation]);
 
   // Submission State
   const [loading, setLoading] = useState(false);
@@ -101,8 +133,6 @@ export function EnquiryModal({
           ? daycareNames
           : [activeKitaName];
 
-    const preferencesSummary = `${prefGender} • ${prefFood} • ${prefPets}`;
-
     try {
       const res = await submitInquiry({
         scope,
@@ -110,38 +140,54 @@ export function EnquiryModal({
         caretakerIds: finalCaretakerIds,
         daycareIds: finalDaycareIds,
         daycareNames: finalDaycareNames,
-        childName: childName.trim(),
-        childBirthday: childBirthday.trim(),
-        desiredStart: desiredStart.trim(),
-        estTransition,
-        careHours,
+        childName: parentName.trim() ? `Familie ${parentName.trim()}` : "1 Kind",
+        desiredStart: "Flexibel / Nach Absprache",
+        estTransition: "2-4 Weeks",
+        careHours: "Mo – Fr • 08:00 – 15:00",
         preferences: {
-          gender: prefGender,
-          food: prefFood,
-          pets: prefPets,
+          gender: "Any",
+          food: "Self-cooked",
+          pets: "Pets OK",
         },
         parentName: parentName.trim(),
         phone: phone.trim(),
         email: email.trim(),
         note: note.trim(),
         consentMapVisibility: consent,
+        searchLocation: searchLocation || resolvedCurrentLocation,
+        currentLocation: resolvedCurrentLocation || currentLocation,
+        searchFilters: searchFilters || {
+          child: 1,
+          hours: "Mo – Fr • 08:00 – 15:00",
+          food: "Self-cooked",
+          pet: "Pets OK",
+          gender: "Any",
+        },
       });
 
       const referenceId = res.meta?.referenceId || `REQ-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+
+      // Automatically mark contacted daycare(s) as favorite
+      if (activeKitaId) {
+        addSessionFavorite(activeKitaId);
+      }
+      if (scope === "allMap" && Array.isArray(daycareIds) && daycareIds.length > 0) {
+        addMultipleSessionFavorites(daycareIds);
+      }
 
       const contactedParam =
         scope === "single"
           ? activeKitaName
           : scope === "allMap"
-          ? `${activeKitaName} & ${Math.max(0, totalMapCount - 1)} Others`
-          : `${favoritesCount} Saved Daycares`;
+            ? `${activeKitaName} & ${Math.max(0, totalMapCount - 1)} Others`
+            : `${favoritesCount} Saved Daycares`;
 
       onClose();
 
       router.push(
         `/confirm-enquiry?ref=${encodeURIComponent(referenceId)}&contacted=${encodeURIComponent(
           contactedParam
-        )}&child=${encodeURIComponent(childName || "1 Child")}`
+        )}&child=${encodeURIComponent(parentName.trim() || "1 Kind")}`
       );
     } catch (err: any) {
       console.error("[EnquiryModal] Submission error:", err);
@@ -157,7 +203,7 @@ export function EnquiryModal({
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-3xl border border-[#E5DDD2] w-full max-w-[820px] p-4 sm:p-8 relative my-auto max-h-[92vh] overflow-y-auto shadow-2xl animate-in fade-in zoom-in-95 duration-200"
+        className="bg-white rounded-3xl border border-[#E5DDD2] w-full max-w-[620px] p-5 sm:p-8 relative my-auto max-h-[92vh] overflow-y-auto shadow-2xl animate-in fade-in zoom-in-95 duration-200"
         role="dialog"
         aria-modal="true"
         aria-labelledby="enquiry-modal-title"
@@ -170,16 +216,14 @@ export function EnquiryModal({
           className="absolute top-4 right-4 sm:top-6 sm:right-6 w-10 h-10 rounded-full bg-[#F3ECE2] hover:bg-[#EAE0D2] flex items-center justify-center text-[#6B5E51] hover:text-[#1E1B18] transition-colors cursor-pointer"
           aria-label={t.modals.enquiryForm.close}
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-          </svg>
+          <CloseIcon className="w-4 h-4" />
         </button>
 
         {/* Header */}
-        <div className="text-center space-y-1.5 mb-6 pr-8 sm:pr-0">
+        <div className="text-center space-y-1.5 mb-5 pr-8 sm:pr-0">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FAF7F2] border border-[#E5DDD2] text-xs font-semibold text-[#A12D3A] mb-1">
             <MailIcon className="w-3.5 h-3.5 text-[#A12D3A]" />
-            <span>{t.modals.enquiryForm.titleSingle || "Web Daycare Inquiry"}</span>
+            <span>{t.modals.enquiryForm.titleSingle || "Anfrage senden"}</span>
           </div>
           <h2
             id="enquiry-modal-title"
@@ -195,7 +239,7 @@ export function EnquiryModal({
         </div>
 
         {/* Scope Selector Pills */}
-        <div className="flex flex-wrap sm:flex-nowrap justify-center gap-2 sm:gap-2.5 mb-6">
+        <div className="flex flex-wrap sm:flex-nowrap justify-center gap-2 sm:gap-2.5 mb-5">
           {/* Option 1: To This Provider Only */}
           <button
             type="button"
@@ -251,207 +295,46 @@ export function EnquiryModal({
           </div>
         )}
 
-        {/* Comprehensive Inquiry Form */}
-        <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
-          {/* SECTION 1: CHILD DETAILS */}
-          <div className="p-3.5 sm:p-4 rounded-2xl bg-[#FAF7F2] border border-[#E5DDD2] space-y-3">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase text-[#7A6E62] tracking-wider">
-              <BabyIcon className="w-4 h-4 text-[#7A6E62]" />
-              <span>1. {t.modals.enquiryForm.childNameLabel} & {t.modals.enquiryForm.childBirthdayLabel}</span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {/* Child Name */}
-              <div className="space-y-1">
-                <label className="block text-xs font-semibold text-[#4E443B]">
-                  {t.modals.enquiryForm.childNameLabel} *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={childName}
-                  onChange={(e) => setChildName(e.target.value)}
-                  placeholder={t.modals.enquiryForm.childNamePlaceholder || "e.g. Lukas Schmidt"}
-                  className="w-full bg-white border border-[#D5C9B8] rounded-xl px-3.5 py-2 text-xs sm:text-sm text-[#1E1B18] placeholder-[#9C8E7E] focus:outline-none focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] min-h-[42px] transition-colors"
-                />
-              </div>
-
-              {/* Child Birthday */}
-              <DatePicker
-                label={t.modals.enquiryForm.childBirthdayLabel}
-                value={childBirthday}
-                onChange={(_d, str) => setChildBirthday(str)}
-                locale={language}
-                maxDate={new Date()}
+        {/* Simplified Inquiry Form: Dein Name, Deine Email, Deine Phone, Deine Nachricht */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="p-4 sm:p-5 rounded-2xl bg-[#FAF7F2] border border-[#E5DDD2] space-y-4">
+            {/* 1. Dein Name */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-[#4E443B] uppercase tracking-wider flex items-center gap-1.5">
+                <UserIcon className="w-3.5 h-3.5 text-[#A12D3A]" />
+                <span>{t.modals.enquiryForm.parentNameLabel || "Dein Name"} *</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={parentName}
+                onChange={(e) => setParentName(e.target.value)}
+                placeholder={t.modals.enquiryForm.parentNamePlaceholder || "z. B. Maximilian Schmidt"}
+                className="w-full bg-white border border-[#D5C9B8] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-[#1E1B18] placeholder-[#9C8E7E] focus:outline-none focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] min-h-[44px] transition-colors shadow-2xs"
               />
             </div>
-          </div>
 
-          {/* SECTION 2: TIMING & SCHEDULE */}
-          <div className="p-3.5 sm:p-4 rounded-2xl bg-[#FAF7F2] border border-[#E5DDD2] space-y-3">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase text-[#7A6E62] tracking-wider">
-              <CalendarIcon className="w-4 h-4 text-[#7A6E62]" />
-              <span>2. {t.modals.enquiryForm.desiredStartLabel} & {t.modals.enquiryForm.careHoursLabel}</span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {/* Desired Start */}
-              <div className="space-y-1">
-                <label className="block text-xs font-semibold text-[#4E443B]">
-                  {t.modals.enquiryForm.desiredStartLabel} *
+            {/* 2. Deine Email & 3. Deine Phone */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-[#4E443B] uppercase tracking-wider flex items-center gap-1.5">
+                  <MailIcon className="w-3.5 h-3.5 text-[#A12D3A]" />
+                  <span>{t.modals.enquiryForm.emailLabel || "Deine Email"} *</span>
                 </label>
                 <input
-                  type="text"
+                  type="email"
                   required
-                  value={desiredStart}
-                  onChange={(e) => setDesiredStart(e.target.value)}
-                  placeholder={t.modals.enquiryForm.desiredStartPlaceholder || "e.g. August 2026"}
-                  className="w-full bg-white border border-[#D5C9B8] rounded-xl px-3.5 py-2 text-xs sm:text-sm text-[#1E1B18] placeholder-[#9C8E7E] focus:outline-none focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] min-h-[42px] transition-colors"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder={t.modals.enquiryForm.emailPlaceholder || "z. B. max@example.com"}
+                  className="w-full bg-white border border-[#D5C9B8] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-[#1E1B18] placeholder-[#9C8E7E] focus:outline-none focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] min-h-[44px] transition-colors shadow-2xs"
                 />
               </div>
 
-              {/* Estimated Transition */}
-              <div>
-                <Select
-                  label={t.modals.enquiryForm.estTransitionLabel}
-                  value={estTransition}
-                  onChange={(val) => setEstTransition(val)}
-                  options={[
-                    { value: "1-2 Weeks", label: t.modals.enquiryForm.estTransitionOptions.twoWeeks },
-                    { value: "2-4 Weeks", label: t.modals.enquiryForm.estTransitionOptions.fourWeeks },
-                    { value: "4-6 Weeks", label: t.modals.enquiryForm.estTransitionOptions.sixWeeks },
-                  ]}
-                />
-              </div>
-
-              {/* Care Hours */}
-              <div className="space-y-1">
-                <label className="block text-xs font-semibold text-[#4E443B]">
-                  {t.modals.enquiryForm.careHoursLabel}
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={careHours}
-                  onChange={(e) => setCareHours(e.target.value)}
-                  placeholder={t.modals.enquiryForm.careHoursDefault || "Mon – Fri • 08:00 – 15:00"}
-                  className="w-full bg-white border border-[#D5C9B8] rounded-xl px-3.5 py-2 text-xs sm:text-sm text-[#1E1B18] focus:outline-none focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] min-h-[42px] transition-colors"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* SECTION 3: PREFERENCES */}
-          <div className="p-3.5 sm:p-4 rounded-2xl bg-[#FAF7F2] border border-[#E5DDD2] space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-1.5">
-              <div className="flex items-center gap-2 text-xs font-bold uppercase text-[#7A6E62] tracking-wider">
-                <SparklesIcon className="w-4 h-4 text-[#7A6E62]" />
-                <span>3. {t.modals.enquiryForm.preferencesLabel}</span>
-              </div>
-              <span className="text-[11px] text-[#A12D3A] font-semibold">
-                {prefGender} • {prefFood} • {prefPets}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-              {/* Caretaker Gender Preference */}
-              <div>
-                <label className="block text-[11px] font-semibold text-[#5C5044] mb-1">
-                  Caretaker Gender
-                </label>
-                <div className="grid grid-cols-3 gap-1">
-                  {(["Female", "Male", "Any"] as const).map((g) => (
-                    <button
-                      key={g}
-                      type="button"
-                      onClick={() => setPrefGender(g)}
-                      className={`py-1.5 px-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer truncate ${
-                        prefGender === g
-                          ? "bg-[#A12D3A] text-white border-[#A12D3A] shadow-2xs"
-                          : "bg-white text-[#4E443B] border-[#D5C9B8] hover:bg-[#FAF7F2]"
-                      }`}
-                    >
-                      {g}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Food Preference */}
-              <div>
-                <label className="block text-[11px] font-semibold text-[#5C5044] mb-1">
-                  Meals Preference
-                </label>
-                <div className="grid grid-cols-3 gap-1">
-                  {(["Self-cooked", "Delivered", "Any"] as const).map((f) => (
-                    <button
-                      key={f}
-                      type="button"
-                      onClick={() => setPrefFood(f)}
-                      className={`py-1.5 px-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer truncate ${
-                        prefFood === f
-                          ? "bg-[#A12D3A] text-white border-[#A12D3A] shadow-2xs"
-                          : "bg-white text-[#4E443B] border-[#D5C9B8] hover:bg-[#FAF7F2]"
-                      }`}
-                    >
-                      {f === "Self-cooked" ? "Cooked" : f}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Pets Preference */}
-              <div>
-                <label className="block text-[11px] font-semibold text-[#5C5044] mb-1">
-                  Pets Policy
-                </label>
-                <div className="grid grid-cols-3 gap-1">
-                  {(["Pets OK", "No Pets", "Any"] as const).map((p) => (
-                    <button
-                      key={p}
-                      type="button"
-                      onClick={() => setPrefPets(p)}
-                      className={`py-1.5 px-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer truncate ${
-                        prefPets === p
-                          ? "bg-[#A12D3A] text-white border-[#A12D3A] shadow-2xs"
-                          : "bg-white text-[#4E443B] border-[#D5C9B8] hover:bg-[#FAF7F2]"
-                      }`}
-                    >
-                      {p}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* SECTION 4: PARENT CONTACT INFORMATION */}
-          <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-[#E5DDD2] space-y-3">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase text-[#7A6E62] tracking-wider">
-              <UserIcon className="w-4 h-4 text-[#7A6E62]" />
-              <span>4. {t.modals.enquiryForm.parentNameLabel}</span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {/* Parent Contact Name */}
-              <div className="space-y-1">
-                <label className="block text-xs font-semibold text-[#4E443B]">
-                  {t.modals.enquiryForm.parentNameLabel} *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={parentName}
-                  onChange={(e) => setParentName(e.target.value)}
-                  placeholder={t.modals.enquiryForm.parentNamePlaceholder}
-                  className="w-full bg-white border border-[#D5C9B8] rounded-xl px-3.5 py-2 text-xs sm:text-sm text-[#1E1B18] placeholder-[#9C8E7E] focus:outline-none focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] min-h-[42px] transition-colors"
-                />
-              </div>
-
-              {/* Phone */}
-              <div className="space-y-1">
-                <label className="block text-xs font-semibold text-[#4E443B]">
-                  {t.modals.enquiryForm.phoneLabel} *
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-[#4E443B] uppercase tracking-wider flex items-center gap-1.5">
+                  <PhoneIcon className="w-3.5 h-3.5 text-[#A12D3A]" />
+                  <span>{t.modals.enquiryForm.phoneLabel || "Deine Telefonnummer"} *</span>
                 </label>
                 <input
                   type="tel"
@@ -459,37 +342,25 @@ export function EnquiryModal({
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder={t.modals.enquiryForm.phonePlaceholder || "+49 170 1234567"}
-                  className="w-full bg-white border border-[#D5C9B8] rounded-xl px-3.5 py-2 text-xs sm:text-sm text-[#1E1B18] placeholder-[#9C8E7E] focus:outline-none focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] min-h-[42px] transition-colors"
-                />
-              </div>
-
-              {/* Email */}
-              <div className="space-y-1">
-                <label className="block text-xs font-semibold text-[#4E443B]">
-                  {t.modals.enquiryForm.emailLabel} *
-                </label>
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder={t.modals.enquiryForm.emailPlaceholder}
-                  className="w-full bg-white border border-[#D5C9B8] rounded-xl px-3.5 py-2 text-xs sm:text-sm text-[#1E1B18] placeholder-[#9C8E7E] focus:outline-none focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] min-h-[42px] transition-colors"
+                  className="w-full bg-white border border-[#D5C9B8] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-[#1E1B18] placeholder-[#9C8E7E] focus:outline-none focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] min-h-[44px] transition-colors shadow-2xs"
                 />
               </div>
             </div>
 
-            {/* Note */}
-            <div className="space-y-1 pt-1">
-              <label className="block text-xs font-semibold text-[#4E443B]">
-                {t.modals.enquiryForm.noteLabel}
+            {/* 4. Deine Nachricht */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-[#4E443B] uppercase tracking-wider flex items-center gap-1.5">
+                <svg className="w-3.5 h-3.5 text-[#A12D3A]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+                <span>{t.modals.enquiryForm.noteLabel || "Deine Nachricht"}</span>
               </label>
               <textarea
-                rows={3}
+                rows={4}
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder={t.modals.enquiryForm.notePlaceholder || "Additional notes..."}
-                className="w-full bg-white border border-[#D5C9B8] rounded-xl p-3 text-xs sm:text-sm text-[#1E1B18] focus:outline-none focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] resize-none leading-relaxed min-h-[85px] transition-colors"
+                placeholder={t.modals.enquiryForm.notePlaceholder || "Schreibe Deine Nachricht an die Tagespflege..."}
+                className="w-full bg-white border border-[#D5C9B8] rounded-xl p-3.5 text-xs sm:text-sm text-[#1E1B18] placeholder-[#9C8E7E] focus:outline-none focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] resize-none leading-relaxed min-h-[105px] transition-colors shadow-2xs"
               />
             </div>
           </div>
@@ -579,7 +450,7 @@ export function EnquiryModal({
               {loading ? (
                 <>
                   <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span>{t.modals.enquiryForm.sending || "Sending..."}</span>
+                  <span>{t.modals.enquiryForm.sending || "Anfrage wird gesendet..."}</span>
                 </>
               ) : (
                 <>

@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { register, login, getProfile } from "@/controllers/caretaker/auth";
+import { getCaretakerNearbySearches } from "@/controllers/caretaker/searchHistoryController";
 import { caretakerMiddleware } from "@/middlewares/caretaker.middleware";
 
 const router = Router();
@@ -12,6 +13,9 @@ router.post("/login", login);
 router.get("/verify", caretakerMiddleware, getProfile);
 router.get("/me", caretakerMiddleware, getProfile);
 router.get("/", caretakerMiddleware, getProfile);
+
+// Search history visible within caretaker's daycare catchment radius for 30 days
+router.get("/search-history", caretakerMiddleware, getCaretakerNearbySearches);
 
 export { router as caretaterRouter };
 export default router;

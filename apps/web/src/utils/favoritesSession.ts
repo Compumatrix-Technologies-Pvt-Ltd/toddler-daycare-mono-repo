@@ -144,6 +144,28 @@ export function saveSessionFavorites(favorites: Record<string, boolean>): void {
 }
 
 /**
+ * Add a daycare to favorites (e.g. when parent sends an inquiry)
+ */
+export function addSessionFavorite(id: string): Record<string, boolean> {
+  if (!id) return getSessionFavorites();
+  const current = getSessionFavorites();
+  const next = { ...current, [id]: true };
+  saveSessionFavorites(next);
+  return next;
+}
+
+export function addMultipleSessionFavorites(ids: string[]): Record<string, boolean> {
+  if (!ids || ids.length === 0) return getSessionFavorites();
+  const current = getSessionFavorites();
+  const next = { ...current };
+  for (const id of ids) {
+    if (id) next[id] = true;
+  }
+  saveSessionFavorites(next);
+  return next;
+}
+
+/**
  * Toggle favorite status in the 30-day session.
  */
 export function toggleSessionFavorite(id: string): Record<string, boolean> {

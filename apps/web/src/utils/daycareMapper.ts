@@ -42,7 +42,48 @@ export function mapDaycareToKita(doc: any): Kita {
   ].filter(Boolean);
   const addressStr = addressParts.join(" ");
 
-  const slots = Number(doc.operations?.maxCapacity) || 0;
+  const totalSlots = Number(doc.operations?.maxCapacity || doc.maxCapacity || 5) || 5;
+  const availableSlots =
+    doc.availableSlots != null
+      ? Number(doc.availableSlots)
+      : doc.slots != null
+        ? Number(doc.slots)
+        : totalSlots;
+
+  const otherAvailableDates = Array.isArray(doc.otherAvailableDates) ? doc.otherAvailableDates : [];
+
+  let finalOtherDates = otherAvailableDates;
+  if (!finalOtherDates || finalOtherDates.length === 0) {
+    const DE_MONTHS = ["", "Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
+    const EN_MONTHS = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const now = new Date();
+    let y = now.getFullYear();
+    let m = now.getMonth() + 1;
+    finalOtherDates = [];
+    for (let i = 0; i < 4; i++) {
+      const monthPadded = String(m).padStart(2, "0");
+      const dStr = `${y}-${monthPadded}-01`;
+      finalOtherDates.push({
+        date: dStr,
+        year: y,
+        month: m,
+        monthNameEn: EN_MONTHS[m] || "Mon",
+        monthNameDe: DE_MONTHS[m] || "Mon",
+        label: `${EN_MONTHS[m]}, ${y}`,
+        labelDe: `${DE_MONTHS[m]}, ${y}`,
+        totalSlots,
+        bookedSlots: 0,
+        availableSlots: totalSlots,
+      });
+      m++;
+      if (m > 12) {
+        m = 1;
+        y++;
+      }
+    }
+  }
+
+  const slots = availableSlots;
   const rating =
     doc.ratings && Array.isArray(doc.ratings) && doc.ratings.length > 0
       ? Number(
@@ -90,22 +131,34 @@ export function mapDaycareToKita(doc: any): Kita {
   const catchmentRadiusKm =
     Number(doc.location?.catchmentRadiusKm) || (areaType === "rural" ? 10 : 3);
 
+  const effectiveNextDate =
+    doc.nextDate ||
+    (finalOtherDates.length > 0 ? finalOtherDates[0].date : rawWindow);
+
   return {
     id: String(doc._id || ""),
     caretakerId: String(doc.caretakerId?._id || doc.caretakerId || ""),
     name: daycareName,
     location: locationStr,
     slots,
+    totalSlots,
+    availableSlots,
+    otherAvailableDates: finalOtherDates,
     rating,
     reviewCount: doc.ratings?.length || 0,
     image: mainImage,
     photos: photoList,
     tags,
     favorite: false,
-    nextDate: rawWindow,
+    nextDate: effectiveNextDate,
     nextDay: "",
     hours: rawOperatingHours,
-    ageRange: "",
+    ageRange:
+      doc.operations?.childAge ||
+      doc.operations?.ageRange ||
+      doc.childAge ||
+      doc.ageRange ||
+      "0 – 3 years",
     distance: "",
     coordinates: {
       top: "50%",
@@ -117,13 +170,13 @@ export function mapDaycareToKita(doc: any): Kita {
     caretakerDe: caregiver,
     address: addressStr,
     distanceKm: undefined,
-    maxChildren: slots,
+    maxChildren: totalSlots,
     mealsType: rawMeals,
     mealsTypeDe: rawMeals,
     petsPolicy: rawPets,
     petsPolicyDe: rawPets,
-    vacancyDate: rawWindow,
-    vacancyDateDe: rawWindow,
+    vacancyDate: effectiveNextDate,
+    vacancyDateDe: effectiveNextDate,
     gender,
     website: doc.contact?.website ? String(doc.contact.website).trim() : "",
     phone: doc.contact?.phone ? String(doc.contact.phone).trim() : "",

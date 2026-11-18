@@ -8,6 +8,7 @@ import {
   BuildingIcon,
   ShieldCheckIcon,
   MailIcon,
+  MessageSquareIcon,
 } from "../icons/AdminIcons";
 import { AdminTab, AdminUser } from "../../types/admin";
 import { useLanguage } from "../../context/LanguageContext";
@@ -19,6 +20,7 @@ interface AdminSidebarProps {
   mobileOpen: boolean;
   onCloseMobile: () => void;
   pendingCount?: number;
+  unreadContactCount?: number;
   user?: AdminUser | null;
 }
 
@@ -29,6 +31,7 @@ export function AdminSidebar({
   mobileOpen,
   onCloseMobile,
   pendingCount = 0,
+  unreadContactCount = 0,
 }: AdminSidebarProps) {
   const { t } = useLanguage();
 
@@ -53,6 +56,12 @@ export function AdminSidebar({
       id: "inquiries",
       label: t.admin.sidebar.inquiries,
       icon: MailIcon,
+    },
+    {
+      id: "contact",
+      label: t.admin.sidebar.contactMessages || "Contact Messages",
+      icon: MessageSquareIcon,
+      badge: unreadContactCount > 0 ? unreadContactCount : undefined,
     },
     {
       id: "settings",

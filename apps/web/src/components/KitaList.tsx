@@ -25,20 +25,37 @@ export function KitaList({
   onOpenGallery,
   catchmentRadius = 3,
 }: KitaListProps) {
+  const cardRefs = React.useRef<{ [id: string]: HTMLDivElement | null }>({});
+
+  React.useEffect(() => {
+    if (selectedKitaId && cardRefs.current[selectedKitaId]) {
+      cardRefs.current[selectedKitaId]?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    }
+  }, [selectedKitaId]);
+
   return (
     <div className="space-y-4 max-h-[860px] overflow-y-auto pr-3 kita-scrollbar">
       {kitas.map((kita) => (
-        <KitaCard
+        <div
           key={kita.id}
-          kita={kita}
-          isSelected={kita.id === selectedKitaId}
-          isFavorite={favorites[kita.id] ?? false}
-          onSelect={() => onSelectKita(kita.id)}
-          onToggleFavorite={(e) => onToggleFavorite(kita.id, e)}
-          onOpenInquiry={(e) => onOpenInquiry(kita.id, e)}
-          onOpenGallery={() => onOpenGallery && onOpenGallery(kita)}
-          catchmentRadius={catchmentRadius}
-        />
+          ref={(el) => {
+            cardRefs.current[kita.id] = el;
+          }}
+        >
+          <KitaCard
+            kita={kita}
+            isSelected={kita.id === selectedKitaId}
+            isFavorite={favorites[kita.id] ?? false}
+            onSelect={() => onSelectKita(kita.id)}
+            onToggleFavorite={(e) => onToggleFavorite(kita.id, e)}
+            onOpenInquiry={(e) => onOpenInquiry(kita.id, e)}
+            onOpenGallery={() => onOpenGallery && onOpenGallery(kita)}
+            catchmentRadius={catchmentRadius}
+          />
+        </div>
       ))}
     </div>
   );

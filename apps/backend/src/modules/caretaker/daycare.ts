@@ -32,7 +32,12 @@ const daycareSchema = new Schema<IDaycare>(
             visibilityWindow: { type: String, required: true },
             operatingHours: { type: String, required: true },
             maxCapacity: { type: Number, required: true, min: 1 },
+            childAge: { type: String, default: "0 – 3 years" },
+            ageRange: { type: String, default: "0 – 3 years" },
         },
+
+        childAge: { type: String, default: "0 – 3 years" },
+        ageRange: { type: String, default: "0 – 3 years" },
 
         contact: {
             email: { type: String, required: true },

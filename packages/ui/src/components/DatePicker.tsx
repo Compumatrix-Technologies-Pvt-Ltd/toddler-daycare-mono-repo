@@ -13,38 +13,98 @@ export interface DatePickerProps {
   minDate?: Date | string | null | undefined;
   maxDate?: Date | string | null | undefined;
   locale?: "de" | "en" | undefined;
+  format?: "default" | "dd,mmm,yyyy" | "YYYY-MM-DD" | "DD.MM.YYYY" | "mmm,yyyy" | undefined;
   id?: string | undefined;
   disabled?: boolean | undefined;
   required?: boolean | undefined;
   clearable?: boolean | undefined;
+  align?: "left" | "right" | "auto" | undefined;
 }
+
+const MONTH_NAMES_EN = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const MONTH_NAMES_DE = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
 
 function parseDateInput(d?: Date | string | null): Date | null {
   if (!d) return null;
   if (d instanceof Date) {
     return isNaN(d.getTime()) ? null : d;
   }
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(d);
-  if (match && match[1] && match[2] && match[3]) {
-    const year = parseInt(match[1], 10);
-    const month = parseInt(match[2], 10) - 1;
-    const day = parseInt(match[3], 10);
+  if (typeof d !== "string") return null;
+  const trimmed = d.trim();
+
+  // 1. ISO YYYY-MM-DD
+  const isoMatch = /^(\d{4})-(\d{2})-(\d{2})/.exec(trimmed);
+  if (isoMatch && isoMatch[1] && isoMatch[2] && isoMatch[3]) {
+    const year = parseInt(isoMatch[1], 10);
+    const month = parseInt(isoMatch[2], 10) - 1;
+    const day = parseInt(isoMatch[3], 10);
     return new Date(year, month, day);
   }
-  const parsed = new Date(d);
+
+  // 2. German DD.MM.YYYY
+  const deMatch = /^(\d{1,2})\.(\d{1,2})\.(\d{4})/.exec(trimmed);
+  if (deMatch && deMatch[1] && deMatch[2] && deMatch[3]) {
+    const day = parseInt(deMatch[1], 10);
+    const month = parseInt(deMatch[2], 10) - 1;
+    const year = parseInt(deMatch[3], 10);
+    return new Date(year, month, day);
+  }
+
+  // 3. dd,mmm,yyyy (e.g. "18, Nov, 2026" or "18, Mär, 2026" or "18 Nov 2026")
+  const mmmMatch = /^(\d{1,2})[\s,]+([a-zA-ZäöüÄÖÜ]+)[\s,]+(\d{4})/.exec(trimmed);
+  if (mmmMatch && mmmMatch[1] && mmmMatch[2] && mmmMatch[3]) {
+    const day = parseInt(mmmMatch[1], 10);
+    const mStr = mmmMatch[2].toLowerCase();
+    const year = parseInt(mmmMatch[3], 10);
+
+    const enIdx = MONTH_NAMES_EN.findIndex(
+      (m) => m.toLowerCase() === mStr || mStr.startsWith(m.toLowerCase())
+    );
+    if (enIdx !== -1) return new Date(year, enIdx, day);
+
+    const deIdx = MONTH_NAMES_DE.findIndex(
+      (m) => m.toLowerCase() === mStr || mStr.startsWith(m.toLowerCase())
+    );
+    if (deIdx !== -1) return new Date(year, deIdx, day);
+  }
+
+  // 4. mmm,yyyy or mmm yyyy (e.g. "Dec, 2026", "Dec,2026", "Feb 2027", "März 2027")
+  const mmmYearMatch = /^([a-zA-ZäöüÄÖÜ]+)[\s,.-]+(\d{4})/.exec(trimmed);
+  if (mmmYearMatch && mmmYearMatch[1] && mmmYearMatch[2]) {
+    const mStr = mmmYearMatch[1].toLowerCase();
+    const year = parseInt(mmmYearMatch[2], 10);
+    const enIdx = MONTH_NAMES_EN.findIndex(
+      (m) => m.toLowerCase() === mStr || mStr.startsWith(m.toLowerCase())
+    );
+    if (enIdx !== -1) return new Date(year, enIdx, 1);
+    const deIdx = MONTH_NAMES_DE.findIndex(
+      (m) => m.toLowerCase() === mStr || mStr.startsWith(m.toLowerCase())
+    );
+    if (deIdx !== -1) return new Date(year, deIdx, 1);
+  }
+
+  const parsed = new Date(trimmed);
   return isNaN(parsed.getTime()) ? null : parsed;
 }
 
-function formatDateDisplay(d: Date, locale: "de" | "en"): string {
+function formatDateDisplay(d: Date, locale: "de" | "en", format?: string): string {
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+
+  if (format === "mmm,yyyy") {
+    const monthName = locale === "de" ? MONTH_NAMES_DE[d.getMonth()] : MONTH_NAMES_EN[d.getMonth()];
+    return `${monthName}, ${year}`;
+  }
+
+  if (format === "dd,mmm,yyyy") {
+    const monthName = locale === "de" ? MONTH_NAMES_DE[d.getMonth()] : MONTH_NAMES_EN[d.getMonth()];
+    return `${day}, ${monthName}, ${year}`;
+  }
+
   if (locale === "de") {
-    const day = String(d.getDate()).padStart(2, "0");
-    const month = String(d.getMonth() + 1).padStart(2, "0");
-    const year = d.getFullYear();
     return `${day}.${month}.${year}`;
   }
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  const year = d.getFullYear();
   return `${year}-${month}-${day}`;
 }
 
@@ -58,10 +118,12 @@ export const DatePicker: React.FC<DatePickerProps> = ({
   minDate,
   maxDate,
   locale = "de",
+  format,
   id: customId,
   disabled = false,
   required = false,
   clearable = true,
+  align: customAlign,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [placement, setPlacement] = useState<"bottom" | "top">("bottom");
@@ -115,13 +177,18 @@ export const DatePicker: React.FC<DatePickerProps> = ({
         rect.bottom + popoverHeight > viewportHeight && rect.top > popoverHeight;
       setPlacement(shouldShowTop ? "top" : "bottom");
 
-      const shouldAlignRight = rect.left + popoverWidth > viewportWidth;
-      setAlign(shouldAlignRight ? "right" : "left");
+      if (customAlign && customAlign !== "auto") {
+        setAlign(customAlign);
+      } else {
+        const shouldAlignRight = rect.left + popoverWidth > viewportWidth || rect.right > viewportWidth;
+        setAlign(shouldAlignRight ? "right" : "left");
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, customAlign]);
 
   const handleCalendarChange = (selectedDate: Date, isoStr: string) => {
-    onChange(selectedDate, isoStr);
+    const formatted = format ? formatDateDisplay(selectedDate, locale, format) : isoStr;
+    onChange(selectedDate, formatted);
     setIsOpen(false);
   };
 
@@ -131,11 +198,11 @@ export const DatePicker: React.FC<DatePickerProps> = ({
   };
 
   const displayValue = parsedDate
-    ? formatDateDisplay(parsedDate, locale)
+    ? formatDateDisplay(parsedDate, locale, format)
     : "";
 
   return (
-    <div className={`flex flex-col gap-1.5 ${className}`} ref={containerRef}>
+    <div className={`flex flex-col gap-1.5 ${className} ${isOpen ? "relative z-[80]" : ""}`} ref={containerRef}>
       {label && (
         <label
           htmlFor={inputId}
@@ -145,15 +212,24 @@ export const DatePicker: React.FC<DatePickerProps> = ({
         </label>
       )}
 
-      <div className="relative">
-        <button
+      <div className={`relative ${isOpen ? "z-[80]" : ""}`}>
+        <div
           id={inputId}
-          type="button"
-          disabled={disabled}
-          onClick={() => setIsOpen((prev) => !prev)}
+          role="button"
+          tabIndex={disabled ? -1 : 0}
           aria-haspopup="dialog"
           aria-expanded={isOpen}
-          className={`w-full min-h-[42px] px-3.5 py-2 rounded-xl border bg-white flex items-center justify-between gap-2.5 text-xs sm:text-sm font-medium transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#A12D3A]/15 focus:border-[#A12D3A] ${
+          onClick={() => {
+            if (!disabled) setIsOpen((prev) => !prev);
+          }}
+          onKeyDown={(e) => {
+            if (disabled) return;
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setIsOpen((prev) => !prev);
+            }
+          }}
+          className={`w-full min-h-[42px] px-3.5 py-2 rounded-xl border bg-white flex items-center justify-between gap-2.5 text-xs sm:text-sm font-medium transition-colors cursor-pointer select-none focus:outline-none focus:ring-2 focus:ring-[#A12D3A]/15 focus:border-[#A12D3A] ${
             error
               ? "border-[#DC2626]"
               : "border-[#E5DDD2] hover:border-[#A12D3A]/50"
@@ -215,15 +291,24 @@ export const DatePicker: React.FC<DatePickerProps> = ({
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
             </svg>
           </span>
-        </button>
+        </div>
 
         {/* Dropdown Popover */}
         {isOpen && (
           <div
-            className={`absolute z-[100] w-80 shadow-xl ${
+            className={`absolute z-[100] w-80 bg-white rounded-2xl border border-[#E5DDD2] shadow-2xl ${
               placement === "bottom" ? "top-full mt-1.5" : "bottom-full mb-1.5"
             } ${align === "left" ? "left-0" : "right-0"}`}
-            style={{ width: "320px", maxWidth: "calc(100vw - 32px)" }}
+            style={{
+              width: "320px",
+              maxWidth: "calc(100vw - 32px)",
+              backgroundColor: "#FFFFFF",
+              borderRadius: "16px",
+              border: "1px solid #E5DDD2",
+              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+              zIndex: 99999,
+              ...(align === "left" ? { left: 0 } : { right: 0 }),
+            }}
           >
             <Calendar
               value={parsedDate}

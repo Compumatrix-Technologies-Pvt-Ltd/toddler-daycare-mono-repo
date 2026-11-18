@@ -7,22 +7,30 @@ export interface IInquiry extends Document {
   caretakerIds: string[];
   daycareIds?: string[];
   daycareNames: string[];
-  childName: string;
-  childBirthday?: string;
-  desiredStart: string;
-  estTransition?: string;
-  careHours: string;
-  preferences?: {
-    gender?: string;
-    food?: string;
-    pets?: string;
-  };
   parentName: string;
   phone: string;
   email: string;
   note?: string;
   consentMapVisibility: boolean;
-  status: "pending" | "reviewed" | "accepted" | "declined";
+  searchLocation?: {
+    lat?: number;
+    log?: number;
+    lng?: number;
+    area?: string;
+    address?: string;
+  };
+  currentLocation?: {
+    lat?: number;
+    log?: number;
+    lng?: number;
+    area?: string;
+    address?: string;
+  };
+  locationDistance?: string;
+  locationDistanceDe?: string;
+  distanceKm?: number;
+  status: "pending" | "reviewed" | "contacted" | "accepted" | "declined" | "booked";
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -33,6 +41,12 @@ const InquirySchema = new Schema<IInquiry>(
       type: String,
       required: true,
       unique: true,
+      index: true,
+    },
+    status: {
+      type: String,
+      enum: ["pending", "reviewed", "contacted", "accepted", "declined", "booked"],
+      default: "pending",
       index: true,
     },
     scope: {
@@ -61,35 +75,6 @@ const InquirySchema = new Schema<IInquiry>(
         type: String,
       },
     ],
-    childName: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    childBirthday: {
-      type: String,
-      trim: true,
-    },
-    desiredStart: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    estTransition: {
-      type: String,
-      trim: true,
-      default: "2-4 Weeks",
-    },
-    careHours: {
-      type: String,
-      required: true,
-      default: "Mon – Fri • 08:00 – 15:00",
-    },
-    preferences: {
-      gender: { type: String, default: "Any" },
-      food: { type: String, default: "Self-cooked" },
-      pets: { type: String, default: "Pets OK" },
-    },
     parentName: {
       type: String,
       required: true,
@@ -114,10 +99,32 @@ const InquirySchema = new Schema<IInquiry>(
       type: Boolean,
       default: true,
     },
-    status: {
+    searchLocation: {
+      lat: { type: Number },
+      lng: { type: Number },
+      log: { type: Number },
+      area: { type: String, trim: true },
+      address: { type: String, trim: true },
+    },
+    currentLocation: {
+      lat: { type: Number },
+      lng: { type: Number },
+      log: { type: Number },
+      area: { type: String, trim: true },
+      address: { type: String, trim: true },
+    },
+    locationDistance: {
       type: String,
-      enum: ["pending", "reviewed", "accepted", "declined"],
-      default: "pending",
+      default: "",
+      trim: true,
+    },
+    locationDistanceDe: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    distanceKm: {
+      type: Number,
     },
   },
   {

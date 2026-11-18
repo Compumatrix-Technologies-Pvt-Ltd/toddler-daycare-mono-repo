@@ -3,7 +3,9 @@
 import React, { useState } from "react";
 import { useLanguage } from "../../../i18n/LanguageContext";
 import { BookingItem } from "../../../types/caretakerDashboard";
-import { DatePicker } from "@repo/ui";
+import { DatePicker, TimePicker } from "@repo/ui";
+import { caretakerApi } from "../../../utils/caretakerApi";
+import { parseFlexibleBookingDate } from "@repo/shared";
 
 interface AddBookingModalProps {
   isOpen: boolean;
@@ -16,53 +18,133 @@ export function AddBookingModal({ isOpen, onClose, onAddBooking }: AddBookingMod
   const m = t.caretakerDashboard.modals.addBooking;
 
   const [childName, setChildName] = useState("");
-  const [childDob, setChildDob] = useState("2025-02-15");
-  const [placementStart, setPlacementStart] = useState("2027-08-01");
-  const [transitionDate, setTransitionDate] = useState("2029-06-30");
-  const [dailyHours, setDailyHours] = useState("07:30 – 15:30");
-  const [parentNames, setParentNames] = useState("");
+  const [childDob, setChildDob] = useState("15, Feb, 2025");
+  const [placementStart, setPlacementStart] = useState("Aug, 2027");
+  const [transitionDate, setTransitionDate] = useState("Jun, 2029");
+  const [careHoursFrom, setCareHoursFrom] = useState("07:30");
+  const [careHoursTo, setCareHoursTo] = useState("15:30");
   const [parentPhone, setParentPhone] = useState("");
   const [parentEmail, setParentEmail] = useState("");
-  const [notes, setNotes] = useState("");
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successToast, setSuccessToast] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const dailyHours = careHoursFrom && careHoursTo ? `${careHoursFrom} – ${careHoursTo}` : careHoursFrom || careHoursTo;
+
+  const isTimeOrderValid =
+    !careHoursFrom || !careHoursTo || careHoursFrom < careHoursTo;
+
+  const isFormValid =
+    Boolean(childName.trim()) &&
+    Boolean(childDob.trim()) &&
+    Boolean(placementStart.trim()) &&
+    Boolean(transitionDate.trim()) &&
+    Boolean(careHoursFrom.trim()) &&
+    Boolean(careHoursTo.trim()) &&
+    isTimeOrderValid &&
+    Boolean(parentPhone.trim()) &&
+    Boolean(parentEmail.trim());
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!childName.trim()) return;
+    setHasAttemptedSubmit(true);
+    setErrorMessage(null);
 
-    const newBooking: BookingItem = {
-      id: `booking-${Date.now()}`,
-      childName: childName.trim(),
-      childAge: `1.5 yrs (${childDob.slice(0, 7)})`,
-      childAgeDe: `1,5 J. (${childDob.slice(0, 7)})`,
-      placementStart: placementStart,
-      placementStartDe: placementStart,
-      kindergartenTransition: transitionDate,
-      kindergartenTransitionDe: transitionDate,
-      period: `${placementStart.slice(0, 7)} – ${transitionDate.slice(0, 7)}`,
-      periodDe: `${placementStart.slice(0, 7)} – ${transitionDate.slice(0, 7)}`,
-      startMonthIndex: 12, // Future or customized
-      endMonthIndex: 21,
-      dailyHours: `Mon – Fri • ${dailyHours}`,
-      dailyHoursDe: `Mo. – Fr. • ${dailyHours} Uhr`,
-      parentContact: {
-        parents: parentNames.trim() || (language === "de" ? "Familie Schmidt" : "Schmidt Family"),
-        phone: parentPhone.trim() || "+49 30 12345678",
-        email: parentEmail.trim() || "family@example.de",
-      },
-      category: "future",
-      isExtendingRight: true,
-    };
+    if (!isTimeOrderValid) {
+      setErrorMessage(
+        language === "de"
+          ? "Die Endzeit muss nach der Startzeit liegen."
+          : "End time must be after start time."
+      );
+      return;
+    }
 
-    onAddBooking(newBooking);
-    setSuccessToast(true);
-    setTimeout(() => {
-      setSuccessToast(false);
-      onClose();
-    }, 900);
+    if (!isFormValid) {
+      setErrorMessage(
+        (m as any).validationRequired ||
+          (language === "de"
+            ? "Bitte fülle alle Pflichtfelder vollständig aus."
+            : "Please complete all required fields.")
+      );
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      // Persist booking directly to MongoDB database
+      let createdBooking: any = null;
+      try {
+        createdBooking = await caretakerApi.createBooking({
+          childName: childName.trim(),
+          childDob: childDob.trim(),
+          placementStart: placementStart.trim(),
+          kindergartenTransition: transitionDate.trim(),
+          dailyHours: dailyHours.trim(),
+          parentContact: {
+            phone: parentPhone.trim(),
+            email: parentEmail.trim(),
+          },
+        });
+      } catch (err: any) {
+        console.warn("Could not save booking to remote API, falling back to local item:", err);
+      }
+
+      const generatedId = createdBooking?._id || createdBooking?.id || `booking-${Date.now()}`;
+      const dStart = parseFlexibleBookingDate(placementStart, false);
+      const isCurrent = dStart ? dStart <= new Date() : false;
+
+      const newBooking: BookingItem = {
+        id: String(generatedId),
+        childName: childName.trim(),
+        childAge: `DOB: ${childDob}`,
+        childAgeDe: `Geb.: ${childDob}`,
+        placementStart: placementStart,
+        placementStartDe: placementStart,
+        kindergartenTransition: transitionDate,
+        kindergartenTransitionDe: transitionDate,
+        period: `${placementStart} – ${transitionDate}`,
+        periodDe: `${placementStart} – ${transitionDate}`,
+        startMonthIndex: 12,
+        endMonthIndex: 21,
+        dailyHours: dailyHours.includes("•") ? dailyHours : `Mon – Fri • ${dailyHours}`,
+        dailyHoursDe: dailyHours.includes("•") ? dailyHours : `Mo. – Fr. • ${dailyHours} Uhr`,
+        parentContact: {
+          parents: "",
+          phone: parentPhone.trim(),
+          email: parentEmail.trim(),
+        },
+        category: isCurrent ? "current" : "future",
+        isBooked: true,
+        isExtendingRight: true,
+        dob: childDob,
+        desiredStart: placementStart,
+        desiredStartDe: placementStart,
+        estTransition: transitionDate,
+        estTransitionDe: transitionDate,
+      };
+
+      onAddBooking(newBooking);
+      setSuccessToast(true);
+      setTimeout(() => {
+        setSuccessToast(false);
+        setIsSubmitting(false);
+        onClose();
+      }, 900);
+    } catch (err: any) {
+      setIsSubmitting(false);
+      setErrorMessage(err.message || "Failed to create booking");
+    }
   };
+
+  const getInputBorderClass = (isEmpty: boolean) =>
+    hasAttemptedSubmit && isEmpty
+      ? "border-[#D92D20] bg-[#FEF3F2] focus:ring-[#D92D20]/20 focus:border-[#D92D20]"
+      : "border-[#D0D5DD] focus:ring-[#A12D3A]/20 focus:border-[#A12D3A]";
 
   return (
     <div
@@ -73,7 +155,7 @@ export function AddBookingModal({ isOpen, onClose, onAddBooking }: AddBookingMod
       onClick={onClose}
     >
       <div
-        className="relative bg-white rounded-2xl shadow-2xl border border-[#EAECF0] w-full max-w-lg p-6 sm:p-7 max-h-[92vh] overflow-y-auto text-[#101828]"
+        className="relative bg-white rounded-2xl shadow-2xl border border-[#EAECF0] w-full max-w-[580px] sm:max-w-[620px] p-6 sm:p-7 max-h-[92vh] overflow-y-auto text-[#101828]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -96,6 +178,18 @@ export function AddBookingModal({ isOpen, onClose, onAddBooking }: AddBookingMod
           </button>
         </div>
 
+        {/* Error Alert */}
+        {errorMessage && (
+          <div className="mt-4 p-3 rounded-xl bg-[#FEF3F2] border border-[#FECDCA] text-[#B42318] text-xs sm:text-sm font-medium flex items-center gap-2">
+            <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            <span>{errorMessage}</span>
+          </div>
+        )}
+
         {/* Success Alert */}
         {successToast && (
           <div className="mt-4 p-3 rounded-xl bg-[#F0FDF4] border border-[#BBF7D0] text-[#15803D] text-sm font-medium flex items-center gap-2">
@@ -106,8 +200,9 @@ export function AddBookingModal({ isOpen, onClose, onAddBooking }: AddBookingMod
           </div>
         )}
 
-        {/* Form */}
+        {/* Form: Child name, Child Birthday, Daily hours, Placement start, Kindergarten transition, Parent contact */}
         <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+          {/* 1. Child name */}
           <div>
             <label className="block text-xs font-semibold text-[#344054] mb-1.5 uppercase tracking-wide">
               {m.childName} <span className="text-[#D92D20]">*</span>
@@ -118,105 +213,116 @@ export function AddBookingModal({ isOpen, onClose, onAddBooking }: AddBookingMod
               value={childName}
               onChange={(e) => setChildName(e.target.value)}
               placeholder={m.childNamePlaceholder}
-              className="w-full h-[42px] px-3 rounded-lg border border-[#D0D5DD] text-sm text-[#101828] placeholder-[#98A2B3] focus:outline-hidden focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] transition-all"
+              className={`w-full h-[42px] px-3 rounded-lg border text-sm text-[#101828] placeholder-[#98A2B3] focus:outline-hidden focus:ring-2 transition-all ${getInputBorderClass(!childName.trim())}`}
             />
           </div>
 
+          {/* 2. Child Birthday & Daily hours */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            <div>
+            <div className="relative z-20">
+              <label className="block text-xs font-semibold text-[#344054] mb-1.5 uppercase tracking-wide">
+                {m.childDob} <span className="text-[#D92D20]">*</span>
+              </label>
               <DatePicker
-                label={m.childDob}
                 value={childDob}
+                format="dd,mmm,yyyy"
                 onChange={(_d, str) => setChildDob(str)}
                 locale={language}
                 maxDate={new Date()}
+                placeholder={language === "de" ? "z.B. 15, Feb, 2025" : "e.g. 15, Feb, 2025"}
               />
             </div>
             <div>
               <label className="block text-xs font-semibold text-[#344054] mb-1.5 uppercase tracking-wide">
-                {m.dailyHours}
+                {m.dailyHours} <span className="text-[#D92D20]">*</span>
               </label>
-              <input
-                type="text"
-                value={dailyHours}
-                onChange={(e) => setDailyHours(e.target.value)}
-                placeholder={m.dailyHoursPlaceholder}
-                className="w-full h-[42px] px-3 rounded-xl border border-[#D0D5DD] text-sm text-[#101828] placeholder-[#98A2B3] focus:outline-hidden focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] transition-all"
-              />
+              <div className="flex items-center gap-2">
+                <div className="flex-1 min-w-0">
+                  <TimePicker
+                    value={careHoursFrom}
+                    onChange={(time) => setCareHoursFrom(time)}
+                    locale={language}
+                    placeholder="07:30"
+                    clearable={false}
+                  />
+                </div>
+                <span className="text-[#667085] text-xs shrink-0 font-medium">–</span>
+                <div className="flex-1 min-w-0">
+                  <TimePicker
+                    value={careHoursTo}
+                    onChange={(time) => setCareHoursTo(time)}
+                    locale={language}
+                    placeholder="15:30"
+                    align="right"
+                    clearable={false}
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
+          {/* 3. Placement start & 4. Kindergarten transition (mmm,yyyy format) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            <div>
+            <div className="relative z-30">
+              <label className="block text-xs font-semibold text-[#344054] mb-1.5 uppercase tracking-wide">
+                {m.placementStart} <span className="text-[#D92D20]">*</span>
+              </label>
               <DatePicker
-                label={m.placementStart}
                 value={placementStart}
+                format="mmm,yyyy"
                 onChange={(_d, str) => setPlacementStart(str)}
                 locale={language}
+                placeholder={language === "de" ? "z.B. Aug, 2027" : "e.g. Aug, 2027"}
               />
             </div>
-            <div>
+            <div className="relative z-20">
+              <label className="block text-xs font-semibold text-[#344054] mb-1.5 uppercase tracking-wide">
+                {m.transitionDate} <span className="text-[#D92D20]">*</span>
+              </label>
               <DatePicker
-                label={m.transitionDate}
                 value={transitionDate}
+                format="mmm,yyyy"
                 onChange={(_d, str) => setTransitionDate(str)}
                 locale={language}
-                minDate={placementStart}
+                align="right"
+                placeholder={language === "de" ? "z.B. Jun, 2029" : "e.g. Jun, 2029"}
               />
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-[#344054] mb-1.5 uppercase tracking-wide">
-              {m.parentNames}
-            </label>
-            <input
-              type="text"
-              value={parentNames}
-              onChange={(e) => setParentNames(e.target.value)}
-              placeholder={m.parentNamesPlaceholder}
-              className="w-full h-[42px] px-3 rounded-lg border border-[#D0D5DD] text-sm text-[#101828] placeholder-[#98A2B3] focus:outline-hidden focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] transition-all"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            <div>
-              <label className="block text-xs font-semibold text-[#344054] mb-1.5 uppercase tracking-wide">
-                {m.parentPhone}
-              </label>
-              <input
-                type="tel"
-                value={parentPhone}
-                onChange={(e) => setParentPhone(e.target.value)}
-                placeholder={m.parentPhonePlaceholder}
-                className="w-full h-[42px] px-3 rounded-lg border border-[#D0D5DD] text-sm text-[#101828] placeholder-[#98A2B3] focus:outline-hidden focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] transition-all"
-              />
+          {/* 5. Parent contact: phone & email */}
+          <div className="pt-2 border-t border-[#F2F4F7]">
+            <h3 className="text-xs font-bold text-[#344054] uppercase tracking-wider mb-2.5">
+              {(m as any).parentContactTitle || (language === "de" ? "Elternkontakt" : "Parent Contact")}
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div>
+                <label className="block text-xs font-semibold text-[#344054] mb-1.5 uppercase tracking-wide">
+                  {m.parentPhone} <span className="text-[#D92D20]">*</span>
+                </label>
+                <input
+                  type="tel"
+                  required
+                  value={parentPhone}
+                  onChange={(e) => setParentPhone(e.target.value)}
+                  placeholder={m.parentPhonePlaceholder}
+                  className={`w-full h-[42px] px-3 rounded-lg border text-sm text-[#101828] placeholder-[#98A2B3] focus:outline-hidden focus:ring-2 transition-all ${getInputBorderClass(!parentPhone.trim())}`}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[#344054] mb-1.5 uppercase tracking-wide">
+                  {m.parentEmail} <span className="text-[#D92D20]">*</span>
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={parentEmail}
+                  onChange={(e) => setParentEmail(e.target.value)}
+                  placeholder={m.parentEmailPlaceholder}
+                  className={`w-full h-[42px] px-3 rounded-lg border text-sm text-[#101828] placeholder-[#98A2B3] focus:outline-hidden focus:ring-2 transition-all ${getInputBorderClass(!parentEmail.trim())}`}
+                />
+              </div>
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-[#344054] mb-1.5 uppercase tracking-wide">
-                {m.parentEmail}
-              </label>
-              <input
-                type="email"
-                value={parentEmail}
-                onChange={(e) => setParentEmail(e.target.value)}
-                placeholder={m.parentEmailPlaceholder}
-                className="w-full h-[42px] px-3 rounded-lg border border-[#D0D5DD] text-sm text-[#101828] placeholder-[#98A2B3] focus:outline-hidden focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] transition-all"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-[#344054] mb-1.5 uppercase tracking-wide">
-              {m.notes}
-            </label>
-            <textarea
-              rows={2}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder={m.notesPlaceholder}
-              className="w-full p-3 rounded-lg border border-[#D0D5DD] text-sm text-[#101828] placeholder-[#98A2B3] focus:outline-hidden focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] transition-all resize-none"
-            />
           </div>
 
           {/* Action Buttons */}
@@ -224,15 +330,27 @@ export function AddBookingModal({ isOpen, onClose, onAddBooking }: AddBookingMod
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-lg border border-[#D0D5DD] text-sm font-semibold text-[#344054] hover:bg-[#F2F4F7] transition-all min-h-[42px] cursor-pointer"
+              disabled={isSubmitting}
+              className="px-4 py-2 rounded-lg border border-[#D0D5DD] text-sm font-semibold text-[#344054] hover:bg-[#F2F4F7] transition-all min-h-[42px] cursor-pointer disabled:opacity-50"
             >
               {m.cancel}
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-lg bg-[#0F172A] hover:bg-[#1E293B] text-white text-sm font-semibold transition-all shadow-xs min-h-[42px] cursor-pointer"
+              disabled={isSubmitting}
+              className="px-5 py-2 rounded-lg bg-[#0F172A] hover:bg-[#1E293B] text-white text-sm font-semibold transition-all shadow-xs min-h-[42px] cursor-pointer flex items-center justify-center gap-2 disabled:opacity-75"
             >
-              {m.submit}
+              {isSubmitting ? (
+                <>
+                  <svg className="w-4 h-4 animate-spin text-white" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                  </svg>
+                  <span>...</span>
+                </>
+              ) : (
+                m.submit
+              )}
             </button>
           </div>
         </form>

@@ -1,9 +1,25 @@
+export interface AvailableDateOption {
+  date: string;
+  year?: number;
+  month?: number;
+  monthNameEn?: string;
+  monthNameDe?: string;
+  label: string;
+  labelDe?: string;
+  totalSlots: number;
+  bookedSlots: number;
+  availableSlots: number;
+}
+
 export interface Kita {
   id: string;
   caretakerId?: string;
   name: string;
   location: string;
   slots: number;
+  totalSlots?: number;
+  availableSlots?: number;
+  otherAvailableDates?: AvailableDateOption[];
   rating: number;
   reviewCount: number;
   image: string;

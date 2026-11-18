@@ -27,6 +27,9 @@ export type { CalendarProps } from "./components/Calendar";
 export { DatePicker } from "./components/DatePicker";
 export type { DatePickerProps } from "./components/DatePicker";
 
+export { TimePicker } from "./components/TimePicker";
+export type { TimePickerProps } from "./components/TimePicker";
+
 export { Drawer } from "./components/Drawer";
 export type { DrawerProps } from "./components/Drawer";
 

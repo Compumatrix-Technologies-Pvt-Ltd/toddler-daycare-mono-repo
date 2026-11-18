@@ -4,6 +4,10 @@ import path from "path";
 import { Types } from "mongoose";
 import fs from "fs/promises";
 import "@/types/caretaker/caretaker";
+import {
+    calculateUpcomingAvailableDates,
+    parseFlexibleDate,
+} from "./slotAvailabilityService.js";
 
 type UploadedFiles = {
     photos?: Express.Multer.File[];
@@ -203,6 +207,9 @@ export const createDaycareService = async (req: Request) => {
 
         // Check uploaded photos (use uploaded files or fallback to default daycare photo set)
         const photos = files.photos || [];
+        if (photos.length > 5) {
+            throw new Error("Maximum 5 photos allowed");
+        }
         const photoData =
             photos.length > 0
                 ? photos.map((file) => ({
@@ -240,6 +247,8 @@ export const createDaycareService = async (req: Request) => {
         const contact = parseField(req.body.contact);
         const additionalDetails = parseField(req.body.additionalDetails);
         const location = await resolveLocationArea(parseField(req.body.location));
+        const childAge = req.body.childAge || operations?.childAge || operations?.ageRange || "0 – 3 years";
+        const ageRange = req.body.ageRange || operations?.ageRange || operations?.childAge || childAge;
 
         const daycareData = {
             caretakerId,
@@ -248,7 +257,13 @@ export const createDaycareService = async (req: Request) => {
             caregiverName: req.body.caregiverName,
             caregiverGender: req.body.caregiverGender,
 
-            operations,
+            operations: {
+                ...operations,
+                childAge,
+                ageRange,
+            },
+            childAge,
+            ageRange,
             contact,
             additionalDetails,
 
@@ -289,9 +304,75 @@ export const getDaycareService = async (req: Request) => {
 
 //get all - public daycares on toddler home screen (ONLY ACTIVE & ADMIN APPROVED)
 export const allDaycareService = async (req: Request) => {
-    const daycares = await Daycare.find({ status: "approved" });
+    const daycares = await Daycare.find({ status: "approved" }).lean();
 
-    return daycares;
+    // Dynamically calculate genuinely available dates and slots for each daycare
+    const enrichedDaycares = await Promise.all(
+        daycares.map(async (daycare: any) => {
+            try {
+                const caretakerId = String(daycare.caretakerId?._id || daycare.caretakerId || "");
+                const totalSlots = Number(daycare.operations?.maxCapacity || daycare.maxCapacity || daycare.slots || 5) || 5;
+                const otherDates = await calculateUpcomingAvailableDates(caretakerId, daycare, 12, 1);
+
+                let nextDate = daycare.operations?.visibilityWindow || daycare.visibilityWindow || "";
+                let availableSlots = totalSlots;
+
+                if (otherDates.length > 0) {
+                    const firstOption = otherDates[0];
+                    availableSlots = firstOption.availableSlots;
+
+                    const visParsed = parseFlexibleDate(nextDate);
+                    const now = new Date();
+                    const isVisPast = visParsed && (visParsed.year < now.getFullYear() || (visParsed.year === now.getFullYear() && visParsed.month < (now.getMonth() + 1)));
+
+                    if (!nextDate || isVisPast || !otherDates.some((o) => o.year === visParsed?.year && o.month === visParsed?.month)) {
+                        nextDate = firstOption.date;
+                    }
+                }
+
+                return {
+                    ...daycare,
+                    totalSlots,
+                    slots: availableSlots,
+                    availableSlots,
+                    nextDate,
+                    otherAvailableDates: otherDates,
+                };
+            } catch (err) {
+                console.warn(`[allDaycareService] Error calculating availability for ${daycare._id}:`, err);
+                return daycare;
+            }
+        })
+    );
+
+    return enrichedDaycares;
+};
+
+// Get single daycare availability
+export const getDaycareAvailabilityService = async (daycareId: string, minSlots: number = 1) => {
+    const daycare = await Daycare.findById(daycareId).lean();
+    if (!daycare) throw new Error("Daycare not found");
+
+    const caretakerId = String(daycare.caretakerId?._id || daycare.caretakerId || "");
+    const totalSlots = Number(daycare.operations?.maxCapacity || daycare.maxCapacity || daycare.slots || 5) || 5;
+    const otherAvailableDates = await calculateUpcomingAvailableDates(caretakerId, daycare, 12, minSlots);
+
+    let nextDate = daycare.operations?.visibilityWindow || daycare.visibilityWindow || "";
+    let availableSlots = totalSlots;
+
+    if (otherAvailableDates.length > 0) {
+        availableSlots = otherAvailableDates[0].availableSlots;
+        nextDate = otherAvailableDates[0].date;
+    }
+
+    return {
+        daycareId: String(daycare._id),
+        caretakerId,
+        totalSlots,
+        availableSlots,
+        nextDate,
+        otherAvailableDates,
+    };
 };
 
 //Update daycare
@@ -325,6 +406,8 @@ export const updatedDaycareService = async (req: Request) => {
             "caregiverName",
             "caregiverGender",
             "operations",
+            "childAge",
+            "ageRange",
             "contact",
             "additionalDetails",
             "location",
@@ -335,6 +418,15 @@ export const updatedDaycareService = async (req: Request) => {
                 const parsed = parseField(req.body[field]);
                 (daycare as any)[field] = field === "location" ? await resolveLocationArea(parsed) : parsed;
             }
+        }
+
+        if (daycare.operations?.childAge) {
+            daycare.childAge = daycare.operations.childAge;
+            daycare.ageRange = daycare.operations.childAge;
+        } else if (daycare.childAge) {
+            if (!daycare.operations) (daycare as any).operations = {};
+            daycare.operations.childAge = daycare.childAge;
+            daycare.operations.ageRange = daycare.childAge;
         }
 
         let locationChanged = false;
@@ -411,6 +503,10 @@ export const updatedDaycareService = async (req: Request) => {
         const newPhotos = (files?.photos || []).map((file) => ({
             url: `/uploads/daycare/photos/${file.filename}`,
         }));
+
+        if (daycare.photos.length + newPhotos.length > 5) {
+            throw new Error("Maximum 5 photos allowed");
+        }
 
         if (newPhotos.length > 0) {
             daycare.photos = [...daycare.photos, ...newPhotos];

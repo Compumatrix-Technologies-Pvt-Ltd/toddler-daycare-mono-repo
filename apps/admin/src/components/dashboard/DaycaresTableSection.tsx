@@ -14,6 +14,7 @@ interface DaycaresTableSectionProps {
   mode?: "recent" | "full";
   onViewAll?: (() => void) | undefined;
   onRequestApprove: (application: DaycareApplication) => void;
+  onRequestReject?: ((application: DaycareApplication) => void) | undefined;
   onReject: (id: string) => void;
   onOpenDetails: (application: DaycareApplication) => void;
 }
@@ -24,11 +25,12 @@ export function DaycaresTableSection({
   mode = "full",
   onViewAll,
   onRequestApprove,
+  onRequestReject,
   onReject,
   onOpenDetails,
 }: DaycaresTableSectionProps) {
   const { t } = useLanguage();
-  const [activeTab, setActiveTab] = useState<"all" | "pending" | "approved">("all");
+  const [activeTab, setActiveTab] = useState<"all" | "pending" | "approved" | "rejected">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -50,6 +52,7 @@ export function DaycaresTableSection({
 
   const pendingCount = applications.filter((a) => a.status === "pending").length;
   const approvedCount = applications.filter((a) => a.status === "approved").length;
+  const rejectedCount = applications.filter((a) => a.status === "rejected").length;
 
   const displayedApplications =
     mode === "recent"
@@ -60,7 +63,7 @@ export function DaycaresTableSection({
           const matchesSearch =
             app.caretakerName.toLowerCase().includes(q) ||
             app.daycareName.toLowerCase().includes(q) ||
-            app.permitNumber.toLowerCase().includes(q) ||
+            (Boolean(app.permitId) && app.permitId !== "—" && Boolean(app.permitId?.toLowerCase().includes(q))) ||
             app.location.toLowerCase().includes(q) ||
             app.district.toLowerCase().includes(q);
           return matchesTab && matchesSearch;
@@ -129,6 +132,17 @@ export function DaycaresTableSection({
                 }`}
               >
                 {t.admin.dashboard.table.approved} ({approvedCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("rejected")}
+                className={`h-8 sm:h-8.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap min-h-[34px] sm:min-h-[32px] ${
+                  activeTab === "rejected"
+                    ? "bg-[#DC2626] text-white shadow-2xs"
+                    : "text-[#DC2626] hover:bg-[#FEE2E2]/60"
+                }`}
+              >
+                {t.admin.dashboard.table.rejected || "Abgelehnt"} ({rejectedCount})
               </button>
             </div>
 
@@ -222,9 +236,9 @@ export function DaycaresTableSection({
                   <td className="py-3 px-4 font-mono font-medium text-[#334155] whitespace-nowrap">
                     <div className="flex flex-col items-start gap-0.5">
                       <span className="px-2 py-0.5 rounded-md bg-[#FAF7F2] border border-[#E5DDD2] text-[11px] font-bold text-[#1E1B18]">
-                        {app.permitId || app.permitNumber}
+                        {app.permitId?.trim() && app.permitId !== "—" ? app.permitId : "—"}
                       </span>
-                      {app.expirationDate && (
+                      {app.expirationDate?.trim() && (
                         <span className="text-[10px] font-sans text-[#16A34A]">
                           Exp: {app.expirationDate}
                         </span>
@@ -306,20 +320,60 @@ export function DaycaresTableSection({
                         </button>
                         <button
                           type="button"
-                          onClick={() => onReject(app.id)}
+                          onClick={() => {
+                            if (onRequestReject) {
+                              onRequestReject(app);
+                            } else {
+                              onReject(app.id);
+                            }
+                          }}
                           className="px-2.5 py-1.5 rounded-lg border border-[#FCA5A5] text-[#DC2626] hover:bg-[#FEF2F2] font-semibold text-[11px] transition-colors cursor-pointer min-h-[32px]"
                         >
                           {t.admin.dashboard.table.reject}
                         </button>
                       </div>
+                    ) : app.status === "approved" ? (
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (onRequestReject) {
+                              onRequestReject(app);
+                            } else {
+                              onReject(app.id);
+                            }
+                          }}
+                          className="px-2.5 py-1.5 rounded-lg border border-[#FCA5A5] text-[#DC2626] hover:bg-[#FEF2F2] font-semibold text-[11px] transition-colors cursor-pointer min-h-[32px]"
+                          title={t.admin.dashboard.table.revoke || "Revoke"}
+                        >
+                          {t.admin.dashboard.table.revoke || "Revoke"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onOpenDetails(app)}
+                          className="px-2.5 py-1.5 rounded-lg border border-[#E5DDD2] bg-white hover:bg-[#FAF7F2] text-[#5C4C3E] font-medium text-[11px] transition-colors cursor-pointer min-h-[32px]"
+                        >
+                          {t.admin.dashboard.table.viewDetails}
+                        </button>
+                      </div>
                     ) : (
-                      <button
-                        type="button"
-                        onClick={() => onOpenDetails(app)}
-                        className="px-2.5 py-1.5 rounded-lg border border-[#E5DDD2] bg-white hover:bg-[#FAF7F2] text-[#5C4C3E] font-medium text-[11px] transition-colors cursor-pointer min-h-[32px]"
-                      >
-                        {t.admin.dashboard.table.viewDetails}
-                      </button>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => onRequestApprove(app)}
+                          className="px-2.5 py-1.5 rounded-lg bg-[#16A34A] hover:bg-[#15803D] text-white font-semibold text-[11px] transition-colors cursor-pointer shadow-2xs min-h-[32px]"
+                          title={t.admin.dashboard.table.reApprove || "Re-Approve"}
+                        >
+                          {t.admin.dashboard.table.reApprove || "Re-Approve"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onOpenDetails(app)}
+                          className="px-2.5 py-1.5 rounded-lg border border-[#E5DDD2] bg-white hover:bg-[#FAF7F2] text-[#5C4C3E] font-medium text-[11px] transition-colors cursor-pointer min-h-[32px]"
+                        >
+                          {t.admin.dashboard.table.viewDetails}
+                        </button>
+                      </div>
                     )}
                   </td>
                 </tr>

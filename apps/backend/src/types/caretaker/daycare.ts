@@ -14,7 +14,12 @@ export interface IDaycare extends Document {
         visibilityWindow: string;
         operatingHours: string;
         maxCapacity: number;
+        childAge?: string;
+        ageRange?: string;
     };
+
+    childAge?: string;
+    ageRange?: string;
 
     contact: {
         email: string;

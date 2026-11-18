@@ -1,6 +1,18 @@
-export type AdminTab = "dashboard" | "daycares" | "inquiries" | "settings";
+export type AdminTab = "dashboard" | "daycares" | "inquiries" | "contact" | "settings";
 
 export type AdminRole = "super-admin" | "admin";
+
+export interface AdminContactMessage {
+  _id: string;
+  fullName: string;
+  email: string;
+  subject: string;
+  message: string;
+  status: "unread" | "read" | "replied" | "archived";
+  adminNotes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface AdminInquiry {
   _id: string;
@@ -46,6 +58,7 @@ export interface WorkPermitDetails {
   expirationDate: string;
   issuingAuthority?: string;
   authorizedCapacity?: number;
+  childAge?: string;
   adminNotes?: string;
 }
 
@@ -69,6 +82,7 @@ export interface DaycareApplication {
   expirationDate?: string;
   issuingAuthority?: string;
   authorizedCapacity?: number;
+  childAge?: string;
   adminNotes?: string;
   approvedAt?: string;
   areaType?: "urban" | "rural";

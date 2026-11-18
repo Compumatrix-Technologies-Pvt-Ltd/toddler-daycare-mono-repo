@@ -38,6 +38,15 @@ export interface DaycareStatusEmailPayload {
   adminNotes?: string;
 }
 
+export interface ContactReplyEmailPayload {
+  toEmail: string;
+  recipientName: string;
+  subject: string;
+  replyMessage: string;
+  originalMessage?: string;
+  adminName?: string;
+}
+
 class EmailService {
   private transporter: nodemailer.Transporter | null = null;
   private initializingPromise: Promise<nodemailer.Transporter> | null = null;
@@ -497,6 +506,90 @@ class EmailService {
     } catch (err: any) {
       console.error(
         `[EmailService] Failed to send daycare ${payload.status} email to caretaker (${caretakerEmail}):`,
+        err.message
+      );
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * Send a direct reply email to a user who submitted a message via the public contact form
+   */
+  async sendContactReplyEmail(payload: ContactReplyEmailPayload): Promise<SendEmailResult> {
+    const transporter = await this.getTransporter();
+
+    const formattedReply = payload.replyMessage.replace(/\n/g, "<br />");
+    const formattedOriginal = payload.originalMessage ? payload.originalMessage.replace(/\n/g, "<br />") : "";
+
+    const html = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 620px; margin: 0 auto; padding: 24px 20px; background-color: #FAF7F2; border-radius: 16px;">
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h1 style="color: #A12D3A; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px;">Toddler Daycare</h1>
+          <p style="color: #7A6E62; font-size: 13px; margin: 4px 0 0 0;">Kindertagespflege Finden &bull; Support & Anfragen</p>
+        </div>
+
+        <div style="background-color: #FFFFFF; border-radius: 12px; border: 1px solid #E5DDD2; padding: 24px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+          <div style="border-bottom: 1px solid #F0EBE1; padding-bottom: 16px; margin-bottom: 18px;">
+            <p style="margin: 0; font-size: 14px; color: #1E1B18;">
+              Hallo <strong>${payload.recipientName}</strong>,
+            </p>
+            <p style="margin: 6px 0 0 0; font-size: 13px; color: #7A6E62;">
+              Vielen Dank für Ihre Nachricht an das Team von Toddler Daycare.
+            </p>
+          </div>
+
+          <div style="font-size: 14px; color: #1E1B18; line-height: 1.6; margin-bottom: 20px;">
+            ${formattedReply}
+          </div>
+
+          ${
+            payload.originalMessage
+              ? `
+                <div style="margin-top: 24px; background-color: #FAF8F5; border-left: 3px solid #D9CDBB; padding: 12px 16px; border-radius: 4px;">
+                  <p style="margin: 0 0 6px 0; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; color: #8A7D6E;">
+                    Ihre ursprüngliche Nachricht:
+                  </p>
+                  <p style="margin: 0; font-size: 12px; color: #5C5043; line-height: 1.5; font-style: italic;">
+                    ${formattedOriginal}
+                  </p>
+                </div>
+              `
+              : ""
+          }
+
+          <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #F0EBE1; font-size: 13px; color: #423223;">
+            <p style="margin: 0;">Herzliche Grüße,</p>
+            <p style="margin: 4px 0 0 0; font-weight: bold; color: #1E1B18;">${payload.adminName || "Toddler Daycare Team"}</p>
+          </div>
+        </div>
+
+        <div style="text-align: center; color: #7A6E62; font-size: 11px; line-height: 1.5;">
+          <p style="margin: 0;">Find Toddler Daycare GmbH &bull; Ihr Partner für vertrauensvolle Kindertagespflege</p>
+          <p style="margin: 4px 0 0 0;">Bei weiteren Fragen antworten Sie einfach auf diese E-Mail oder schreiben Sie an: <a href="mailto:support@kindertagespflege-finden.de" style="color: #A12D3A;">support@kindertagespflege-finden.de</a></p>
+        </div>
+      </div>
+    `;
+
+    try {
+      const info = await transporter.sendMail({
+        from: `"Toddler Daycare Support" <${this.fromEmail}>`,
+        to: payload.toEmail,
+        subject: payload.subject,
+        html,
+      });
+
+      const previewUrl = nodemailer.getTestMessageUrl(info);
+      console.log(
+        `[EmailService] Contact reply email sent to ${payload.toEmail}. MessageId: ${info.messageId}`
+      );
+      if (previewUrl) {
+        console.log(`[EmailService] Contact Reply Email Preview URL: ${previewUrl}`);
+      }
+
+      return { success: true, messageId: info.messageId, previewUrl };
+    } catch (err: any) {
+      console.error(
+        `[EmailService] Failed to send contact reply email to ${payload.toEmail}:`,
         err.message
       );
       return { success: false, error: err.message };

@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import mongoose from "mongoose";
 import { registerService, loginService, profileService } from "@/services/admin/admin";
 import Daycare from "@/modules/caretaker/daycare";
 import Caretaker from "@/modules/caretaker/auth";
@@ -131,6 +132,13 @@ export const updateDaycareStatusAdmin = async (req: Request, res: Response) => {
             adminNotes,
         } = req.body || {};
 
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid daycare ID format",
+            });
+        }
+
         if (!status || !["approved", "rejected", "pending"].includes(status)) {
             return res.status(400).json({
                 success: false,
@@ -152,7 +160,7 @@ export const updateDaycareStatusAdmin = async (req: Request, res: Response) => {
         if (finalPermitId && String(finalPermitId).trim()) {
             const trimmedPermitId = String(finalPermitId).trim();
             const duplicate = await Daycare.findOne({
-                _id: { $ne: id },
+                _id: { $ne: new mongoose.Types.ObjectId(id) },
                 "workPermit.permitId": { $regex: new RegExp(`^${trimmedPermitId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") }
             }).select("name workPermit.permitId");
 

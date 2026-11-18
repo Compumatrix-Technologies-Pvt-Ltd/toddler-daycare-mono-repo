@@ -5,6 +5,7 @@ import daycaresRoutes from "./daycares.routes.js";
 import inquiriesRoutes from "./inquiries.routes.js";
 import caretakersRoutes from "./caretakers.routes.js";
 import adminRoutes from "./admin.routes.js";
+import bookingRoutes from "./booking.routes.js";
 
 const apiRouter = Router();
 
@@ -18,6 +19,7 @@ v1Router.use(daycaresRoutes);
 v1Router.use(inquiriesRoutes);
 v1Router.use(caretakersRoutes);
 v1Router.use(adminRoutes);
+v1Router.use("/caretaker/bookings", bookingRoutes);
 
 apiRouter.use("/v1", v1Router);
 

@@ -15,7 +15,7 @@ export interface RecommendedAllocation {
   noteDe: string;
 }
 
-export type InquiryStatus = "New" | "Reviewing" | "Invited" | "Accepted" | "Declined";
+export type InquiryStatus = "New" | "Reviewing" | "Invited" | "Accepted" | "Booked" | "Declined";
 
 export interface BookingItem {
   id: string;
@@ -51,6 +51,7 @@ export interface BookingItem {
   locationDistanceDe?: string;
   parentQuote?: string;
   parentQuoteDe?: string;
+  inquiryId?: string;
 }
 
 export interface GanttMonth {

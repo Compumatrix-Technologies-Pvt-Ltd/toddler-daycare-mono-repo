@@ -15,6 +15,7 @@ import {
   BabyIcon,
   PhoneIcon,
   CloseIcon,
+  UserIcon,
 } from "../../../components/icons/WebIcons";
 
 interface InquiryRecord {
@@ -46,7 +47,24 @@ interface InquiryRecord {
 export default function CaretakerInquiriesPage() {
   const { t, language } = useLanguage();
   const inqT = t.caretakerProfile.inquiriesPage;
+  const histT = (t as any).searchHistory || {
+    tabInquiries: "Direct Inquiries",
+    tabSearchDemands: "Parent Search Demands (30-Day Map Visibility)",
+    title: "Parent Search Demands",
+    subtitle: "Search queries submitted by parents searching for childcare, visible to nearby caretakers for 30 days.",
+    daysLeft: "{days}d left",
+    colParent: "Parent & Contact",
+    colSearchArea: "Search Location & Coordinates",
+    colChildTiming: "Child & Desired Start",
+    colPreferences: "Preferences & Filters",
+    noDemandsFound: "No parent search demands within your catchment radius at this time.",
+  };
+
+  const [activeTab, setActiveTab] = useState<"inquiries" | "demands">("inquiries");
   const [inquiries, setInquiries] = useState<InquiryRecord[]>([]);
+  const [nearbyDemands, setNearbyDemands] = useState<any[]>([]);
+  const [daycareInfo, setDaycareInfo] = useState<any>(null);
+  const [loadingDemands, setLoadingDemands] = useState(false);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
@@ -153,8 +171,27 @@ export default function CaretakerInquiriesPage() {
     }
   };
 
+  // Load nearby search demands within catchment radius (30-day lifecycle)
+  const loadNearbyDemands = async () => {
+    try {
+      setLoadingDemands(true);
+      const res = await caretakerApi.getNearbySearchHistory();
+      if (res && res.searches) {
+        setNearbyDemands(res.searches);
+        if (res.daycare) {
+          setDaycareInfo(res.daycare);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load nearby search demands:", err);
+    } finally {
+      setLoadingDemands(false);
+    }
+  };
+
   useEffect(() => {
     loadData();
+    loadNearbyDemands();
 
     const socket = getSocket();
     if (!socket) return;
@@ -166,14 +203,17 @@ export default function CaretakerInquiriesPage() {
 
     const handleInquirySync = () => {
       loadData();
+      loadNearbyDemands();
     };
 
     socket.on("inquiry:created", handleInquirySync);
     socket.on("inquiry:updated", handleInquirySync);
+    socket.on("search:recorded", handleInquirySync);
 
     return () => {
       socket.off("inquiry:created", handleInquirySync);
       socket.off("inquiry:updated", handleInquirySync);
+      socket.off("search:recorded", handleInquirySync);
     };
   }, []);
 
@@ -251,64 +291,112 @@ export default function CaretakerInquiriesPage() {
             <h1
               className="text-2xl sm:text-3xl font-extrabold text-[#1E1B18] tracking-tight font-heading"
             >
-              {inqT.title}
+              {activeTab === "inquiries" ? inqT.title : (histT.title || "Parent Search Demands")}
             </h1>
             <p className="text-xs sm:text-sm text-[#7A6E62] mt-0.5">
-              {inqT.subtitle}
+              {activeTab === "inquiries" ? inqT.subtitle : (histT.subtitle || "Search queries submitted by parents searching for childcare, visible to nearby caretakers for 30 days.")}
             </p>
           </div>
 
           <button
             type="button"
-            onClick={loadData}
-            disabled={loading}
+            onClick={activeTab === "inquiries" ? loadData : loadNearbyDemands}
+            disabled={loading || loadingDemands}
             className="self-start sm:self-auto px-4 py-2 min-h-[40px] rounded-xl bg-white border border-[#E5DDD2] hover:bg-[#FAF7F2] text-xs font-bold text-[#5C4C3E] shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer"
           >
-            <RefreshCwIcon className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+            <RefreshCwIcon className={`w-3.5 h-3.5 ${loading || loadingDemands ? "animate-spin" : ""}`} />
             <span>{inqT.refresh}</span>
           </button>
         </div>
 
-        {/* Overview KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-[#E5DDD2] shadow-2xs">
-            <span className="text-[11px] font-bold text-[#7A6E62] uppercase tracking-wider block">
-              {inqT.kpi.total}
-            </span>
-            <div className="text-2xl sm:text-3xl font-extrabold text-[#1E1B18] mt-1 font-heading">
+        {/* Mode Switcher Tabs */}
+        <div className="flex flex-wrap items-center gap-2 border-b border-[#E5DDD2] pb-3">
+          <button
+            type="button"
+            onClick={() => setActiveTab("inquiries")}
+            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all min-h-[40px] flex items-center gap-2 cursor-pointer ${
+              activeTab === "inquiries"
+                ? "bg-[#A12D3A] text-white shadow-xs"
+                : "bg-white text-[#7A6E62] hover:text-[#1E1B18] border border-[#E5DDD2]"
+            }`}
+          >
+            <MailIcon className="w-4 h-4" />
+            <span>{inqT.title || "Direct Inquiries"}</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                activeTab === "inquiries" ? "bg-white/20 text-white" : "bg-[#FAF7F2] text-[#7A6E62]"
+              }`}
+            >
               {stats.total}
-            </div>
-            <span className="text-[11px] text-[#8A7A6A] mt-0.5 block">
-              {inqT.kpi.totalSub}
             </span>
-          </div>
+          </button>
 
-          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-[#E5DDD2] shadow-2xs">
-            <span className="text-[11px] font-bold text-[#D97706] uppercase tracking-wider block flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-[#D97706] animate-pulse" />
-              <span>{inqT.kpi.pending}</span>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab("demands");
+              loadNearbyDemands();
+            }}
+            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all min-h-[40px] flex items-center gap-2 cursor-pointer ${
+              activeTab === "demands"
+                ? "bg-[#A12D3A] text-white shadow-xs"
+                : "bg-white text-[#7A6E62] hover:text-[#1E1B18] border border-[#E5DDD2]"
+            }`}
+          >
+            <BabyIcon className="w-4 h-4" />
+            <span>{histT.tabSearchDemands || "Nearby Search Demands (30-Day Map Visibility)"}</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                activeTab === "demands" ? "bg-white/20 text-white" : "bg-[#FAF7F2] text-[#7A6E62]"
+              }`}
+            >
+              {nearbyDemands.length}
             </span>
-            <div className="text-2xl sm:text-3xl font-extrabold text-[#D97706] mt-1 font-heading">
-              {stats.pending}
-            </div>
-            <span className="text-[11px] text-[#8A7A6A] mt-0.5 block">
-              {inqT.kpi.pendingSub}
-            </span>
-          </div>
-
-          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-[#E5DDD2] shadow-2xs">
-            <span className="text-[11px] font-bold text-[#16A34A] uppercase tracking-wider block flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-[#16A34A]" />
-              <span>{inqT.kpi.contacted}</span>
-            </span>
-            <div className="text-2xl sm:text-3xl font-extrabold text-[#16A34A] mt-1 font-heading">
-              {stats.contacted}
-            </div>
-            <span className="text-[11px] text-[#8A7A6A] mt-0.5 block">
-              {inqT.kpi.contactedSub}
-            </span>
-          </div>
+          </button>
         </div>
+
+        {activeTab === "inquiries" ? (
+          <>
+            {/* Overview KPI Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-[#E5DDD2] shadow-2xs">
+                <span className="text-[11px] font-bold text-[#7A6E62] uppercase tracking-wider block">
+                  {inqT.kpi.total}
+                </span>
+                <div className="text-2xl sm:text-3xl font-extrabold text-[#1E1B18] mt-1 font-heading">
+                  {stats.total}
+                </div>
+                <span className="text-[11px] text-[#8A7A6A] mt-0.5 block">
+                  {inqT.kpi.totalSub}
+                </span>
+              </div>
+
+              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-[#E5DDD2] shadow-2xs">
+                <span className="text-[11px] font-bold text-[#D97706] uppercase tracking-wider block flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-[#D97706] animate-pulse" />
+                  <span>{inqT.kpi.pending}</span>
+                </span>
+                <div className="text-2xl sm:text-3xl font-extrabold text-[#D97706] mt-1 font-heading">
+                  {stats.pending}
+                </div>
+                <span className="text-[11px] text-[#8A7A6A] mt-0.5 block">
+                  {inqT.kpi.pendingSub}
+                </span>
+              </div>
+
+              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-[#E5DDD2] shadow-2xs">
+                <span className="text-[11px] font-bold text-[#16A34A] uppercase tracking-wider block flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-[#16A34A]" />
+                  <span>{inqT.kpi.contacted}</span>
+                </span>
+                <div className="text-2xl sm:text-3xl font-extrabold text-[#16A34A] mt-1 font-heading">
+                  {stats.contacted}
+                </div>
+                <span className="text-[11px] text-[#8A7A6A] mt-0.5 block">
+                  {inqT.kpi.contactedSub}
+                </span>
+              </div>
+            </div>
 
         {/* Filter & Search Matrix */}
         <div className="bg-white rounded-2xl border border-[#E5DDD2] p-3 sm:p-4 shadow-2xs space-y-2.5">
@@ -533,22 +621,17 @@ export default function CaretakerInquiriesPage() {
                 key={inquiry._id}
                 className="bg-white rounded-2xl sm:rounded-3xl border border-[#E5DDD2] p-4 sm:p-6 shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:border-[#D5C9B8] transition-all"
               >
-                {/* Header Row: Child Name, Reference ID, Status Badge */}
+                {/* Header Row: Parent Name, Reference ID, Status Badge */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3.5 border-b border-[#F0E8DC]">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-[#FAF7F2] border border-[#E5DDD2] flex items-center justify-center text-[#A12D3A] shrink-0">
-                      <BabyIcon className="w-5 h-5" />
+                      <UserIcon className="w-5 h-5 text-[#A12D3A]" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="font-bold text-base sm:text-lg text-[#1E1B18] leading-tight">
-                          {inquiry.childName}
+                          {inquiry.parentName}
                         </h3>
-                        {inquiry.childBirthday && (
-                          <span className="text-xs text-[#7A6E62]">
-                            (Geb. {inquiry.childBirthday})
-                          </span>
-                        )}
                       </div>
                       <div className="flex items-center gap-2 text-xs text-[#7A6E62] mt-0.5">
                         <span className="font-mono text-[#A12D3A] font-semibold">
@@ -580,70 +663,46 @@ export default function CaretakerInquiriesPage() {
                   </div>
                 </div>
 
-                {/* Details Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 py-3.5 text-xs text-[#4E443B]">
-                  {/* Desired Start & Transition */}
+                {/* Inserted Contact Fields: Deine Email & Deine Phone */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-3.5 text-xs text-[#4E443B] border-b border-[#F0E8DC]">
                   <div className="space-y-0.5">
-                    <span className="text-[10px] font-bold text-[#8A7A6A] uppercase tracking-wider block">
-                      DESIRED START
+                    <span className="text-[10px] font-bold text-[#8A7A6A] uppercase tracking-wider block flex items-center gap-1.5">
+                      <MailIcon className="w-3 h-3 text-[#A12D3A]" />
+                      <span>{language === "de" ? "Deine Email" : "Email"}</span>
                     </span>
-                    <span className="font-bold text-[#1E1B18] text-sm block">
-                      {inquiry.desiredStart}
-                    </span>
-                    <span className="text-[#7A6E62]">
-                      Est. Transition: <strong>{inquiry.estTransition || "2-4 Weeks"}</strong>
-                    </span>
+                    <a
+                      href={`mailto:${inquiry.email}`}
+                      className="font-bold text-sm text-[#1E1B18] hover:text-[#A12D3A] transition-colors truncate block"
+                    >
+                      {inquiry.email}
+                    </a>
                   </div>
 
-                  {/* Care Hours */}
                   <div className="space-y-0.5">
-                    <span className="text-[10px] font-bold text-[#8A7A6A] uppercase tracking-wider block">
-                      CARE HOURS
+                    <span className="text-[10px] font-bold text-[#8A7A6A] uppercase tracking-wider block flex items-center gap-1.5">
+                      <PhoneIcon className="w-3 h-3 text-[#A12D3A]" />
+                      <span>{language === "de" ? "Deine Telefonnummer" : "Phone"}</span>
                     </span>
-                    <span className="font-bold text-[#1E1B18] text-sm block">
-                      {inquiry.careHours}
-                    </span>
-                    <span className="text-[#7A6E62]">
-                      Mon – Fri schedule
-                    </span>
-                  </div>
-
-                  {/* Preferences */}
-                  <div className="space-y-0.5">
-                    <span className="text-[10px] font-bold text-[#8A7A6A] uppercase tracking-wider block">
-                      PREFERENCES
-                    </span>
-                    <span className="font-bold text-[#1E1B18] block">
-                      {inquiry.preferences?.gender || "Any"} &bull; {inquiry.preferences?.food || "Any"}
-                    </span>
-                    <span className="text-[#7A6E62]">
-                      {inquiry.preferences?.pets || "Pets OK"}
-                    </span>
-                  </div>
-
-                  {/* Parent Contact */}
-                  <div className="space-y-0.5">
-                    <span className="text-[10px] font-bold text-[#8A7A6A] uppercase tracking-wider block">
-                      PARENT CONTACT
-                    </span>
-                    <span className="font-bold text-[#1E1B18] text-sm block">
-                      {inquiry.parentName}
-                    </span>
-                    <div className="flex items-center gap-2 text-xs">
-                      <a href={`tel:${inquiry.phone}`} className="text-[#A12D3A] font-bold hover:underline">
-                        {inquiry.phone}
-                      </a>
-                    </div>
+                    <a
+                      href={`tel:${inquiry.phone}`}
+                      className="font-bold text-sm text-[#A12D3A] hover:underline block"
+                    >
+                      {inquiry.phone}
+                    </a>
                   </div>
                 </div>
 
-                {/* Parent Note (if present) */}
-                {inquiry.note && (
-                  <div className="mt-1 p-3 rounded-xl bg-[#FAF7F2] border border-[#E5DDD2] text-xs text-[#5C4C3E] leading-relaxed">
-                    <span className="font-bold text-[#1E1B18] block mb-0.5">{inqT.parentNoteLabel}</span>
-                    <p className="whitespace-pre-line">{inquiry.note}</p>
+                {/* Inserted Message Field: Deine Nachricht */}
+                <div className="pt-3">
+                  <span className="text-[10px] font-bold text-[#8A7A6A] uppercase tracking-wider block mb-1">
+                    {language === "de" ? "Deine Nachricht" : "Message"}
+                  </span>
+                  <div className="p-3.5 rounded-xl bg-[#FAF7F2] border border-[#E5DDD2] text-xs sm:text-[13px] text-[#332A22] leading-relaxed">
+                    <p className="whitespace-pre-line">
+                      {inquiry.note || (language === "de" ? "Keine Nachricht angegeben" : "No message provided")}
+                    </p>
                   </div>
-                )}
+                </div>
 
                 {/* Card Action Footer */}
                 <div className="flex flex-wrap items-center justify-between gap-2.5 pt-3 mt-3 border-t border-[#F0E8DC]">
@@ -691,6 +750,164 @@ export default function CaretakerInquiriesPage() {
             ))}
           </div>
         )}
+      </>
+    ) : (
+      /* Demands Tab Content */
+      <div className="space-y-4 sm:space-y-6">
+        {/* Catchment Radius Info Banner */}
+        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-[#FAF7F2] to-[#F5EFE6] border border-[#E5DDD2] flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-white border border-[#E5DDD2] flex items-center justify-center text-[#2D5236] shrink-0 shadow-2xs">
+              <svg className="w-5 h-5 text-[#2D5236]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-sm sm:text-base font-bold text-[#1E1B18] font-heading">
+                {daycareInfo?.name ? `${daycareInfo.name} • ` : ""}{daycareInfo?.radiusKm || 3} km Catchment Area ({daycareInfo?.areaType || "urban"})
+              </h3>
+              <p className="text-xs text-[#7A6E62]">
+                Parent search demands within your radius are publicly visible to your daycare for 30 days.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-800">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>{nearbyDemands.length} Active Demands</span>
+            </span>
+          </div>
+        </div>
+
+        {/* Loading / Empty / Demand Cards */}
+        {loadingDemands ? (
+          <div className="bg-white rounded-3xl border border-[#E5DDD2] p-12 text-center space-y-3">
+            <div className="w-8 h-8 border-3 border-[#A12D3A] border-t-transparent rounded-full animate-spin mx-auto" />
+            <p className="text-xs text-[#7A6E62]">{inqT.loading}</p>
+          </div>
+        ) : nearbyDemands.length === 0 ? (
+          <div className="bg-white rounded-3xl border border-[#E5DDD2] p-6 sm:p-14 text-center max-w-[560px] mx-auto space-y-4">
+            <div className="w-16 h-16 rounded-2xl bg-[#FAF7F2] border border-[#E5DDD2] flex items-center justify-center mx-auto text-[#2D5236]">
+              <BabyIcon className="w-8 h-8" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-lg font-bold text-[#1E1B18] font-heading">
+                {histT.noDemandsFound || "No parent search demands nearby"}
+              </h3>
+              <p className="text-xs sm:text-sm text-[#7A6E62] leading-relaxed">
+                When parents in your catchment area search for childcare or send inquiries, their demands will appear here for 30 days.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3 sm:space-y-4">
+            {nearbyDemands.map((demand) => (
+              <div
+                key={demand._id}
+                className="bg-white rounded-2xl sm:rounded-3xl border border-[#E5DDD2] p-4 sm:p-6 shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:border-[#D5C9B8] transition-all"
+              >
+                {/* Header Row */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3.5 border-b border-[#F0E8DC]">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-800 shrink-0">
+                      <BabyIcon className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-bold text-base sm:text-lg text-[#1E1B18] leading-tight">
+                          {demand.parentName || demand.parentContact?.name || "Parent Demand"}
+                        </h3>
+                        {demand.distanceKm !== undefined && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#FAF7F2] border border-[#E5DDD2] text-[#2D5236]">
+                            <svg className="w-3 h-3 text-[#2D5236]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            </svg>
+                            <span>{demand.distanceKm} km away</span>
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-[#7A6E62] mt-0.5">
+                        <span className="font-mono text-[#A12D3A] font-semibold">
+                          {demand.referenceId}
+                        </span>
+                        <span>&bull;</span>
+                        <span>{new Date(demand.createdAt).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 30-Day Badge */}
+                  <div className="flex items-center gap-2">
+                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
+                      <span>{demand.daysRemaining ?? 30}d left</span>
+                    </span>
+                  </div>
+                </div>
+
+                {/* Details Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 py-3.5 border-b border-[#F0E8DC] text-xs">
+                  <div>
+                    <span className="text-[#8A7A6A] block text-[11px]">{histT.colSearchArea || "Search Area"}</span>
+                    <span className="font-semibold text-[#1E1B18] block mt-0.5 truncate">
+                      {demand.searchLocation?.area || demand.searchLocation?.address || "Nearby"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[#8A7A6A] block text-[11px]">{histT.colChildTiming || "Desired Start"}</span>
+                    <span className="font-semibold text-[#1E1B18] block mt-0.5">
+                      {demand.searchFilters?.desiredMonth || ""} {demand.searchFilters?.desiredYear || "Soon"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[#8A7A6A] block text-[11px]">Child Info / Hours</span>
+                    <span className="font-semibold text-[#1E1B18] block mt-0.5">
+                      {demand.searchFilters?.childBirthday ? `Geb. ${demand.searchFilters.childBirthday} • ` : ""}
+                      {demand.searchFilters?.hoursPerWeek || "Full-time"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[#8A7A6A] block text-[11px]">{histT.colPreferences || "Preferences"}</span>
+                    <span className="font-semibold text-[#1E1B18] block mt-0.5">
+                      {demand.searchFilters?.food || "All meals"} • {demand.searchFilters?.pets || "Pets ok"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Card Action Footer */}
+                <div className="flex flex-wrap items-center justify-between gap-2.5 pt-3 mt-1">
+                  <div className="text-xs text-[#7A6E62]">
+                    Expires on {new Date(demand.expiresAt).toLocaleDateString()}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {(demand.parentContact?.phone || demand.phone) && (
+                      <a
+                        href={`tel:${demand.parentContact?.phone || demand.phone}`}
+                        className="px-3.5 py-1.5 rounded-xl bg-white border border-[#16A34A] text-[#16A34A] hover:bg-[#16A34A] hover:text-white text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5"
+                      >
+                        <PhoneIcon className="w-3.5 h-3.5" />
+                        <span>{inqT.callParent}</span>
+                      </a>
+                    )}
+                    {(demand.parentContact?.email || demand.email) && (
+                      <a
+                        href={`mailto:${demand.parentContact?.email || demand.email}?subject=Betreuungsangebot%20f%C3%BCr%20Suchanfrage%20${demand.referenceId}`}
+                        className="px-3.5 py-1.5 rounded-xl bg-[#A12D3A] hover:bg-[#88222E] text-white text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5"
+                      >
+                        <MailIcon className="w-3.5 h-3.5" />
+                        <span>{inqT.emailParent}</span>
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    )}
 
         {/* Modal: Inquiry Full Details */}
         {selectedInquiry && (
@@ -709,7 +926,7 @@ export default function CaretakerInquiriesPage() {
                     {selectedInquiry.referenceId}
                   </span>
                   <h3 className="font-bold text-lg text-[#1E1B18] font-heading">
-                    {selectedInquiry.childName}
+                    {selectedInquiry.parentName}
                   </h3>
                 </div>
                 <button
@@ -722,78 +939,57 @@ export default function CaretakerInquiriesPage() {
                 </button>
               </div>
 
-              {/* Details Content */}
+              {/* Details Content: Only Inserted Fields */}
               <div className="py-4 space-y-4 text-xs">
-                <div className="p-3.5 rounded-xl bg-[#FAF7F2] border border-[#E5DDD2] space-y-2">
+                {/* 1. Contact Information */}
+                <div className="p-3.5 rounded-xl bg-[#FAF7F2] border border-[#E5DDD2] space-y-2.5">
                   <span className="font-bold text-[#7A6E62] uppercase tracking-wider block text-[10px]">
-                    {inqT.modal.secChild}
+                    {language === "de" ? "Kontaktdaten" : "Contact Details"}
                   </span>
-                  <div className="flex justify-between">
-                    <span className="text-[#6D6154]">{inqT.modal.childName}:</span>
-                    <span className="font-bold text-[#1E1B18]">{selectedInquiry.childName}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[#6D6154]">{inqT.modal.childDob}:</span>
-                    <span className="font-bold text-[#1E1B18]">{selectedInquiry.childBirthday || (language === "de" ? "Nicht angegeben" : "Not specified")}</span>
-                  </div>
-                </div>
-
-                <div className="p-3.5 rounded-xl bg-[#FAF7F2] border border-[#E5DDD2] space-y-2">
-                  <span className="font-bold text-[#7A6E62] uppercase tracking-wider block text-[10px]">
-                    {inqT.modal.secSchedule}
-                  </span>
-                  <div className="flex justify-between">
-                    <span className="text-[#6D6154]">{inqT.modal.desiredStart}:</span>
-                    <span className="font-bold text-[#1E1B18]">{selectedInquiry.desiredStart}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[#6D6154]">{inqT.modal.estTransition}:</span>
-                    <span className="font-bold text-[#1E1B18]">{selectedInquiry.estTransition || "2-4 Weeks"}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[#6D6154]">{inqT.modal.careHours}:</span>
-                    <span className="font-bold text-[#1E1B18]">{selectedInquiry.careHours}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[#6D6154]">{inqT.modal.secPreferences}:</span>
-                    <span className="font-bold text-[#1E1B18]">
-                      {selectedInquiry.preferences?.gender} &bull; {selectedInquiry.preferences?.food} &bull; {selectedInquiry.preferences?.pets}
+                  <div className="flex justify-between items-center">
+                    <span className="text-[#6D6154] flex items-center gap-1.5">
+                      <UserIcon className="w-3 h-3 text-[#A12D3A]" />
+                      <span>{language === "de" ? "Dein Name" : "Name"}:</span>
                     </span>
-                  </div>
-                </div>
-
-                <div className="p-3.5 rounded-xl bg-[#FAF7F2] border border-[#E5DDD2] space-y-2">
-                  <span className="font-bold text-[#7A6E62] uppercase tracking-wider block text-[10px]">
-                    {inqT.modal.secContact}
-                  </span>
-                  <div className="flex justify-between">
-                    <span className="text-[#6D6154]">{inqT.modal.parentName}:</span>
                     <span className="font-bold text-[#1E1B18]">{selectedInquiry.parentName}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-[#6D6154]">{inqT.modal.phone}:</span>
-                    <a href={`tel:${selectedInquiry.phone}`} className="font-bold text-[#A12D3A] hover:underline">
-                      {selectedInquiry.phone}
-                    </a>
-                  </div>
-                  <div className="flex justify-between gap-3">
-                    <span className="text-[#6D6154] shrink-0">{inqT.modal.email}:</span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[#6D6154] flex items-center gap-1.5">
+                      <MailIcon className="w-3 h-3 text-[#A12D3A]" />
+                      <span>{language === "de" ? "Deine Email" : "Email"}:</span>
+                    </span>
                     <a href={`mailto:${selectedInquiry.email}`} className="font-bold text-[#A12D3A] hover:underline break-all text-right">
                       {selectedInquiry.email}
                     </a>
                   </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[#6D6154] flex items-center gap-1.5">
+                      <PhoneIcon className="w-3 h-3 text-[#A12D3A]" />
+                      <span>{language === "de" ? "Deine Telefonnummer" : "Phone"}:</span>
+                    </span>
+                    <a href={`tel:${selectedInquiry.phone}`} className="font-bold text-[#A12D3A] hover:underline">
+                      {selectedInquiry.phone}
+                    </a>
+                  </div>
+                  <div className="flex justify-between items-center pt-1 border-t border-[#EAE3D6]">
+                    <span className="text-[#6D6154]">
+                      {language === "de" ? "Eingereicht am" : "Submitted"}:
+                    </span>
+                    <span className="font-semibold text-[#1E1B18]">
+                      {new Date(selectedInquiry.createdAt).toLocaleString()}
+                    </span>
+                  </div>
                 </div>
 
-                {selectedInquiry.note && (
-                  <div className="p-3.5 rounded-xl bg-white border border-[#E5DDD2] space-y-1">
-                    <span className="font-bold text-[#7A6E62] uppercase tracking-wider block text-[10px]">
-                      {inqT.modal.secNote}
-                    </span>
-                    <p className="text-[#4E443B] leading-relaxed whitespace-pre-line">
-                      {selectedInquiry.note}
-                    </p>
-                  </div>
-                )}
+                {/* 2. Message */}
+                <div className="p-3.5 rounded-xl bg-white border border-[#E5DDD2] space-y-1.5">
+                  <span className="font-bold text-[#7A6E62] uppercase tracking-wider block text-[10px]">
+                    {language === "de" ? "Deine Nachricht" : "Message"}
+                  </span>
+                  <p className="text-[#332A22] leading-relaxed whitespace-pre-line text-xs sm:text-[13px]">
+                    {selectedInquiry.note || (language === "de" ? "Keine Nachricht angegeben" : "No message provided")}
+                  </p>
+                </div>
               </div>
 
               {/* Modal Actions */}

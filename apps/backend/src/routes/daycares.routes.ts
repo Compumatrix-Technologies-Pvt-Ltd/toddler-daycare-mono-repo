@@ -3,6 +3,7 @@ import {
   getDaycare,
   updateDaycare,
   allDaycare,
+  getDaycareAvailability,
   deleteDaycarePhoto,
 } from "@/controllers/caretaker/daycare";
 import { caretakerMiddleware } from "@/middlewares/caretaker.middleware";
@@ -14,6 +15,7 @@ const router = Router();
 router.post("/", caretakerMiddleware, daycareUpload, createDaycare);
 router.get("/", caretakerMiddleware, getDaycare);
 router.get("/all", allDaycare);
+router.get("/:id/availability", getDaycareAvailability);
 router.put("/", caretakerMiddleware, daycareUpload, updateDaycare);
 router.delete("/photos/:photoId", caretakerMiddleware, deleteDaycarePhoto);
 

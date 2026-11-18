@@ -3,6 +3,9 @@ import { adminRouter } from "@/routes/admin.routes";
 import { caretaterRouter } from "@/routes/caretakers.routes";
 import { daycareRouter } from "./routes/daycares.routes";
 import inquiriesRouter from "./routes/inquiries.routes";
+import contactRouter from "./routes/contact.routes";
+import searchRouter from "./routes/search.routes";
+import bookingRouter from "./routes/booking.routes";
 import { setupSwagger } from "./config/swagger";
 import cors from "cors";
 
@@ -48,6 +51,31 @@ app.use(["/api/caretaker/daycare", "/api/v1/caretaker/daycare"], daycareRouter);
 app.use(
   ["/api/inquiries", "/api/v1/inquiries", "/api", "/api/v1"],
   inquiriesRouter
+);
+
+//contact form routes (support both /api and /api/v1)
+app.use(
+  ["/api/contact", "/api/v1/contact"],
+  contactRouter
+);
+
+//parent search history & 30-day demand routes (support both /api and /api/v1)
+app.use(
+  ["/api/search", "/api/v1/search"],
+  searchRouter
+);
+
+//caretaker booking routes (support both /api and /api/v1)
+app.use(
+  [
+    "/api/caretaker/bookings",
+    "/api/v1/caretaker/bookings",
+    "/api/caretaker/booking",
+    "/api/v1/caretaker/booking",
+    "/api/bookings",
+    "/api/v1/bookings",
+  ],
+  bookingRouter
 );
 
 // Centralized JSON Error Handler (prevents Express from printing HTML <pre> pages)

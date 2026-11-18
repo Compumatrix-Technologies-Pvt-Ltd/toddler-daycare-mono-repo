@@ -74,3 +74,8 @@ export function emitInquiryUpdated(payload: InquirySocketPayload): void {
   }
 }
 
+export function emitContactMessageCreated(message: any): void {
+  if (!io) return;
+  io.to("admin").emit("contact:new", message);
+}
+

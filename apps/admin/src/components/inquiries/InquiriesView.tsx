@@ -1,6 +1,10 @@
 import { useState, useEffect, useMemo } from "react";
 import { AdminInquiry } from "../../types/admin";
 import { adminInquiryService } from "../../services/adminInquiryService";
+import {
+  adminSearchService,
+  AdminSearchDemand,
+} from "../../services/adminSearchHistoryService";
 import { useLanguage } from "../../context/LanguageContext";
 import { Select } from "@repo/ui";
 import {
@@ -9,18 +13,58 @@ import {
   RefreshCwIcon,
   InboxIcon,
   CloseIcon,
+  ClockIcon,
+  CheckCircleIcon,
 } from "../icons/AdminIcons";
 
 export function InquiriesView() {
   const { t } = useLanguage();
+  const [activeTab, setActiveTab] = useState<"inquiries" | "demands">("inquiries");
+
+  // Inquiries State
   const [inquiries, setInquiries] = useState<AdminInquiry[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedInquiry, setSelectedInquiry] = useState<AdminInquiry | null>(null);
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  // Search Demands State
+  const [searchDemands, setSearchDemands] = useState<AdminSearchDemand[]>([]);
+  const [loadingDemands, setLoadingDemands] = useState(false);
+  const [demandsSearchQuery, setDemandsSearchQuery] = useState("");
+  const [demandsStatusFilter, setDemandsStatusFilter] = useState<"all" | "active" | "expired">("all");
+  const [demandsMeta, setDemandsMeta] = useState({
+    total: 0,
+    activeCount: 0,
+    expiredCount: 0,
+  });
+  const [runningCleanup, setRunningCleanup] = useState(false);
+  const [cleanupMessage, setCleanupMessage] = useState<string | null>(null);
 
   const inqT = t.admin.inquiries;
+  const histT = t.admin.searchHistory || {
+    tabInquiries: "Direct Inquiries",
+    tabSearchDemands: "Parent Search Demands (30-Day Map Visibility)",
+    title: "Parent Search Demands",
+    subtitle: "Search queries submitted by parents searching for childcare, visible to nearby caretakers for 30 days.",
+    kpiTotal: "Total Search Demands",
+    kpiActive: "Active (Within 30 Days)",
+    kpiExpired: "Expired (Past 30 Days)",
+    colParent: "Parent & Contact",
+    colSearchArea: "Search Location & Coordinates",
+    colChildTiming: "Child & Desired Start",
+    colPreferences: "Preferences & Filters",
+    col30DayStatus: "30-Day Lifecycle",
+    statusActive: "Active",
+    statusExpired: "Expired",
+    daysLeft: "{days}d left",
+    runCleanupButton: "Run 30-Day Cron Cleanup",
+    cleanupSuccess: "Expired searches cleaned up successfully.",
+    noDemandsFound: "No parent search demands found.",
+    searchPlaceholder: "Search by parent, email, phone, or location...",
+    filterAll: "All Demands",
+    filterActive: "Active Only",
+    filterExpired: "Expired Only",
+  };
 
   const loadData = async () => {
     try {
@@ -34,30 +78,58 @@ export function InquiriesView() {
     }
   };
 
+  const loadSearchDemands = async () => {
+    try {
+      setLoadingDemands(true);
+      const queryParams: { status?: "all" | "active" | "expired"; search?: string } = {
+        status: demandsStatusFilter,
+      };
+      if (demandsSearchQuery.trim()) {
+        queryParams.search = demandsSearchQuery.trim();
+      }
+      const res = await adminSearchService.getAllSearchDemands(queryParams);
+      setSearchDemands(res.data || []);
+      setDemandsMeta({
+        total: res.meta?.total || 0,
+        activeCount: res.meta?.activeCount || 0,
+        expiredCount: res.meta?.expiredCount || 0,
+      });
+    } catch (err) {
+      console.error("Failed to load parent search demands:", err);
+    } finally {
+      setLoadingDemands(false);
+    }
+  };
+
   useEffect(() => {
     loadData();
+    loadSearchDemands();
   }, []);
 
-  const handleStatusChange = async (id: string, newStatus: string) => {
+  useEffect(() => {
+    if (activeTab === "demands") {
+      loadSearchDemands();
+    }
+  }, [demandsStatusFilter, demandsSearchQuery, activeTab]);
+
+
+
+  const handleRunCleanup = async () => {
     try {
-      setUpdatingId(id);
-      await adminInquiryService.updateStatus(id, newStatus);
-      setInquiries((prev) =>
-        prev.map((item) => (item._id === id ? { ...item, status: newStatus as any } : item))
-      );
-      if (selectedInquiry?._id === id) {
-        setSelectedInquiry((prev) => (prev ? { ...prev, status: newStatus as any } : null));
-      }
+      setRunningCleanup(true);
+      const res = await adminSearchService.triggerCronCleanup();
+      setCleanupMessage(`${res.message} (${res.expiredCount} record(s) marked expired)`);
+      setTimeout(() => setCleanupMessage(null), 4000);
+      await loadSearchDemands();
     } catch (err: any) {
-      alert(err.message || "Failed to update status");
+      alert(err.message || "Failed to run 30-day cron cleanup");
     } finally {
-      setUpdatingId(null);
+      setRunningCleanup(false);
     }
   };
 
   const filteredInquiries = useMemo(() => {
     return inquiries.filter((item) => {
-      if (statusFilter !== "all" && item.status !== statusFilter) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         return (
@@ -71,7 +143,7 @@ export function InquiriesView() {
       }
       return true;
     });
-  }, [inquiries, statusFilter, searchQuery]);
+  }, [inquiries, searchQuery]);
 
   const stats = useMemo(() => {
     return {
@@ -82,20 +154,6 @@ export function InquiriesView() {
     };
   }, [inquiries]);
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "accepted":
-        return "bg-emerald-50 text-emerald-700 border-emerald-200";
-      case "contacted":
-        return "bg-blue-50 text-blue-700 border-blue-200";
-      case "reviewed":
-        return "bg-amber-50 text-amber-700 border-amber-200";
-      case "declined":
-        return "bg-red-50 text-red-700 border-red-200";
-      default:
-        return "bg-yellow-50 text-yellow-800 border-yellow-200";
-    }
-  };
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -107,347 +165,544 @@ export function InquiriesView() {
             <span>{inqT.badge}</span>
           </div>
           <h1 className="text-xl sm:text-2xl font-extrabold text-[#1E1B18] tracking-tight font-heading">
-            {inqT.title}
+            {activeTab === "inquiries" ? inqT.title : histT.title}
           </h1>
           <p className="text-xs sm:text-sm text-[#7A6E62]">
-            {inqT.subtitle}
+            {activeTab === "inquiries" ? inqT.subtitle : histT.subtitle}
           </p>
         </div>
 
         <button
           type="button"
-          onClick={loadData}
-          disabled={loading}
+          onClick={activeTab === "inquiries" ? loadData : loadSearchDemands}
+          disabled={loading || loadingDemands}
           className="self-start sm:self-auto px-4 py-2 rounded-xl bg-white border border-[#E5DDD2] hover:bg-[#FAF7F2] text-xs font-bold text-[#5C4C3E] shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer"
         >
-          <RefreshCwIcon className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+          <RefreshCwIcon className={`w-3.5 h-3.5 ${loading || loadingDemands ? "animate-spin" : ""}`} />
           <span>{inqT.refresh}</span>
         </button>
       </div>
 
-      {/* KPI Stats Overview */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-[#E5DDD2] shadow-2xs">
-          <span className="text-[10px] sm:text-[11px] font-bold text-[#7A6E62] uppercase tracking-wider block">
-            {inqT.kpi.total}
-          </span>
-          <div className="text-xl sm:text-2xl font-extrabold text-[#1E1B18] mt-1 font-heading">
-            {stats.total}
-          </div>
-          <span className="text-[10px] sm:text-[11px] text-[#8A7A6A] mt-0.5 block truncate">
-            {inqT.kpi.totalSub}
-          </span>
-        </div>
-
-        <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-[#E5DDD2] shadow-2xs">
-          <span className="text-[10px] sm:text-[11px] font-bold text-[#D97706] uppercase tracking-wider block flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-[#D97706] animate-pulse" />
-            <span>{inqT.kpi.pending}</span>
-          </span>
-          <div className="text-xl sm:text-2xl font-extrabold text-[#D97706] mt-1 font-heading">
-            {stats.pending}
-          </div>
-          <span className="text-[10px] sm:text-[11px] text-[#8A7A6A] mt-0.5 block truncate">
-            {inqT.kpi.pendingSub}
-          </span>
-        </div>
-
-        <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-[#E5DDD2] shadow-2xs">
-          <span className="text-[10px] sm:text-[11px] font-bold text-[#2563EB] uppercase tracking-wider block flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-[#2563EB]" />
-            <span>{inqT.kpi.contacted}</span>
-          </span>
-          <div className="text-xl sm:text-2xl font-extrabold text-[#2563EB] mt-1 font-heading">
-            {stats.contacted}
-          </div>
-          <span className="text-[10px] sm:text-[11px] text-[#8A7A6A] mt-0.5 block truncate">
-            {inqT.kpi.contactedSub}
-          </span>
-        </div>
-
-        <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-[#E5DDD2] shadow-2xs">
-          <span className="text-[10px] sm:text-[11px] font-bold text-[#16A34A] uppercase tracking-wider block flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-[#16A34A]" />
-            <span>{inqT.kpi.accepted}</span>
-          </span>
-          <div className="text-xl sm:text-2xl font-extrabold text-[#16A34A] mt-1 font-heading">
-            {stats.accepted}
-          </div>
-          <span className="text-[10px] sm:text-[11px] text-[#8A7A6A] mt-0.5 block truncate">
-            {inqT.kpi.acceptedSub}
-          </span>
-        </div>
-      </div>
-
-      {/* Filter and Search Bar */}
-      <div className="bg-white rounded-2xl border border-[#E5DDD2] p-3 sm:p-4 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div className="relative flex-1">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={inqT.searchPlaceholder}
-            className="w-full bg-[#FAF7F2] border border-[#E5DDD2] rounded-xl pl-9 pr-4 py-2 text-xs sm:text-sm text-[#1E1B18] placeholder-[#9C8E7E] focus:outline-none focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] transition-colors min-h-[40px]"
-          />
-          <SearchIcon className="w-4 h-4 absolute left-3 top-3 text-[#9C8E7E]" />
-        </div>
-
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
-          {[
-            { id: "all", label: inqT.filters.all },
-            { id: "pending", label: inqT.filters.pending },
-            { id: "reviewed", label: inqT.filters.reviewed },
-            { id: "contacted", label: inqT.filters.contacted },
-            { id: "accepted", label: inqT.filters.accepted },
-            { id: "declined", label: inqT.filters.declined },
-          ].map((pill) => (
-            <button
-              key={pill.id}
-              type="button"
-              onClick={() => setStatusFilter(pill.id)}
-              className={`py-1.5 px-3 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-                statusFilter === pill.id
-                  ? "bg-[#A12D3A] text-white shadow-2xs"
-                  : "bg-[#FAF7F2] text-[#6B5E51] border border-[#E5DDD2] hover:bg-white"
+      {/* Mode Switcher Tabs */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-[#E5DDD2] pb-3">
+        <button
+          type="button"
+          onClick={() => setActiveTab("inquiries")}
+          className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all min-h-[40px] flex items-center gap-2 cursor-pointer ${activeTab === "inquiries"
+            ? "bg-[#A12D3A] text-white shadow-xs"
+            : "bg-white text-[#7A6E62] hover:text-[#1E1B18] border border-[#E5DDD2]"
+            }`}
+        >
+          <MailIcon className="w-4 h-4" />
+          <span>{inqT.title || "Direct Inquiries"}</span>
+          <span
+            className={`px-2 py-0.5 rounded-full text-xs font-semibold ${activeTab === "inquiries" ? "bg-white/20 text-white" : "bg-[#FAF7F2] text-[#7A6E62]"
               }`}
-            >
-              {pill.label}
-            </button>
-          ))}
+          >
+            {stats.total}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab("demands");
+            loadSearchDemands();
+          }}
+          className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all min-h-[40px] flex items-center gap-2 cursor-pointer ${activeTab === "demands"
+            ? "bg-[#A12D3A] text-white shadow-xs"
+            : "bg-white text-[#7A6E62] hover:text-[#1E1B18] border border-[#E5DDD2]"
+            }`}
+        >
+          <ClockIcon className="w-4 h-4" />
+          <span>{histT.title || "Parent Search Demands (30-Day Visibility)"}</span>
+          <span
+            className={`px-2 py-0.5 rounded-full text-xs font-semibold ${activeTab === "demands" ? "bg-white/20 text-white" : "bg-[#16A34A]/10 text-[#16A34A]"
+              }`}
+          >
+            {demandsMeta.total}
+          </span>
+        </button>
+      </div>
+
+      {/* Cleanup Toast */}
+      {cleanupMessage && (
+        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-800 flex items-center gap-2 animate-in fade-in">
+          <CheckCircleIcon className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span>{cleanupMessage}</span>
         </div>
-      </div>
+      )}
 
-      {/* Main Table Container */}
-      <div className="bg-white rounded-2xl border border-[#E5DDD2] overflow-hidden shadow-2xs">
-        {loading ? (
-          <div className="p-12 text-center space-y-3">
-            <div className="w-8 h-8 border-3 border-[#A12D3A] border-t-transparent rounded-full animate-spin mx-auto" />
-            <p className="text-xs text-[#7A6E62]">{inqT.loading}</p>
-          </div>
-        ) : filteredInquiries.length === 0 ? (
-          <div className="p-10 text-center space-y-3">
-            <div className="w-12 h-12 rounded-xl bg-[#FAF7F2] border border-[#E5DDD2] flex items-center justify-center mx-auto text-[#A12D3A]">
-              <InboxIcon className="w-6 h-6 text-[#A12D3A]" />
+      {/* ======================================================== */}
+      {/* TAB 1: DIRECT INQUIRIES                                  */}
+      {/* ======================================================== */}
+      {activeTab === "inquiries" && (
+        <>
+          {/* KPI Stats Overview */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-[#E5DDD2] shadow-2xs">
+              <span className="text-[10px] sm:text-[11px] font-bold text-[#7A6E62] uppercase tracking-wider block">
+                {inqT.kpi.total}
+              </span>
+              <div className="text-xl sm:text-2xl font-extrabold text-[#1E1B18] mt-1 font-heading">
+                {stats.total}
+              </div>
+              <span className="text-[10px] sm:text-[11px] text-[#8A7A6A] mt-0.5 block truncate">
+                {inqT.kpi.totalSub}
+              </span>
             </div>
-            <h3 className="text-sm font-bold text-[#1E1B18]">{inqT.noInquiries}</h3>
-            <p className="text-xs text-[#7A6E62]">{inqT.noInquiriesDesc}</p>
+
+            <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-[#E5DDD2] shadow-2xs">
+              <span className="text-[10px] sm:text-[11px] font-bold text-[#D97706] uppercase tracking-wider block flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-[#D97706] animate-pulse" />
+                <span>{inqT.kpi.pending}</span>
+              </span>
+              <div className="text-xl sm:text-2xl font-extrabold text-[#D97706] mt-1 font-heading">
+                {stats.pending}
+              </div>
+              <span className="text-[10px] sm:text-[11px] text-[#8A7A6A] mt-0.5 block truncate">
+                {inqT.kpi.pendingSub}
+              </span>
+            </div>
+
+            <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-[#E5DDD2] shadow-2xs">
+              <span className="text-[10px] sm:text-[11px] font-bold text-[#2563EB] uppercase tracking-wider block flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-[#2563EB]" />
+                <span>{inqT.kpi.contacted}</span>
+              </span>
+              <div className="text-xl sm:text-2xl font-extrabold text-[#2563EB] mt-1 font-heading">
+                {stats.contacted}
+              </div>
+              <span className="text-[10px] sm:text-[11px] text-[#8A7A6A] mt-0.5 block truncate">
+                {inqT.kpi.contactedSub}
+              </span>
+            </div>
+
+            <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-[#E5DDD2] shadow-2xs">
+              <span className="text-[10px] sm:text-[11px] font-bold text-[#16A34A] uppercase tracking-wider block flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-[#16A34A]" />
+                <span>{inqT.kpi.accepted}</span>
+              </span>
+              <div className="text-xl sm:text-2xl font-extrabold text-[#16A34A] mt-1 font-heading">
+                {stats.accepted}
+              </div>
+              <span className="text-[10px] sm:text-[11px] text-[#8A7A6A] mt-0.5 block truncate">
+                {inqT.kpi.acceptedSub}
+              </span>
+            </div>
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-[#FAF7F2] border-b border-[#E5DDD2] text-[#7A6E62] uppercase font-bold text-[10px] tracking-wider">
-                <tr>
-                  <th className="py-3 px-4">{inqT.table.colRefId}</th>
-                  <th className="py-3 px-4">{inqT.table.colChild}</th>
-                  <th className="py-3 px-4">{inqT.table.colParent}</th>
-                  <th className="py-3 px-4">{inqT.table.colTiming}</th>
-                  <th className="py-3 px-4">{inqT.table.colPreferences}</th>
-                  <th className="py-3 px-4">{inqT.table.colDaycare}</th>
-                  <th className="py-3 px-4">{inqT.table.colStatus}</th>
-                  <th className="py-3 px-4 text-right">{inqT.table.colActions}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#F0E8DC]">
-                {filteredInquiries.map((inquiry) => (
-                  <tr key={inquiry._id} className="hover:bg-[#FAF7F2]/60 transition-colors">
-                    {/* Ref ID */}
-                    <td className="py-3.5 px-4 font-mono font-bold text-[#A12D3A] whitespace-nowrap">
-                      {inquiry.referenceId}
-                    </td>
 
-                    {/* Child Information */}
-                    <td className="py-3.5 px-4">
-                      <div className="font-bold text-[#1E1B18] text-sm">
-                        {inquiry.childName}
-                      </div>
-                      <div className="text-[11px] text-[#7A6E62]">
-                        {inquiry.childBirthday ? `${inqT.table.dob}: ${inquiry.childBirthday}` : inqT.table.ageSpecified}
-                      </div>
-                    </td>
+          {/* Search Toolbar */}
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-[#E5DDD2] shadow-2xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+            <div className="relative flex-1">
+              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#9C8E7E] pointer-events-none">
+                <SearchIcon className="w-4 h-4" />
+              </span>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={inqT.searchPlaceholder}
+                className="w-full bg-[#FAF7F2] border border-[#E5DDD2] rounded-xl pl-10 pr-4 py-2 text-xs sm:text-sm text-[#1E1B18] placeholder-[#9C8E7E] focus:outline-none focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] min-h-[42px] transition-colors"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9C8E7E] hover:text-[#1E1B18] cursor-pointer"
+                >
+                  <CloseIcon className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
 
-                    {/* Parent Contact */}
-                    <td className="py-3.5 px-4">
-                      <div className="font-semibold text-[#1E1B18]">
-                        {inquiry.parentName}
-                      </div>
-                      <div className="text-[11px] text-[#7A6E62]">
-                        <a href={`tel:${inquiry.phone}`} className="hover:underline text-[#A12D3A]">
-                          {inquiry.phone}
-                        </a>
-                      </div>
-                      <div className="text-[11px] text-[#7A6E62] truncate max-w-[150px]">
-                        {inquiry.email}
-                      </div>
-                    </td>
-
-                    {/* Timing & Hours */}
-                    <td className="py-3.5 px-4">
-                      <div className="font-semibold text-[#1E1B18]">
-                        {inquiry.desiredStart}
-                      </div>
-                      <div className="text-[11px] text-[#7A6E62]">
-                        {inquiry.careHours}
-                      </div>
-                      <div className="text-[10px] text-[#8A7A6A]">
-                        {inqT.table.transition}: {inquiry.estTransition || "2-4 Weeks"}
-                      </div>
-                    </td>
-
-                    {/* Preferences */}
-                    <td className="py-3.5 px-4 text-[11px]">
-                      <span className="inline-block px-2 py-0.5 rounded-md bg-[#FAF7F2] border border-[#E5DDD2] text-[#4E443B]">
-                        {inquiry.preferences?.gender || "Any"} &bull; {inquiry.preferences?.food || "Any"} &bull; {inquiry.preferences?.pets || "Pets OK"}
-                      </span>
-                    </td>
-
-                    {/* Target Daycare */}
-                    <td className="py-3.5 px-4 font-medium text-[#1E1B18]">
-                      {inquiry.daycareNames?.join(", ") || inqT.table.generalInquiry}
-                    </td>
-
-                    {/* Status */}
-                    <td className="py-2 px-4 w-40">
-                      <Select
-                        size="sm"
-                        value={inquiry.status}
-                        disabled={updatingId === inquiry._id}
-                        onChange={(val) => handleStatusChange(inquiry._id, val)}
-                        className={`text-[11px] font-bold uppercase tracking-wider ${getStatusBadge(
-                          inquiry.status
-                        )}`}
-                        options={[
-                          { value: "pending", label: inqT.filters.pending },
-                          { value: "reviewed", label: inqT.filters.reviewed },
-                          { value: "contacted", label: inqT.filters.contacted },
-                          { value: "accepted", label: inqT.filters.accepted },
-                          { value: "declined", label: inqT.filters.declined },
-                        ]}
-                      />
-                    </td>
-
-                    {/* Action */}
-                    <td className="py-3.5 px-4 text-right">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedInquiry(inquiry)}
-                        className="px-3 py-1.5 rounded-lg border border-[#E5DDD2] bg-white hover:bg-[#FAF7F2] text-xs font-bold text-[#5C4C3E] shadow-2xs transition-colors cursor-pointer"
-                      >
-                        {inqT.table.viewForm}
-                      </button>
-                    </td>
+          {/* Table Container */}
+          <div className="bg-white rounded-2xl border border-[#E5DDD2] overflow-hidden shadow-2xs">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-[#FAF7F2] border-b border-[#E5DDD2] text-[#7A6E62] uppercase tracking-wider font-bold text-[10px]">
+                    <th className="py-3 px-4">{inqT.table.colRefId}</th>
+                    <th className="py-3 px-4">{inqT.table.colParent}</th>
+                    <th className="py-3 px-4">{inqT.table.colContact || "Contact"}</th>
+                    <th className="py-3 px-4">{inqT.table.colMessage || "Message"}</th>
+                    <th className="py-3 px-4">{inqT.table.colDaycare}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-[#F0EBE1]">
+                  {loading ? (
+                    <tr>
+                      <td colSpan={5} className="py-12 text-center text-[#7A6E62]">
+                        <div className="w-6 h-6 border-2 border-[#A12D3A] border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                        <span>{inqT.loading}</span>
+                      </td>
+                    </tr>
+                  ) : filteredInquiries.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-12 text-center text-[#7A6E62]">
+                        <div className="w-12 h-12 rounded-xl bg-[#FAF7F2] border border-[#E5DDD2] flex items-center justify-center mx-auto text-[#A12D3A] mb-2">
+                          <InboxIcon className="w-6 h-6" />
+                        </div>
+                        <p className="font-bold text-sm text-[#1E1B18]">{inqT.noInquiries}</p>
+                        <p className="text-xs text-[#9C8E7E] mt-0.5">{inqT.noInquiriesDesc}</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredInquiries.map((inq) => (
+                      <tr
+                        key={inq._id}
+                        onClick={() => setSelectedInquiry(inq)}
+                        className="hover:bg-[#FAF7F2] transition-colors cursor-pointer"
+                        title="Click to view details"
+                      >
+                        <td className="py-3 px-4 font-mono font-bold text-[#A12D3A] whitespace-nowrap">
+                          <div>{inq.referenceId}</div>
+                          <div className="text-[10px] text-[#9C8E7E] font-normal">
+                            {inq.createdAt ? new Date(inq.createdAt).toLocaleDateString() : ""}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="font-bold text-[#1E1B18]">{inq.parentName}</div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div>
+                            <a
+                              href={`mailto:${inq.email}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-[#A12D3A] hover:underline truncate max-w-[170px] block font-medium"
+                            >
+                              {inq.email}
+                            </a>
+                          </div>
+                          <div>
+                            <a
+                              href={`tel:${inq.phone}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-[11px] text-[#5C4C3E] hover:underline font-mono"
+                            >
+                              {inq.phone}
+                            </a>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div
+                            className="text-[11px] text-[#332A22] max-w-[260px] truncate leading-snug"
+                            title={inq.note || ""}
+                          >
+                            {inq.note || <span className="text-[#9C8E7E] italic">—</span>}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="font-medium text-[#1E1B18] max-w-[180px] truncate">
+                            {inq.daycareNames?.join(", ") || "Kita Sunshine"}
+                          </div>
+                          <div className="text-[10px] text-[#7A6E62] uppercase tracking-wider font-semibold">
+                            Scope: {inq.scope}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-        )}
-      </div>
+        </>
+      )}
+
+      {/* ======================================================== */}
+      {/* TAB 2: PARENT SEARCH DEMANDS (30-DAY VISIBILITY)         */}
+      {/* ======================================================== */}
+      {activeTab === "demands" && (
+        <>
+          {/* KPI Stats Overview for 30-Day Demands */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+            <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-[#E5DDD2] shadow-2xs">
+              <span className="text-[10px] sm:text-[11px] font-bold text-[#7A6E62] uppercase tracking-wider block">
+                {histT.kpiTotal || "Total Search Demands"}
+              </span>
+              <div className="text-xl sm:text-2xl font-extrabold text-[#1E1B18] mt-1 font-heading">
+                {demandsMeta.total}
+              </div>
+              <span className="text-[10px] sm:text-[11px] text-[#8A7A6A] mt-0.5 block truncate">
+                All parent search queries registered
+              </span>
+            </div>
+
+            <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-[#E5DDD2] shadow-2xs">
+              <span className="text-[10px] sm:text-[11px] font-bold text-[#16A34A] uppercase tracking-wider block flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-[#16A34A] animate-pulse" />
+                <span>{histT.kpiActive || "Active (Within 30 Days)"}</span>
+              </span>
+              <div className="text-xl sm:text-2xl font-extrabold text-[#16A34A] mt-1 font-heading">
+                {demandsMeta.activeCount}
+              </div>
+              <span className="text-[10px] sm:text-[11px] text-[#8A7A6A] mt-0.5 block truncate">
+                Visible to nearby daycares right now
+              </span>
+            </div>
+
+            <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-[#E5DDD2] shadow-2xs">
+              <span className="text-[10px] sm:text-[11px] font-bold text-[#7A6E62] uppercase tracking-wider block">
+                {histT.kpiExpired || "Expired (Past 30 Days)"}
+              </span>
+              <div className="text-xl sm:text-2xl font-extrabold text-[#7A6E62] mt-1 font-heading">
+                {demandsMeta.expiredCount}
+              </div>
+              <span className="text-[10px] sm:text-[11px] text-[#8A7A6A] mt-0.5 block truncate">
+                Expired after 30-day lifecycle
+              </span>
+            </div>
+          </div>
+
+          {/* Search, Filter & Cron Action Bar */}
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-[#E5DDD2] shadow-2xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+            <div className="relative flex-1">
+              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#9C8E7E] pointer-events-none">
+                <SearchIcon className="w-4 h-4" />
+              </span>
+              <input
+                type="text"
+                value={demandsSearchQuery}
+                onChange={(e) => setDemandsSearchQuery(e.target.value)}
+                placeholder={histT.searchPlaceholder || "Search by parent, email, phone, or location..."}
+                className="w-full bg-[#FAF7F2] border border-[#E5DDD2] rounded-xl pl-10 pr-4 py-2 text-xs sm:text-sm text-[#1E1B18] placeholder-[#9C8E7E] focus:outline-none focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] min-h-[42px] transition-colors"
+              />
+              {demandsSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setDemandsSearchQuery("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9C8E7E] hover:text-[#1E1B18] cursor-pointer"
+                >
+                  <CloseIcon className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+              <div className="w-full sm:w-44 shrink-0">
+                <Select
+                  value={demandsStatusFilter}
+                  onChange={(val) => setDemandsStatusFilter(val as any)}
+                  options={[
+                    { value: "all", label: histT.filterAll || "All Demands" },
+                    { value: "active", label: histT.filterActive || "Active Only" },
+                    { value: "expired", label: histT.filterExpired || "Expired Only" },
+                  ]}
+                />
+              </div>
+
+              {/* Trigger Cron Job Button */}
+              <button
+                type="button"
+                onClick={handleRunCleanup}
+                disabled={runningCleanup}
+                className="w-full sm:w-auto px-4 py-2 rounded-xl bg-[#FAF7F2] hover:bg-[#F0EBE1] border border-[#D5C9B8] text-xs font-bold text-[#1E1B18] min-h-[42px] flex items-center justify-center gap-1.5 shadow-2xs transition-colors cursor-pointer shrink-0"
+              >
+                <ClockIcon className={`w-3.5 h-3.5 text-[#A12D3A] ${runningCleanup ? "animate-spin" : ""}`} />
+                <span>{runningCleanup ? "Running Cron..." : histT.runCleanupButton || "Run 30-Day Cron Cleanup"}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Demands Table */}
+          <div className="bg-white rounded-2xl border border-[#E5DDD2] overflow-hidden shadow-2xs">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-[#FAF7F2] border-b border-[#E5DDD2] text-[#7A6E62] uppercase tracking-wider font-bold text-[10px]">
+                    <th className="py-3 px-4">{histT.colParent || "Parent & Contact"}</th>
+                    <th className="py-3 px-4">{histT.colSearchArea || "Search Location"}</th>
+                    <th className="py-3 px-4">{histT.colChildTiming || "Child & Timing"}</th>
+                    <th className="py-3 px-4">{histT.colPreferences || "Preferences"}</th>
+                    <th className="py-3 px-4">{histT.col30DayStatus || "30-Day Status"}</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#F0EBE1]">
+                  {loadingDemands ? (
+                    <tr>
+                      <td colSpan={6} className="py-12 text-center text-[#7A6E62]">
+                        <div className="w-6 h-6 border-2 border-[#A12D3A] border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                        <span>Loading parent search demands...</span>
+                      </td>
+                    </tr>
+                  ) : searchDemands.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-12 text-center text-[#7A6E62]">
+                        <div className="w-12 h-12 rounded-xl bg-[#FAF7F2] border border-[#E5DDD2] flex items-center justify-center mx-auto text-[#A12D3A] mb-2">
+                          <InboxIcon className="w-6 h-6" />
+                        </div>
+                        <p className="font-bold text-sm text-[#1E1B18]">{histT.noDemandsFound || "No search demands found"}</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    searchDemands.map((demand) => (
+                      <tr key={demand._id} className="hover:bg-[#FAF7F2]/60 transition-colors">
+                        <td className="py-3 px-4">
+                          <div className="font-bold text-[#1E1B18] flex items-center gap-1.5">
+                            <span>{demand.parentName}</span>
+                            {demand.scope && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#FAF7F2] border border-[#E5DDD2] text-[#7A6E62] font-semibold uppercase">
+                                {demand.scope}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-[#7A6E62]">{demand.phone}</div>
+                          <div className="text-[11px] text-[#7A6E62] truncate max-w-[170px]">{demand.email}</div>
+                          {demand.referenceId && (
+                            <div className="text-[10px] font-mono text-[#A12D3A]">{demand.referenceId}</div>
+                          )}
+                        </td>
+
+                        <td className="py-3 px-4">
+                          <div className="font-semibold text-[#1E1B18]">
+                            {demand.searchLocation?.area || demand.searchLocation?.address || "Berlin Area"}
+                          </div>
+                          <div className="text-[10px] font-mono text-[#7A6E62]">
+                            Lat: {Number(demand.searchLocation?.lat || 0).toFixed(4)}, Lng: {Number(demand.searchLocation?.lng ?? demand.searchLocation?.log ?? 0).toFixed(4)}
+                          </div>
+                        </td>
+
+                        <td className="py-3 px-4">
+                          <div className="font-semibold text-[#1E1B18]">
+                            {demand.filter?.child || 1} Child • {demand.filter?.month || "Start"} {demand.filter?.year || ""}
+                          </div>
+                          <div className="text-[11px] text-[#7A6E62]">{demand.filter?.hours || "Standard Hours"}</div>
+                          {demand.filter?.tolerance && (
+                            <div className="text-[10px] text-[#9C8E7E]">Transition: {demand.filter.tolerance}</div>
+                          )}
+                        </td>
+
+                        <td className="py-3 px-4">
+                          <div className="text-[11px] text-[#5C4C3E] space-y-0.5">
+                            <div>• Meals: {demand.filter?.food || "Any"}</div>
+                            <div>• Pets: {demand.filter?.pet || "Any"}</div>
+                            <div>• Caregiver: {demand.filter?.gender || "Any"}</div>
+                          </div>
+                        </td>
+
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          {demand.isActive ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                              <span>{demand.daysRemaining}d left</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-600 border border-gray-200">
+                              <span>Expired (30d)</span>
+                            </span>
+                          )}
+                          <div className="text-[10px] text-[#9C8E7E] mt-0.5">
+                            Added: {new Date(demand.createdAt).toLocaleDateString()}
+                          </div>
+                        </td>
+
+                        <td className="py-3 px-4 text-right whitespace-nowrap">
+                          <div className="inline-flex items-center gap-1.5">
+                            <a
+                              href={`tel:${demand.phone}`}
+                              className="px-2.5 py-1 rounded-lg border border-[#E5DDD2] bg-white hover:bg-[#FAF7F2] text-[11px] font-bold text-[#16A34A] transition-colors"
+                              title="Call Parent"
+                            >
+                              Call
+                            </a>
+                            <a
+                              href={`mailto:${demand.email}?subject=Betreuungsanfrage%20Toddler&body=Hallo%20${encodeURIComponent(
+                                demand.parentName
+                              )},%0A%0Abezugnehmend%20auf%20Ihre%20Suchanfrage...`}
+                              className="px-2.5 py-1 rounded-lg border border-[#E5DDD2] bg-white hover:bg-[#FAF7F2] text-[11px] font-bold text-[#A12D3A] transition-colors"
+                              title="Email Parent"
+                            >
+                              Email
+                            </a>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Inquiry Detail Modal */}
       {selectedInquiry && (
-        <div
-          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto"
-          onClick={() => setSelectedInquiry(null)}
-        >
-          <div
-            className="bg-white rounded-3xl border border-[#E5DDD2] w-full max-w-xl p-5 sm:p-7 shadow-2xl relative my-auto max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-150"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between pb-3.5 border-b border-[#F0E8DC]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/40 backdrop-blur-xs overflow-y-auto animate-in fade-in">
+          <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-xl border border-[#E5DDD2] my-auto max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="p-4 sm:p-5 border-b border-[#E5DDD2] flex items-center justify-between bg-[#FAF7F2]">
               <div>
-                <span className="text-xs font-mono font-bold text-[#A12D3A]">
-                  {selectedInquiry.referenceId}
-                </span>
-                <h3 className="font-bold text-lg text-[#1E1B18] font-heading">
-                  {inqT.modal.inquiryFor.replace("{name}", selectedInquiry.childName)}
-                </h3>
-                <span className="text-xs text-[#7A6E62]">
-                  {inqT.modal.submittedOn.replace("{date}", new Date(selectedInquiry.createdAt).toLocaleString())}
-                </span>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base sm:text-lg font-bold text-[#1E1B18] font-heading">
+                    {inqT.title}
+                  </h2>
+                  <span className="font-mono text-xs font-bold text-[#A12D3A] bg-white px-2 py-0.5 rounded border border-[#E5DDD2]">
+                    {selectedInquiry.referenceId}
+                  </span>
+                </div>
+                <p className="text-xs text-[#7A6E62] mt-0.5">
+                  Submitted: {selectedInquiry.createdAt ? new Date(selectedInquiry.createdAt).toLocaleString() : "Recently"}
+                </p>
               </div>
+
               <button
                 type="button"
                 onClick={() => setSelectedInquiry(null)}
-                className="w-8 h-8 rounded-full flex items-center justify-center text-[#7A6E62] hover:bg-[#FAF7F2] cursor-pointer"
+                className="w-9 h-9 rounded-xl flex items-center justify-center text-[#7A6E62] hover:text-[#1E1B18] hover:bg-[#EFE7DC] transition-colors cursor-pointer"
                 aria-label="Close modal"
               >
-                <CloseIcon className="w-4 h-4 text-[#7A6E62]" />
+                <CloseIcon className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Modal Body */}
-            <div className="py-4 space-y-4 text-xs">
-              {/* Section 1: Child */}
-              <div className="p-3.5 rounded-xl bg-[#FAF7F2] border border-[#E5DDD2] space-y-2">
+            {/* Modal Scrollable Body */}
+            <div className="p-4 sm:p-6 overflow-y-auto flex-1 min-h-0 space-y-4 text-xs sm:text-sm text-[#1E1B18]">
+              {/* Section 1: Contact Details */}
+              <div className="p-4 rounded-xl bg-[#FAF7F2] border border-[#E5DDD2] space-y-2.5">
                 <span className="font-bold text-[#7A6E62] uppercase tracking-wider block text-[10px]">
-                  {inqT.modal.secChild}
+                  Kontaktdaten (Contact Details)
                 </span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                   <div>
-                    <span className="text-[#7A6E62] block text-[11px]">{inqT.modal.childName}:</span>
-                    <span className="font-bold text-[#1E1B18] text-sm">{selectedInquiry.childName}</span>
+                    <span className="text-[#7A6E62] text-xs block">Dein Name (Parent Name):</span>
+                    <strong className="text-sm text-[#1E1B18]">{selectedInquiry.parentName}</strong>
                   </div>
                   <div>
-                    <span className="text-[#7A6E62] block text-[11px]">{inqT.modal.birthday}:</span>
-                    <span className="font-bold text-[#1E1B18]">{selectedInquiry.childBirthday || inqT.modal.notSpecified}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Section 2: Timing & Schedule */}
-              <div className="p-3.5 rounded-xl bg-[#FAF7F2] border border-[#E5DDD2] space-y-2">
-                <span className="font-bold text-[#7A6E62] uppercase tracking-wider block text-[10px]">
-                  {inqT.modal.secTiming}
-                </span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <div>
-                    <span className="text-[#7A6E62] block text-[11px]">{inqT.modal.desiredStart}:</span>
-                    <span className="font-bold text-[#1E1B18]">{selectedInquiry.desiredStart}</span>
+                    <span className="text-[#7A6E62] text-xs block">Eingereicht am (Submitted):</span>
+                    <strong className="text-sm text-[#1E1B18]">
+                      {selectedInquiry.createdAt ? new Date(selectedInquiry.createdAt).toLocaleString() : "Recently"}
+                    </strong>
                   </div>
                   <div>
-                    <span className="text-[#7A6E62] block text-[11px]">{inqT.modal.estTransition}:</span>
-                    <span className="font-bold text-[#1E1B18]">{selectedInquiry.estTransition || "2-4 Weeks"}</span>
-                  </div>
-                  <div>
-                    <span className="text-[#7A6E62] block text-[11px]">{inqT.modal.careHours}:</span>
-                    <span className="font-bold text-[#1E1B18]">{selectedInquiry.careHours}</span>
-                  </div>
-                  <div>
-                    <span className="text-[#7A6E62] block text-[11px]">{inqT.modal.preferences}:</span>
-                    <span className="font-bold text-[#1E1B18]">
-                      {selectedInquiry.preferences?.gender} &bull; {selectedInquiry.preferences?.food} &bull; {selectedInquiry.preferences?.pets}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Section 3: Parent Contact */}
-              <div className="p-3.5 rounded-xl bg-[#FAF7F2] border border-[#E5DDD2] space-y-2">
-                <span className="font-bold text-[#7A6E62] uppercase tracking-wider block text-[10px]">
-                  {inqT.modal.secParent}
-                </span>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <div>
-                    <span className="text-[#7A6E62] block text-[11px]">{inqT.modal.parentName}:</span>
-                    <span className="font-bold text-[#1E1B18]">{selectedInquiry.parentName}</span>
-                  </div>
-                  <div>
-                    <span className="text-[#7A6E62] block text-[11px]">{inqT.modal.phone}:</span>
-                    <a href={`tel:${selectedInquiry.phone}`} className="font-bold text-[#A12D3A] hover:underline">
-                      {selectedInquiry.phone}
-                    </a>
-                  </div>
-                  <div>
-                    <span className="text-[#7A6E62] block text-[11px]">{inqT.modal.email}:</span>
-                    <a href={`mailto:${selectedInquiry.email}`} className="font-bold text-[#A12D3A] hover:underline truncate block">
+                    <span className="text-[#7A6E62] text-xs block">Deine Email (Email):</span>
+                    <a href={`mailto:${selectedInquiry.email}`} className="text-[#A12D3A] hover:underline font-bold text-sm block truncate">
                       {selectedInquiry.email}
                     </a>
                   </div>
+                  <div>
+                    <span className="text-[#7A6E62] text-xs block">Deine Telefonnummer (Phone):</span>
+                    <a href={`tel:${selectedInquiry.phone}`} className="text-[#A12D3A] hover:underline font-bold text-sm block">
+                      {selectedInquiry.phone}
+                    </a>
+                  </div>
                 </div>
               </div>
 
-              {/* Section 4: Target Daycares */}
+              {/* Section 2: Message */}
+              <div className="p-4 rounded-xl bg-white border border-[#E5DDD2] space-y-1.5">
+                <span className="font-bold text-[#7A6E62] uppercase tracking-wider block text-[10px]">
+                  Deine Nachricht (Message)
+                </span>
+                <p className="text-[#332A22] leading-relaxed whitespace-pre-line text-xs sm:text-[13px] bg-[#FAF7F2] p-3 rounded-lg border border-[#EFE8DC]">
+                  {selectedInquiry.note || <span className="text-[#9C8E7E] italic">Keine Nachricht angegeben (No message provided)</span>}
+                </p>
+              </div>
+
+              {/* Section 3: Target Daycares */}
               <div className="p-3.5 rounded-xl bg-[#FAF7F2] border border-[#E5DDD2] space-y-1">
                 <span className="font-bold text-[#7A6E62] uppercase tracking-wider block text-[10px]">
                   {inqT.modal.secDaycare}
@@ -464,22 +719,10 @@ export function InquiriesView() {
                   </div>
                 )}
               </div>
-
-              {/* Section 5: Parent Note */}
-              {selectedInquiry.note && (
-                <div className="p-3.5 rounded-xl bg-white border border-[#E5DDD2] space-y-1">
-                  <span className="font-bold text-[#7A6E62] uppercase tracking-wider block text-[10px]">
-                    {inqT.modal.secNote}
-                  </span>
-                  <p className="text-[#4E443B] leading-relaxed whitespace-pre-line bg-[#FAF7F2] p-3 rounded-lg border border-[#E5DDD2]">
-                    {selectedInquiry.note}
-                  </p>
-                </div>
-              )}
             </div>
 
             {/* Modal Actions */}
-            <div className="pt-3 border-t border-[#F0E8DC] flex flex-wrap items-center justify-between gap-3">
+            <div className="pt-3 border-t border-[#F0E8DC] flex flex-wrap items-center justify-between gap-3 p-4">
               <button
                 type="button"
                 onClick={() => setSelectedInquiry(null)}

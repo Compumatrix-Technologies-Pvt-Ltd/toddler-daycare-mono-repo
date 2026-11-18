@@ -4,6 +4,7 @@ import {
     getDaycareService,
     updatedDaycareService,
     allDaycareService,
+    getDaycareAvailabilityService,
     deleteDaycarePhotoService,
 } from "@/services/caretaker/daycare";
 import { emitDaycareUpdated } from "@/config/socket";
@@ -70,6 +71,31 @@ export const allDaycare = async (req: Request, res: Response) => {
         });
     }
 }
+
+// Get single daycare availability & next available dates
+export const getDaycareAvailability = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        if (!id) {
+            return res.status(400).json({
+                success: false,
+                message: "Daycare ID is required",
+            });
+        }
+
+        const minSlots = Number(req.query.minSlots || req.query.children) || 1;
+        const availability = await getDaycareAvailabilityService(id, minSlots);
+        return res.status(200).json({
+            success: true,
+            data: availability,
+        });
+    } catch (error: any) {
+        return res.status(error.message === "Daycare not found" ? 404 : 400).json({
+            success: false,
+            message: error.message,
+        });
+    }
+};
 
 // UPDATE daycare
 export const updateDaycare = async (req: Request, res: Response) => {

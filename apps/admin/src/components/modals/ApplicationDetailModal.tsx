@@ -6,6 +6,7 @@ interface ApplicationDetailModalProps {
   application: DaycareApplication | null;
   onClose: () => void;
   onApprove: (application: DaycareApplication) => void;
+  onRequestReject?: ((application: DaycareApplication) => void) | undefined;
   onReject: (id: string) => void;
 }
 
@@ -13,6 +14,7 @@ export function ApplicationDetailModal({
   application,
   onClose,
   onApprove,
+  onRequestReject,
   onReject,
 }: ApplicationDetailModalProps) {
   const { t } = useLanguage();
@@ -82,7 +84,7 @@ export function ApplicationDetailModal({
                   {t.admin.dashboard.table.colPermit}
                 </span>
                 <span className="font-mono font-bold text-[#1E1B18] break-all">
-                  {application.permitId || application.permitNumber}
+                  {application.permitId?.trim() && application.permitId !== "—" ? application.permitId : "—"}
                 </span>
               </div>
               <div>
@@ -93,6 +95,16 @@ export function ApplicationDetailModal({
                   {application.authorizedCapacity ?? application.capacity} {t.admin.dashboard.table.children}
                 </span>
               </div>
+              {application.childAge && (
+                <div>
+                  <span className="text-[#7A6E62] block text-[11px]">
+                    {t.admin.dashboard.detailModal.childAge || "Accepted Child Age"}
+                  </span>
+                  <span className="font-bold text-[#1E1B18]">
+                    {application.childAge}
+                  </span>
+                </div>
+              )}
               {application.registrationDate && (
                 <div>
                   <span className="text-[#7A6E62] block text-[11px]">
@@ -226,18 +238,27 @@ export function ApplicationDetailModal({
             {t.admin.dashboard.detailModal.close}
           </button>
 
-          {application.status === "pending" && (
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
+            {application.status !== "rejected" && (
               <button
                 type="button"
                 onClick={() => {
-                  onReject(application.id);
+                  if (onRequestReject) {
+                    onRequestReject(application);
+                  } else {
+                    onReject(application.id);
+                  }
                   onClose();
                 }}
                 className="px-3.5 py-2 rounded-xl border border-[#FCA5A5] text-[#DC2626] hover:bg-[#FEF2F2] font-semibold text-xs transition-colors cursor-pointer min-h-[38px]"
               >
-                {t.admin.dashboard.table.reject}
+                {application.status === "approved"
+                  ? (t.admin.dashboard.table.revoke || "Revoke / Reject")
+                  : t.admin.dashboard.table.reject}
               </button>
+            )}
+
+            {application.status !== "approved" && (
               <button
                 type="button"
                 onClick={() => {
@@ -246,10 +267,25 @@ export function ApplicationDetailModal({
                 }}
                 className="px-4 py-2 rounded-xl bg-[#16A34A] hover:bg-[#15803D] text-white font-semibold text-xs shadow-2xs transition-colors cursor-pointer min-h-[38px]"
               >
-                {t.admin.dashboard.table.approve}
+                {application.status === "rejected"
+                  ? (t.admin.dashboard.table.reApprove || "Re-Approve")
+                  : t.admin.dashboard.table.approve}
               </button>
-            </div>
-          )}
+            )}
+
+            {application.status === "approved" && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onApprove(application);
+                }}
+                className="px-4 py-2 rounded-xl border border-[#86EFAC] bg-[#DCFCE7] hover:bg-[#BBF7D0] text-[#166534] font-semibold text-xs transition-colors cursor-pointer min-h-[38px]"
+              >
+                {t.admin.dashboard.approveModal.title || "Edit Permit"}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

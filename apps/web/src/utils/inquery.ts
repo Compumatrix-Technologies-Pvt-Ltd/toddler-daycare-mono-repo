@@ -12,9 +12,9 @@ export interface InquiryPayload {
   caretakerIds?: string[];
   daycareIds?: string[];
   daycareNames?: string[];
-  childName: string;
+  childName?: string;
   childBirthday?: string;
-  desiredStart: string;
+  desiredStart?: string;
   estTransition?: string;
   careHours?: string;
   preferences?: InquiryPreferences;
@@ -23,6 +23,32 @@ export interface InquiryPayload {
   email: string;
   note?: string;
   consentMapVisibility?: boolean;
+
+  searchLocation?: {
+    lat?: number;
+    log?: number;
+    lng?: number;
+    area?: string;
+    address?: string;
+  };
+
+  currentLocation?: {
+    lat?: number;
+    log?: number;
+    lng?: number;
+    area?: string;
+  };
+
+  searchFilters?: {
+    child?: number;
+    month?: string;
+    year?: string;
+    tolerance?: string;
+    hours?: string;
+    food?: string;
+    pet?: string;
+    gender?: string;
+  };
 }
 
 export interface InquiryResponse {
@@ -109,10 +135,42 @@ export async function updateInquiryStatus(id: string, status: string): Promise<a
   return result.data;
 }
 
+/**
+ * Fetch parent search history demands within caretaker's daycare catchment radius (30-day window)
+ */
+export async function fetchNearbySearchDemands(token?: string): Promise<{
+  daycare: {
+    id: string;
+    name: string;
+    location: any;
+    radiusKm: number;
+    areaType: string;
+  } | null;
+  totalNearby: number;
+  searches: any[];
+}> {
+  const authToken =
+    token || (typeof window !== "undefined" ? localStorage.getItem("caretaker_token") : null);
+
+  const res = await fetch(`${API_BASE_URL}/caretaker/search-history`, {
+    headers: {
+      "Content-Type": "application/json",
+      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+    },
+  });
+
+  const result = await res.json();
+  if (!res.ok) {
+    throw new Error(result.message || "Failed to fetch nearby search demands");
+  }
+  return result.data || { daycare: null, totalNearby: 0, searches: [] };
+}
+
 export const inquiryApi = {
   submitInquiry,
   fetchInquiries,
   updateInquiryStatus,
+  fetchNearbySearchDemands,
 };
 
 export default submitInquiry;

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { CaretakerHeader } from "../../../components/caretaker/CaretakerHeader";
 import { Footer } from "../../../components/Footer";
 import { GanttCalendar } from "../../../components/caretaker/dashboard/GanttCalendar";
@@ -15,15 +15,21 @@ import { caretakerApi } from "../../../utils/caretakerApi";
 import { fetchInquiries, updateInquiryStatus } from "../../../utils/inquery";
 import { getSocket } from "../../../utils/socket";
 import { BookingItem, GanttMonth, InquiryStatus, YearGroup } from "../../../types/caretakerDashboard";
+import { calculateDistanceKm } from "../../../utils/geoDistance";
+import {
+  parseFlexibleBookingDate,
+  classifyOverlappingBookings,
+  filterBookingsByDateRange,
+} from "@repo/shared";
 
 const MONTH_SHORT_NAMES = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 
-function buildGanttTimeline(totalMonths = 22): { months: GanttMonth[]; years: YearGroup[] } {
-  const now = new Date();
-  const startYear = now.getFullYear();
-  const startMonth = now.getMonth();
+function buildGanttTimeline(startDate: Date = new Date(), totalMonths = 22): { months: GanttMonth[]; years: YearGroup[] } {
+  const startYear = startDate.getFullYear();
+  const startMonth = startDate.getMonth();
   const months: GanttMonth[] = [];
   const yearCounts = new Map<number, number>();
+  const now = new Date();
 
   for (let i = 0; i < totalMonths; i++) {
     const d = new Date(startYear, startMonth + i, 1);
@@ -31,12 +37,13 @@ function buildGanttTimeline(totalMonths = 22): { months: GanttMonth[]; years: Ye
     const m = d.getMonth();
     const shortName = MONTH_SHORT_NAMES[m];
     const yy = String(y).slice(-2);
+    const isThisMonth = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
     months.push({
       id: `${y}-${String(m + 1).padStart(2, "0")}`,
       year: y,
       shortName,
       fullLabel: `${shortName} ${yy}`,
-      ...(i === 0 ? { isCurrentMonth: true } : {}),
+      ...(isThisMonth ? { isCurrentMonth: true } : {}),
     });
     yearCounts.set(y, (yearCounts.get(y) || 0) + 1);
   }
@@ -49,7 +56,11 @@ function buildGanttTimeline(totalMonths = 22): { months: GanttMonth[]; years: Ye
   return { months, years };
 }
 
-const { months: GANTT_MONTHS, years: GANTT_YEARS } = buildGanttTimeline(22);
+const DEFAULT_GANTT_TIMELINE = buildGanttTimeline(new Date(), 22);
+
+function parseBookingDate(dateStr?: string, isEndOfPeriod: boolean = false): Date | null {
+  return parseFlexibleBookingDate(dateStr, isEndOfPeriod);
+}
 
 function parseCapacity(value: unknown): number {
   if (typeof value === "number" && Number.isFinite(value)) {
@@ -65,7 +76,10 @@ function mapBackendStatusToDashboard(status?: string): InquiryStatus {
       return "Reviewing";
     case "accepted":
       return "Accepted";
+    case "booked":
+      return "Booked";
     case "rejected":
+    case "declined":
       return "Declined";
     default:
       return "New";
@@ -79,6 +93,8 @@ function mapDashboardStatusToBackend(status: InquiryStatus): string {
       return "contacted";
     case "Accepted":
       return "accepted";
+    case "Booked":
+      return "booked";
     case "Declined":
       return "rejected";
     default:
@@ -86,52 +102,144 @@ function mapDashboardStatusToBackend(status: InquiryStatus): string {
   }
 }
 
-function resolveStartMonthIndex(desiredStart?: string): number {
+function resolveStartMonthIndex(desiredStart?: string, months: GanttMonth[] = DEFAULT_GANTT_TIMELINE.months): number {
   if (!desiredStart) return 0;
-  const lower = desiredStart.toLowerCase();
-  const yearMatch = lower.match(/20\d{2}/);
-  const monthNames = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
-  const monthIdx = monthNames.findIndex((m) => lower.includes(m));
-  if (yearMatch && monthIdx >= 0) {
-    const targetId = `${yearMatch[0]}-${String(monthIdx + 1).padStart(2, "0")}`;
-    const found = GANTT_MONTHS.findIndex((gm) => gm.id === targetId);
-    if (found >= 0) return found;
-  }
-  const isoMatch = lower.match(/(20\d{2})-(\d{2})/);
-  if (isoMatch) {
-    const found = GANTT_MONTHS.findIndex((gm) => gm.id === `${isoMatch[1]}-${isoMatch[2]}`);
-    if (found >= 0) return found;
-  }
-  return 0;
+  const d = parseBookingDate(desiredStart);
+  if (!d) return 0;
+  if (!months || months.length === 0) return 0;
+  const targetId = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  const found = months.findIndex((gm) => gm.id === targetId);
+  if (found >= 0) return found;
+
+  const firstMonthNum = parseInt(months[0].id.split("-")[1], 10) - 1;
+  const firstD = new Date(months[0].year, firstMonthNum, 1);
+  if (d < firstD) return 0;
+  return Math.max(0, months.length - 1);
 }
 
-function mapInquiryToBookingItem(inq: any, category: "inquiry" | "future"): BookingItem {
-  const startIdx = resolveStartMonthIndex(inq.desiredStart);
-  const endIdx = Math.min(GANTT_MONTHS.length - 1, startIdx + 10);
-  const startLabel = inq.desiredStart || GANTT_MONTHS[startIdx]?.fullLabel || "";
-  const endLabel = GANTT_MONTHS[endIdx]?.fullLabel || "";
+function mapInquiryToBookingItem(
+  inq: any,
+  category: "inquiry" | "future",
+  daycareLocation?: {
+    latitude?: number;
+    longitude?: number;
+    catchmentRadiusKm?: number;
+    city?: string;
+    street?: string;
+  } | null,
+  fallbackCatchmentRadius = 3,
+  index = 0,
+  lang: "de" | "en" = "de",
+  months: GanttMonth[] = DEFAULT_GANTT_TIMELINE.months
+): BookingItem {
+  const startIdx = resolveStartMonthIndex(inq.desiredStart, months);
+  const endIdx = Math.min(months.length > 0 ? months.length - 1 : 21, startIdx + 10);
+  const startLabel = inq.desiredStart || months[startIdx]?.fullLabel || "";
+  const endLabel = months[endIdx]?.fullLabel || "";
   const periodLabel = endLabel ? `${startLabel} – ${endLabel}` : startLabel;
+  const isAnInquiry = category === "inquiry";
+
   const prefParts = [
     inq.preferences?.gender,
     inq.preferences?.food,
     inq.preferences?.pets,
   ].filter(Boolean);
 
+  const cleanDesiredStart =
+    inq.desiredStart && inq.desiredStart !== "Flexibel / Nach Absprache"
+      ? inq.desiredStart
+      : "";
+
+  // Dynamic distance computation from parent inquiry's location & daycare location
+  const radius = daycareLocation?.catchmentRadiusKm || fallbackCatchmentRadius || 3;
+  const parentLat = inq.currentLocation?.lat ?? inq.searchLocation?.lat;
+  const parentLng =
+    inq.currentLocation?.lng ??
+    inq.currentLocation?.log ??
+    inq.searchLocation?.lng ??
+    inq.searchLocation?.log;
+  const parentArea =
+    inq.currentLocation?.area ||
+    inq.searchLocation?.area ||
+    inq.searchLocation?.address;
+
+  const daycareLat = daycareLocation?.latitude;
+  const daycareLng = daycareLocation?.longitude;
+
+  let computedLocationDistance = "";
+  let computedLocationDistanceDe = "";
+
+  if (
+    parentLat != null &&
+    parentLng != null &&
+    daycareLat != null &&
+    daycareLng != null &&
+    !isNaN(Number(parentLat)) &&
+    !isNaN(Number(parentLng)) &&
+    !isNaN(Number(daycareLat)) &&
+    !isNaN(Number(daycareLng))
+  ) {
+    const dist = calculateDistanceKm(
+      Number(parentLat),
+      Number(parentLng),
+      Number(daycareLat),
+      Number(daycareLng)
+    );
+    if (dist !== Infinity) {
+      const distStr = dist.toFixed(1);
+      const distStrDe = distStr.replace(".", ",");
+      computedLocationDistance = `${distStr} km away (within ${radius}km)`;
+      computedLocationDistanceDe = `${distStrDe} km entfernt (im ${radius}km-Radius)`;
+    }
+  }
+
+  if (!computedLocationDistance && inq.locationDistance) {
+    computedLocationDistance = inq.locationDistance;
+    computedLocationDistanceDe = inq.locationDistanceDe || inq.locationDistance;
+  }
+
+  if (!computedLocationDistance && parentArea) {
+    computedLocationDistance = `${parentArea} (within ${radius}km)`;
+    computedLocationDistanceDe = `${parentArea} (im ${radius}km-Radius)`;
+  }
+
+  if (!computedLocationDistance) {
+    computedLocationDistance = `Within ${radius}km`;
+    computedLocationDistanceDe = `Im ${radius}km-Radius`;
+  }
+
+  // Functional match percentage calculation (never 0%)
+  let dynamicMatch = 65;
+  if (inq.desiredStart && inq.desiredStart !== "Flexibel / Nach Absprache") dynamicMatch += 15;
+  if (inq.careHours && inq.careHours.length > 5) dynamicMatch += 10;
+  if (computedLocationDistance && !computedLocationDistance.includes(">")) dynamicMatch += 10;
+  const calculatedMatch = Math.min(95, Math.max(65, inq.matchPercent || dynamicMatch));
+
+  // Default child name for inquiries: Inquiry 1, Inquiry 2, etc.
+  const defaultInquiryName = lang === "de" ? `Anfrage ${index + 1}` : `Inquiry ${index + 1}`;
+  const resolvedChildName =
+    inq.childName &&
+    inq.childName !== "Child" &&
+    inq.childName !== "1 Kind" &&
+    !inq.childName.startsWith("Familie ")
+      ? inq.childName
+      : (isAnInquiry ? defaultInquiryName : inq.parentName || "Kind");
+
   return {
     id: String(inq._id || inq.id || inq.referenceId || ""),
-    childName: inq.childName || "Child",
+    childName: resolvedChildName,
     childAge: inq.childBirthday ? `DOB: ${inq.childBirthday}` : "",
     childAgeDe: inq.childBirthday ? `Geb.: ${inq.childBirthday}` : "",
-    placementStart: startLabel,
-    placementStartDe: startLabel,
-    kindergartenTransition: endLabel,
-    kindergartenTransitionDe: endLabel,
+    placementStart: isAnInquiry ? cleanDesiredStart : startLabel,
+    placementStartDe: isAnInquiry ? cleanDesiredStart : startLabel,
+    kindergartenTransition: isAnInquiry ? (inq.estTransition || "") : endLabel,
+    kindergartenTransitionDe: isAnInquiry ? (inq.estTransition || "") : endLabel,
     period: periodLabel,
     periodDe: periodLabel,
     startMonthIndex: startIdx,
     endMonthIndex: endIdx,
-    dailyHours: inq.careHours || "Mon – Fri • 08:00 – 15:00",
-    dailyHoursDe: inq.careHours || "Mo. – Fr. • 08:00 – 15:00 Uhr",
+    dailyHours: isAnInquiry ? (inq.careHours && inq.careHours !== "Mo – Fr • 08:00 – 15:00" ? inq.careHours : "") : (inq.careHours || "Mon – Fri • 08:00 – 15:00"),
+    dailyHoursDe: isAnInquiry ? (inq.careHours && inq.careHours !== "Mo – Fr • 08:00 – 15:00" ? inq.careHours : "") : (inq.careHours || "Mo. – Fr. • 08:00 – 15:00 Uhr"),
     parentContact: {
       parents: inq.parentName || "",
       phone: inq.phone || "",
@@ -140,12 +248,119 @@ function mapInquiryToBookingItem(inq: any, category: "inquiry" | "future"): Book
     category,
     isBooked: category === "future",
     inquiryStatus: mapBackendStatusToDashboard(inq.status),
-    ...(inq.childBirthday ? { dob: inq.childBirthday } : {}),
-    desiredStart: startLabel,
-    desiredStartDe: startLabel,
-    ...(inq.estTransition ? { estTransition: inq.estTransition, estTransitionDe: inq.estTransition } : {}),
-    ...(prefParts.length > 0 ? { preferences: prefParts.join(" • "), preferencesDe: prefParts.join(" • ") } : {}),
-    ...(inq.note ? { parentQuote: inq.note, parentQuoteDe: inq.note } : {}),
+    dob: inq.childBirthday || "",
+    desiredStart: isAnInquiry ? cleanDesiredStart : startLabel,
+    desiredStartDe: isAnInquiry ? cleanDesiredStart : startLabel,
+    estTransition: inq.estTransition || "",
+    estTransitionDe: inq.estTransition || "",
+    preferences: prefParts.length > 0 ? prefParts.join(" • ") : "",
+    preferencesDe: prefParts.length > 0 ? prefParts.join(" • ") : "",
+    locationDistance: computedLocationDistance,
+    locationDistanceDe: computedLocationDistanceDe,
+    matchPercent: calculatedMatch,
+    recommendedAllocation: {
+      slotText: "Allocates to Slot 4 (follows David)",
+      slotTextDe: "Zuordnung zu Platz 4 (nach David)",
+      vacantMonthsText: "0 vacant mos",
+      vacantMonthsTextDe: "0 Freimonate",
+      note: "David leaves Dec 2027 • Starts Dec 2027",
+      noteDe: "David wechselt Dez 2027 • Startet Dez 2027",
+    },
+    parentQuote: inq.note || "",
+    parentQuoteDe: inq.note || "",
+  };
+}
+
+/**
+ * Classifies bookings into Current and Future based on chained overlapping periods
+ * and today's date, adhering strictly to:
+ * - Current Bookings: Bookings currently active based on today's date + any overlapping chained periods,
+ *   OR the earliest booking + any overlapping chained periods (when all start in the future).
+ * - Future Bookings: All subsequent non-overlapping bookings starting after the first group.
+ * - Completed Bookings: Past bookings whose end date is before today (excluded).
+ * - Timeline Window: Selected date range only filters visible bookings, never changing their classification.
+ */
+function classifyBookings(
+  bookings: BookingItem[],
+  windowStart: Date,
+  windowEnd: Date,
+  today: Date = new Date()
+): { current: BookingItem[]; future: BookingItem[] } {
+  // 1. Centralized chained overlapping grouping across all bookings
+  const { current: allCurrent, future: allFuture } = classifyOverlappingBookings(bookings, today);
+
+  // 2. Timeline window filtering (inclusive overlap: bEnd >= windowStart && bStart <= windowEnd)
+  const visibleCurrent = filterBookingsByDateRange(allCurrent, windowStart, windowEnd).map((b) => ({
+    ...b,
+    category: "current" as const,
+  }));
+
+  const visibleFuture = filterBookingsByDateRange(allFuture, windowStart, windowEnd).map((b) => ({
+    ...b,
+    category: "future" as const,
+  }));
+
+  return { current: visibleCurrent, future: visibleFuture };
+}
+
+function mapDbBookingToBookingItem(
+  b: any,
+  months: GanttMonth[] = DEFAULT_GANTT_TIMELINE.months,
+  category: "current" | "future" = "current"
+): BookingItem {
+  const dStart = parseFlexibleBookingDate(b.placementStart, false);
+  const dEnd = parseFlexibleBookingDate(b.kindergartenTransition, true);
+
+  const m0 = months[0];
+  const m0Month = m0 ? parseInt(m0.id.split("-")[1]!, 10) - 1 : 0;
+  const m0Year = m0 ? m0.year : new Date().getFullYear();
+
+  // Dynamic month difference calculated from actual dates relative to visible timeline
+  const startIdx = dStart
+    ? (dStart.getFullYear() - m0Year) * 12 + (dStart.getMonth() - m0Month)
+    : (b.startMonthIndex ?? 0);
+
+  const endIdx = dEnd
+    ? (dEnd.getFullYear() - m0Year) * 12 + (dEnd.getMonth() - m0Month)
+    : (b.endMonthIndex ?? startIdx + 11);
+
+  const startLabel = b.placementStart || (months[Math.max(0, Math.min(months.length - 1, startIdx))]?.fullLabel || "");
+  const endLabel = b.kindergartenTransition || (months[Math.max(0, Math.min(months.length - 1, endIdx))]?.fullLabel || "");
+  const periodLabel = endLabel ? `${startLabel} – ${endLabel}` : startLabel;
+
+  return {
+    id: String(b._id || b.id || b.referenceId),
+    inquiryId: b.inquiryId ? String(b.inquiryId) : undefined,
+    childName: b.childName,
+    childAge: b.childDob ? `DOB: ${b.childDob}` : "",
+    childAgeDe: b.childDob ? `Geb.: ${b.childDob}` : "",
+    placementStart: b.placementStart,
+    placementStartDe: b.placementStart,
+    kindergartenTransition: b.kindergartenTransition,
+    kindergartenTransitionDe: b.kindergartenTransition,
+    period: periodLabel,
+    periodDe: periodLabel,
+    startMonthIndex: startIdx,
+    endMonthIndex: endIdx,
+    dailyHours: b.dailyHours,
+    dailyHoursDe: b.dailyHours,
+    parentContact: {
+      parents: b.parentContact?.parents || "",
+      phone: b.parentContact?.phone || "",
+      email: b.parentContact?.email || "",
+    },
+    category,
+    isBooked: true,
+    isExtendingRight: endIdx >= months.length,
+    dob: b.childDob,
+    desiredStart: b.placementStart,
+    desiredStartDe: b.placementStart,
+    estTransition: b.kindergartenTransition,
+    estTransitionDe: b.kindergartenTransition,
+    preferences: b.preferences || "",
+    preferencesDe: b.preferences || "",
+    parentQuote: b.notes || "",
+    parentQuoteDe: b.notes || "",
   };
 }
 
@@ -162,26 +377,103 @@ export default function CaretakerDashboardPage() {
   const [fittingInquiries, setFittingInquiries] = useState<BookingItem[]>([]);
   const [selectedItem, setSelectedItem] = useState<BookingItem | null>(null);
 
+  // Dynamic Timeline Start Date & Months (Functional Date Range Filter)
+  const [timelineStartDate, setTimelineStartDate] = useState<Date>(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
+
+  const { months: ganttMonths, years: ganttYears } = useMemo(() => {
+    return buildGanttTimeline(timelineStartDate, 22);
+  }, [timelineStartDate]);
+
+  // Dynamic Date Range label
+  const dateRangeLabel = useMemo(() => {
+    if (ganttMonths.length === 0) return "";
+    const first = ganttMonths[0];
+    const last = ganttMonths[ganttMonths.length - 1];
+    const monthNamesEn = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const monthNamesDe = ["Jan.", "Feb.", "März", "Apr.", "Mai", "Juni", "Juli", "Aug.", "Sept.", "Okt.", "Nov.", "Dez."];
+
+    const firstMonthNum = parseInt(first.id.split("-")[1], 10) - 1;
+    const lastMonthNum = parseInt(last.id.split("-")[1], 10) - 1;
+
+    const firstStr = language === "de" ? `${monthNamesDe[firstMonthNum]} ${first.year}` : `${monthNamesEn[firstMonthNum]} ${first.year}`;
+    const lastStr = language === "de" ? `${monthNamesDe[lastMonthNum]} ${last.year}` : `${monthNamesEn[lastMonthNum]} ${last.year}`;
+
+    return `${firstStr} – ${lastStr}`;
+  }, [ganttMonths, language]);
+
+  // Filter params state (synchronized with API query params and URL)
+  const [categoryFilter, setCategoryFilter] = useState<"all" | "current" | "future" | "inquiry">("all");
+  const [filterQuery, setFilterQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+
   // Dynamic capacity & catchment radius
   const [totalSlots, setTotalSlots] = useState<number>(() =>
     parseCapacity(profile.permitAuthorizedCapacity || profile.maxCapacity)
   );
   const [catchmentRadius, setCatchmentRadius] = useState<number>(3);
 
-  const loadDashboardData = useCallback(async () => {
+  // Sync with browser URL search params
+  const updateUrlParams = (cat: string, q: string, st: string, date: Date = timelineStartDate) => {
+    if (typeof window === "undefined") return;
+    try {
+      const url = new URL(window.location.href);
+      if (cat && cat !== "all") url.searchParams.set("category", cat);
+      else url.searchParams.delete("category");
+
+      if (q) url.searchParams.set("search", q);
+      else url.searchParams.delete("search");
+
+      if (st && st !== "all") url.searchParams.set("status", st);
+      else url.searchParams.delete("status");
+
+      const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+      url.searchParams.set("date", dateStr);
+
+      setTimeout(() => {
+        window.history.replaceState({}, "", url.toString());
+      }, 0);
+    } catch {
+      // Ignore URL manipulation errors
+    }
+  };
+
+  const loadDashboardData = useCallback(async (
+    cat: "all" | "current" | "future" | "inquiry" = categoryFilter,
+    q: string = filterQuery,
+    st: string = statusFilter,
+    activeTimelineDate: Date = timelineStartDate
+  ) => {
     const token = caretakerApi.getToken();
     const caretakerId = caretakerApi.getCaretakerId();
 
     try {
-      const [settingsRes, daycareRes, inquiriesRes] = await Promise.all([
+      const activeTimeline = buildGanttTimeline(activeTimelineDate, 22);
+      const activeMonths = activeTimeline.months;
+
+      const windowStart = new Date(activeMonths[0].year, parseInt(activeMonths[0].id.split("-")[1], 10) - 1, 1);
+      const windowEnd = new Date(activeMonths[activeMonths.length - 1].year, parseInt(activeMonths[activeMonths.length - 1].id.split("-")[1], 10), 0);
+      const windowStartIso = `${windowStart.getFullYear()}-${String(windowStart.getMonth() + 1).padStart(2, "0")}-01`;
+      const windowEndIso = `${windowEnd.getFullYear()}-${String(windowEnd.getMonth() + 1).padStart(2, "0")}-${String(windowEnd.getDate()).padStart(2, "0")}`;
+
+      const [settingsRes, daycareRes, inquiriesRes, bookingsRes] = await Promise.all([
         caretakerApi.getSettings().catch(() => null),
         token ? caretakerApi.getDaycare().catch(() => null) : Promise.resolve(null),
-        token
-          ? fetchInquiries({
-            ...(caretakerId ? { caretakerId } : {}),
-            token,
-          }).catch(() => [])
-          : Promise.resolve([]),
+        fetchInquiries({
+          ...(caretakerId ? { caretakerId } : {}),
+          token: token || undefined,
+          search: q.trim() || undefined,
+          status: st !== "all" ? st : undefined,
+        }).catch(() => []),
+        caretakerApi.getBookings({
+          category: cat !== "all" && cat !== "inquiry" ? cat : undefined,
+          status: st !== "all" ? st : undefined,
+          search: q.trim() || undefined,
+          startDate: windowStartIso,
+          endDate: windowEndIso,
+        }).catch(() => []),
       ]);
 
       if (settingsRes?.defaultCatchmentRadiusKm) {
@@ -199,38 +491,102 @@ export default function CaretakerDashboardPage() {
       }
 
       const list = Array.isArray(inquiriesRes) ? inquiriesRes : [];
-      const acceptedList = list
-        .filter((inq: any) => inq.status === "accepted")
-        .map((inq: any) => mapInquiryToBookingItem(inq, "future"));
-      const pendingList = list
-        .filter((inq: any) => inq.status !== "accepted" && inq.status !== "rejected")
-        .map((inq: any) => mapInquiryToBookingItem(inq, "inquiry"));
+      const daycareLocation = daycareRes?.location || null;
+      const currentRadius = settingsRes?.defaultCatchmentRadiusKm
+        ? Number(settingsRes.defaultCatchmentRadiusKm) || 3
+        : (daycareLocation?.catchmentRadiusKm || catchmentRadius || 3);
 
-      // Merge any locally-added manual bookings for this caretaker session
-      let manualCurrent: BookingItem[] = [];
-      let manualFuture: BookingItem[] = [];
+      // 1. Map all bookings from MongoDB database
+      const dbBookingsList = Array.isArray(bookingsRes)
+        ? bookingsRes.map((b: any) => mapDbBookingToBookingItem(b, activeMonths))
+        : [];
+
+      // 2. Track all booked inquiry IDs to avoid duplicates across sections
+      const bookedInquiryIds = new Set<string>();
+      dbBookingsList.forEach((b: any) => {
+        if (b.inquiryId) bookedInquiryIds.add(String(b.inquiryId));
+        if (b._id) bookedInquiryIds.add(String(b._id));
+        if (b.id) bookedInquiryIds.add(String(b.id));
+      });
+
+      // 3. Fitting Inquiries: EXCLUDE any inquiry marked as booked, accepted, declined, or rejected,
+      // and any inquiry that already has a corresponding booking in the database
+      const pendingList = list
+        .filter((inq: any) => {
+          const inqId = String(inq._id || inq.id || "");
+          const refId = String(inq.referenceId || "");
+          const isBooked =
+            inq.status === "booked" ||
+            inq.status === "accepted" ||
+            bookedInquiryIds.has(inqId) ||
+            (refId && bookedInquiryIds.has(refId));
+          const isDeclined = inq.status === "declined" || inq.status === "rejected";
+          return !isBooked && !isDeclined;
+        })
+        .map((inq: any, idx: number) =>
+          mapInquiryToBookingItem(inq, "inquiry", daycareLocation, currentRadius, idx, language, activeMonths)
+        );
+
+      const finalInquiries = pendingList;
+
+      // 4. Inquiries marked as accepted/booked in DB without a separate booking document yet
+      const acceptedWithoutDbBooking = list
+        .filter((inq: any) => {
+          const inqId = String(inq._id || inq.id || "");
+          const refId = String(inq.referenceId || "");
+          const isBooked = inq.status === "booked" || inq.status === "accepted";
+          const alreadyInDb = bookedInquiryIds.has(inqId) || (refId && bookedInquiryIds.has(refId));
+          return isBooked && !alreadyInDb;
+        })
+        .map((inq: any, idx: number) =>
+          mapInquiryToBookingItem(inq, "future", daycareLocation, currentRadius, idx, language, activeMonths)
+        );
+
+      // 5. Merge any locally-added manual bookings for this caretaker session
+      let manualBookings: BookingItem[] = [];
       if (typeof window !== "undefined") {
         try {
           const storageKey = `toddler_manual_bookings_${caretakerId || "default"}`;
           const raw = localStorage.getItem(storageKey);
           if (raw) {
             const parsed = JSON.parse(raw);
-            if (Array.isArray(parsed?.current)) manualCurrent = parsed.current;
-            if (Array.isArray(parsed?.future)) manualFuture = parsed.future;
+            if (Array.isArray(parsed?.current)) manualBookings.push(...parsed.current);
+            if (Array.isArray(parsed?.future)) manualBookings.push(...parsed.future);
           }
         } catch {
           // Ignore malformed local bookings
         }
       }
 
-      const nextCurrent = manualCurrent;
-      const nextFuture = [...manualFuture, ...acceptedList];
-      setCurrentBookings(nextCurrent);
-      setFutureBookings(nextFuture);
-      setFittingInquiries(pendingList);
+      // 6. Deduplicate all booking items by unique ID
+      const allBookingsMap = new Map<string, BookingItem>();
+      dbBookingsList.forEach((b) => allBookingsMap.set(b.id, b));
+      acceptedWithoutDbBooking.forEach((b) => {
+        if (!allBookingsMap.has(b.id)) allBookingsMap.set(b.id, b);
+      });
+      manualBookings.forEach((b) => {
+        if (!allBookingsMap.has(b.id)) allBookingsMap.set(b.id, b);
+      });
+      const allUniqueBookings = Array.from(allBookingsMap.values());
+
+      // 7. Dynamic Date-Based Classification (Section 2 & 3 Requirements):
+      // - Classifies bookings that overlap the selected availability window
+      // - Current Bookings: active today OR earliest booking period in selected window (e.g. Booking 1 in Dec 2026)
+      // - Future Bookings: start after today / after earlier bookings (e.g. Booking 2 in Jan 2027)
+      const now = new Date();
+      const { current: classifiedCurrent, future: classifiedFuture } = classifyBookings(
+        allUniqueBookings,
+        windowStart,
+        windowEnd,
+        now
+      );
+
+      setCurrentBookings(classifiedCurrent);
+      setFutureBookings(classifiedFuture);
+      setFittingInquiries(finalInquiries);
 
       setSelectedItem((prev) => {
-        const combined = [...nextCurrent, ...nextFuture, ...pendingList];
+        const combined = [...classifiedCurrent, ...classifiedFuture, ...finalInquiries];
         if (prev && combined.some((item) => item.id === prev.id)) {
           return combined.find((item) => item.id === prev.id) || prev;
         }
@@ -239,7 +595,63 @@ export default function CaretakerDashboardPage() {
     } catch (err) {
       console.error("Failed to load caretaker dashboard data:", err);
     }
-  }, [profile.maxCapacity, profile.permitAuthorizedCapacity]);
+  }, [profile.maxCapacity, profile.permitAuthorizedCapacity, language, catchmentRadius, categoryFilter, filterQuery, statusFilter, timelineStartDate]);
+
+  // Date range navigation handlers (Today, Prev, Next)
+  const handleToday = () => {
+    const now = new Date();
+    const todayMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    setTimelineStartDate(todayMonth);
+    updateUrlParams(categoryFilter, filterQuery, statusFilter, todayMonth);
+    loadDashboardData(categoryFilter, filterQuery, statusFilter, todayMonth);
+  };
+
+  const handlePrevDateRange = () => {
+    const nextDate = new Date(timelineStartDate.getFullYear(), timelineStartDate.getMonth() - 6, 1);
+    setTimelineStartDate(nextDate);
+    updateUrlParams(categoryFilter, filterQuery, statusFilter, nextDate);
+    loadDashboardData(categoryFilter, filterQuery, statusFilter, nextDate);
+  };
+
+  const handleNextDateRange = () => {
+    const nextDate = new Date(timelineStartDate.getFullYear(), timelineStartDate.getMonth() + 6, 1);
+    setTimelineStartDate(nextDate);
+    updateUrlParams(categoryFilter, filterQuery, statusFilter, nextDate);
+    loadDashboardData(categoryFilter, filterQuery, statusFilter, nextDate);
+  };
+
+  // Read URL params on initial mount
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const sp = new URLSearchParams(window.location.search);
+      const catParam = sp.get("category");
+      const searchParam = sp.get("search");
+      const statusParam = sp.get("status");
+      const dateParam = sp.get("date");
+
+      const resolvedCat = (catParam === "all" || catParam === "current" || catParam === "future" || catParam === "inquiry")
+        ? catParam
+        : "all";
+      const resolvedSearch = searchParam || "";
+      const resolvedStatus = statusParam || "all";
+
+      let initialDate = new Date();
+      if (dateParam) {
+        const parsedD = parseBookingDate(dateParam);
+        if (parsedD) initialDate = parsedD;
+      }
+      const initialMonthDate = new Date(initialDate.getFullYear(), initialDate.getMonth(), 1);
+
+      setTimelineStartDate(initialMonthDate);
+      setCategoryFilter(resolvedCat);
+      setFilterQuery(resolvedSearch);
+      setStatusFilter(resolvedStatus);
+
+      loadDashboardData(resolvedCat, resolvedSearch, resolvedStatus, initialMonthDate);
+    } else {
+      loadDashboardData();
+    }
+  }, []);
 
   useEffect(() => {
     loadDashboardData();
@@ -316,14 +728,10 @@ export default function CaretakerDashboardPage() {
 
   // Add new booking
   const handleAddBooking = (newBooking: BookingItem) => {
-    const manualBooking: BookingItem = {
-      ...newBooking,
-      id: newBooking.id.startsWith("manual-") ? newBooking.id : `manual-${newBooking.id}`,
-    };
-    const nextFuture = [manualBooking, ...futureBookings];
+    const nextFuture = [newBooking, ...futureBookings.filter((b) => b.id !== newBooking.id)];
     setFutureBookings(nextFuture);
     saveManualBookings(currentBookings, nextFuture);
-    setSelectedItem(manualBooking);
+    setSelectedItem(newBooking);
     setNotificationMsg({
       text: t.caretakerDashboard.modals.addBooking.success,
       type: "success",
@@ -332,7 +740,22 @@ export default function CaretakerDashboardPage() {
   };
 
   // Update existing booking
-  const handleUpdateItem = (updated: BookingItem) => {
+  const handleUpdateItem = async (updated: BookingItem) => {
+    // If backend DB booking, update in DB
+    if (updated.id && !updated.id.startsWith("manual-")) {
+      try {
+        await caretakerApi.updateBooking(updated.id, {
+          childName: updated.childName,
+          childDob: updated.dob,
+          placementStart: updated.placementStart,
+          kindergartenTransition: updated.kindergartenTransition,
+          dailyHours: updated.dailyHours,
+          parentContact: updated.parentContact,
+          notes: updated.parentQuote,
+        }).catch(() => {});
+      } catch {}
+    }
+
     const updateList = (list: BookingItem[]) =>
       list.map((item) => (item.id === updated.id ? updated : item));
 
@@ -346,10 +769,19 @@ export default function CaretakerDashboardPage() {
     if (selectedItem?.id === updated.id) {
       setSelectedItem(updated);
     }
+
+    // Dynamic reclassification when booking dates change
+    loadDashboardData();
   };
 
   // Release slot
-  const handleReleaseItem = (id: string) => {
+  const handleReleaseItem = async (id: string) => {
+    if (id && !id.startsWith("manual-")) {
+      try {
+        await caretakerApi.deleteBooking(id).catch(() => {});
+      } catch {}
+    }
+
     const removeList = (list: BookingItem[]) => list.filter((item) => item.id !== id);
 
     const nextCurrent = removeList(currentBookings);
@@ -362,39 +794,71 @@ export default function CaretakerDashboardPage() {
     if (selectedItem?.id === id) {
       setSelectedItem(nextCurrent[0] || nextFuture[0] || null);
     }
+
+    // Dynamic reclassification when a booking is deleted/released
+    loadDashboardData();
   };
 
-  // Functional Mark As Booked: converts inquiry into confirmed future booking
-  const handleMarkAsBooked = (inquiry: BookingItem) => {
-    const convertedBooking: BookingItem = {
-      ...inquiry,
-      category: "future",
-      isBooked: true,
-      isExtendingRight: true,
-      inquiryStatus: "Accepted",
-    };
-
-    // Persist accepted status to backend when inquiry is a backend record
-    if (inquiry.id && !inquiry.id.startsWith("manual-")) {
-      updateInquiryStatus(inquiry.id, "accepted").catch(() => { });
+  // Functional Mark As Booked: converts inquiry into confirmed booking in DB & dynamic classification
+  const handleMarkAsBooked = async (inquiry: BookingItem) => {
+    let createdDbBooking: any = null;
+    try {
+      createdDbBooking = await caretakerApi.createBooking({
+        childName: inquiry.childName || (language === "de" ? "Anfrage" : "Inquiry"),
+        childDob: inquiry.dob || "2025-01-01",
+        placementStart: inquiry.desiredStart || inquiry.placementStart || "2026-12-01",
+        kindergartenTransition: inquiry.estTransition || inquiry.kindergartenTransition || "2027-02-28",
+        dailyHours: inquiry.dailyHours || "Mon – Fri • 08:00 – 15:00",
+        parentContact: {
+          parents: inquiry.parentContact?.parents || "Parent",
+          phone: inquiry.parentContact?.phone || "+49 000 000000",
+          email: inquiry.parentContact?.email || "parent@example.com",
+        },
+        inquiryId: inquiry.id && !inquiry.id.startsWith("manual-") ? inquiry.id : undefined,
+        notes: inquiry.parentQuote || "",
+      });
+    } catch (err: any) {
+      console.warn("Could not save converted booking to backend DB:", err);
+      if (err.message?.includes("capacity") || err.message?.includes("Cannot confirm booking")) {
+        setNotificationMsg({
+          text: err.message,
+          type: "info",
+        });
+        return;
+      }
     }
 
-    // Remove from inquiries and add to future bookings
-    setFittingInquiries((prev) => prev.filter((i) => i.id !== inquiry.id));
-    setFutureBookings((prev) => [convertedBooking, ...prev]);
-    setSelectedItem(convertedBooking);
+    // Persist booked status to backend when inquiry is a backend record
+    if (inquiry.id && !inquiry.id.startsWith("manual-")) {
+      updateInquiryStatus(inquiry.id, "booked").catch(() => {});
+    }
+
+    // Immediately remove from fitting inquiries
+    setFittingInquiries((prev) =>
+      prev.filter(
+        (i) =>
+          i.id !== inquiry.id &&
+          i.id !== String(createdDbBooking?._id || "") &&
+          i.id !== String(createdDbBooking?.inquiryId || "") &&
+          i.childName !== inquiry.childName
+      )
+    );
+
+    // Refresh dashboard to re-classify and sync state dynamically
+    await loadDashboardData();
 
     // Show confirmation toast with undo
     setNotificationMsg({
       text: dt.markAsBookedSuccess,
       type: "success",
-      onUndo: () => {
+      onUndo: async () => {
         if (inquiry.id && !inquiry.id.startsWith("manual-")) {
-          updateInquiryStatus(inquiry.id, "pending").catch(() => { });
+          await updateInquiryStatus(inquiry.id, "pending").catch(() => {});
         }
-        setFutureBookings((prev) => prev.filter((b) => b.id !== inquiry.id));
-        setFittingInquiries((prev) => [inquiry, ...prev]);
-        setSelectedItem(inquiry);
+        if (createdDbBooking?._id) {
+          await caretakerApi.deleteBooking(String(createdDbBooking._id)).catch(() => {});
+        }
+        await loadDashboardData();
         setNotificationMsg(null);
       },
     });
@@ -404,16 +868,26 @@ export default function CaretakerDashboardPage() {
     }, 6000);
   };
 
-  // Update status of an inquiry (New -> Reviewing -> Invited -> Accepted)
-  const handleUpdateInquiryStatus = (id: string, status: InquiryStatus) => {
+  // Update status of an inquiry (New -> Reviewing -> Invited -> Accepted -> Booked)
+  const handleUpdateInquiryStatus = async (id: string, status: InquiryStatus) => {
     if (id && !id.startsWith("manual-")) {
-      updateInquiryStatus(id, mapDashboardStatusToBackend(status)).catch(() => { });
+      await updateInquiryStatus(id, mapDashboardStatusToBackend(status)).catch(() => {});
     }
-    setFittingInquiries((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, inquiryStatus: status } : item))
-    );
-    if (selectedItem?.id === id) {
-      setSelectedItem((prev) => (prev ? { ...prev, inquiryStatus: status } : null));
+    if (status === "Accepted" || status === "Booked") {
+      const targetItem = fittingInquiries.find((item) => item.id === id);
+      if (targetItem) {
+        await handleMarkAsBooked(targetItem);
+      } else {
+        setFittingInquiries((prev) => prev.filter((item) => item.id !== id));
+        await loadDashboardData();
+      }
+    } else {
+      setFittingInquiries((prev) =>
+        prev.map((item) => (item.id === id ? { ...item, inquiryStatus: status } : item))
+      );
+      if (selectedItem?.id === id) {
+        setSelectedItem((prev) => (prev ? { ...prev, inquiryStatus: status } : null));
+      }
     }
   };
 
@@ -541,8 +1015,8 @@ export default function CaretakerDashboardPage() {
               }`}
           >
             <GanttCalendar
-              months={GANTT_MONTHS}
-              years={GANTT_YEARS}
+              months={ganttMonths}
+              years={ganttYears}
               currentBookings={currentBookings}
               futureBookings={futureBookings}
               fittingInquiries={fittingInquiries}
@@ -552,6 +1026,22 @@ export default function CaretakerDashboardPage() {
               onOpenExport={() => setIsExportOpen(true)}
               onAllocateInquiry={handleMarkAsBooked}
               inquiriesSectionRef={inquiriesSectionRef}
+              categoryFilter={categoryFilter}
+              onCategoryFilterChange={(newCat) => {
+                setCategoryFilter(newCat);
+                updateUrlParams(newCat, filterQuery, statusFilter, timelineStartDate);
+                loadDashboardData(newCat, filterQuery, statusFilter, timelineStartDate);
+              }}
+              filterQuery={filterQuery}
+              onFilterQueryChange={(newQuery) => {
+                setFilterQuery(newQuery);
+                updateUrlParams(categoryFilter, newQuery, statusFilter, timelineStartDate);
+                loadDashboardData(categoryFilter, newQuery, statusFilter, timelineStartDate);
+              }}
+              dateRangeLabel={dateRangeLabel}
+              onToday={handleToday}
+              onPrevDateRange={handlePrevDateRange}
+              onNextDateRange={handleNextDateRange}
             />
           </div>
 

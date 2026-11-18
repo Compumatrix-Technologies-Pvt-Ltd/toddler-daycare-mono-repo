@@ -27,6 +27,10 @@ export const createInquiry = async (req: Request, res: Response): Promise<void> 
       daycareIds,
       daycareNames,
       consentMapVisibility,
+      searchLocation,
+      currentLocation,
+      locationDistance,
+      searchFilters,
     } = req.body || {};
 
     // Validate required fields
@@ -40,12 +44,6 @@ export const createInquiry = async (req: Request, res: Response): Promise<void> 
     if (!phone || !String(phone).trim()) {
       errors.phone = ["Parent phone number is required."];
     }
-    if (!childName || !String(childName).trim()) {
-      errors.childName = ["Child name is required."];
-    }
-    if (!desiredStart || !String(desiredStart).trim()) {
-      errors.desiredStart = ["Desired start date/month is required."];
-    }
 
     if (Object.keys(errors).length > 0) {
       res.status(422).json({
@@ -55,10 +53,17 @@ export const createInquiry = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
+    const finalChildName = childName && String(childName).trim()
+      ? String(childName).trim()
+      : (parentName ? `Familie ${String(parentName).trim()}` : "1 Kind");
+    const finalDesiredStart = desiredStart && String(desiredStart).trim()
+      ? String(desiredStart).trim()
+      : "Flexibel / Nach Absprache";
+
     const result: any = await createInquiryService({
-      childName: String(childName).trim(),
+      childName: finalChildName,
       childBirthday: childBirthday ? String(childBirthday).trim() : "",
-      desiredStart: String(desiredStart).trim(),
+      desiredStart: finalDesiredStart,
       estTransition: estTransition ? String(estTransition).trim() : "2-4 Weeks",
       careHours: careHours ? String(careHours).trim() : "Mon – Fri • 08:00 – 15:00",
       preferences: {
@@ -78,6 +83,9 @@ export const createInquiry = async (req: Request, res: Response): Promise<void> 
       daycareIds: Array.isArray(daycareIds) ? daycareIds : [],
       daycareNames: Array.isArray(daycareNames) ? daycareNames : [],
       consentMapVisibility: consentMapVisibility !== false,
+      searchLocation,
+      currentLocation,
+      searchFilters,
     });
 
     const inquiry = result.inquiry || result;
@@ -89,7 +97,7 @@ export const createInquiry = async (req: Request, res: Response): Promise<void> 
       caretakerIds: Array.isArray(inquiry.caretakerIds)
         ? inquiry.caretakerIds.map((id: any) => String(id))
         : [],
-      status: inquiry.status,
+      status: "pending",
       action: "created",
     });
 
@@ -164,7 +172,7 @@ export const updateInquiryStatus = async (req: Request, res: Response): Promise<
     const { id } = req.params;
     const { status } = req.body || {};
 
-    if (!status || !["pending", "reviewed", "contacted", "accepted", "declined"].includes(status)) {
+    if (!status || !["pending", "reviewed", "contacted", "accepted", "declined", "booked"].includes(status)) {
       res.status(400).json({
         message: "Invalid status value.",
       });

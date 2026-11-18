@@ -8,6 +8,7 @@ import {
   GanttMonth,
   YearGroup,
 } from "../../../types/caretakerDashboard";
+import { parseFlexibleBookingDate } from "@repo/shared";
 
 interface GanttCalendarProps {
   months: GanttMonth[];
@@ -21,9 +22,73 @@ interface GanttCalendarProps {
   onOpenExport: () => void;
   onAllocateInquiry?: (inquiry: BookingItem) => void;
   inquiriesSectionRef?: React.RefObject<HTMLDivElement | null>;
+  categoryFilter?: "all" | "current" | "future" | "inquiry";
+  onCategoryFilterChange?: (category: "all" | "current" | "future" | "inquiry") => void;
+  filterQuery?: string;
+  onFilterQueryChange?: (query: string) => void;
+  dateRangeLabel?: string;
+  onToday?: () => void;
+  onPrevDateRange?: () => void;
+  onNextDateRange?: () => void;
 }
 
 const MONTH_COL_WIDTH = 28; // width in px of each month column in timeline
+
+function computeBookingBar(
+  item: BookingItem,
+  months: GanttMonth[],
+  colWidth: number
+): {
+  barStart: number;
+  barWidth: number;
+  isExtendingLeft: boolean;
+  isExtendingRight: boolean;
+} {
+  const dStart = parseFlexibleBookingDate(item.placementStart || item.desiredStart, false);
+  const dEnd = parseFlexibleBookingDate(item.kindergartenTransition || item.estTransition, true);
+
+  if (months.length === 0) {
+    const s = Math.max(0, item.startMonthIndex || 0);
+    const e = Math.max(s, item.endMonthIndex ?? s + 1);
+    return {
+      barStart: s * colWidth,
+      barWidth: Math.max(colWidth, (e - s + 1) * colWidth),
+      isExtendingLeft: false,
+      isExtendingRight: false,
+    };
+  }
+
+  const m0 = months[0];
+  const m0Month = m0 ? parseInt(m0.id.split("-")[1]!, 10) - 1 : 0;
+  const m0Year = m0 ? m0.year : new Date().getFullYear();
+
+  // If start date is parseable, use exact month difference relative to timeline start
+  const rawStart = dStart
+    ? (dStart.getFullYear() - m0Year) * 12 + (dStart.getMonth() - m0Month)
+    : (item.startMonthIndex ?? 0);
+
+  // If end date is parseable, use exact month difference
+  const rawEnd = dEnd
+    ? (dEnd.getFullYear() - m0Year) * 12 + (dEnd.getMonth() - m0Month)
+    : (item.endMonthIndex ?? rawStart + 11);
+
+  const maxMonthIdx = months.length - 1;
+  const clampedStart = Math.max(0, rawStart);
+  const clampedEnd = Math.min(maxMonthIdx, Math.max(clampedStart, rawEnd));
+
+  const barStart = clampedStart * colWidth;
+  const barWidth = Math.max(colWidth, (clampedEnd - clampedStart + 1) * colWidth);
+
+  const isExtendingLeft = rawStart < 0;
+  const isExtendingRight = rawEnd > maxMonthIdx || !!item.isExtendingRight;
+
+  return {
+    barStart,
+    barWidth,
+    isExtendingLeft,
+    isExtendingRight,
+  };
+}
 
 export function GanttCalendar({
   months,
@@ -37,6 +102,14 @@ export function GanttCalendar({
   onOpenExport,
   onAllocateInquiry,
   inquiriesSectionRef,
+  categoryFilter: categoryFilterProp,
+  onCategoryFilterChange,
+  filterQuery: filterQueryProp,
+  onFilterQueryChange,
+  dateRangeLabel,
+  onToday,
+  onPrevDateRange,
+  onNextDateRange,
 }: GanttCalendarProps) {
   const { t, language } = useLanguage();
   const tb = t.caretakerDashboard.toolbar;
@@ -46,8 +119,21 @@ export function GanttCalendar({
   const [futureCollapsed, setFutureCollapsed] = useState(false);
   const [inquiriesCollapsed, setInquiriesCollapsed] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [filterQuery, setFilterQuery] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState<"all" | "current" | "future" | "inquiry">("all");
+  const [internalFilterQuery, setInternalFilterQuery] = useState("");
+  const [internalCategoryFilter, setInternalCategoryFilter] = useState<"all" | "current" | "future" | "inquiry">("all");
+
+  const effectiveCategoryFilter = categoryFilterProp ?? internalCategoryFilter;
+  const effectiveFilterQuery = filterQueryProp ?? internalFilterQuery;
+
+  const handleCategoryChange = (cat: "all" | "current" | "future" | "inquiry") => {
+    setInternalCategoryFilter(cat);
+    onCategoryFilterChange?.(cat);
+  };
+
+  const handleQueryChange = (q: string) => {
+    setInternalFilterQuery(q);
+    onFilterQueryChange?.(q);
+  };
   const [draggedInquiryId, setDraggedInquiryId] = useState<string | null>(null);
   const [isDragOverSlot4, setIsDragOverSlot4] = useState(false);
   const [showSettingsDropdown, setShowSettingsDropdown] = useState(false);
@@ -89,25 +175,27 @@ export function GanttCalendar({
 
   // Filter items if user searches
   const filterFn = (item: BookingItem) => {
-    if (!filterQuery) return true;
-    const q = filterQuery.toLowerCase();
+    if (!effectiveFilterQuery) return true;
+    const q = effectiveFilterQuery.toLowerCase();
     return (
       item.childName.toLowerCase().includes(q) ||
       item.period.toLowerCase().includes(q) ||
-      item.parentContact.parents.toLowerCase().includes(q)
+      (item.parentContact.parents && item.parentContact.parents.toLowerCase().includes(q)) ||
+      (item.parentContact.email && item.parentContact.email.toLowerCase().includes(q)) ||
+      (item.parentContact.phone && item.parentContact.phone.toLowerCase().includes(q))
     );
   };
 
   const filteredCurrent =
-    categoryFilter === "all" || categoryFilter === "current"
+    effectiveCategoryFilter === "all" || effectiveCategoryFilter === "current"
       ? currentBookings.filter(filterFn)
       : [];
   const filteredFuture =
-    categoryFilter === "all" || categoryFilter === "future"
+    effectiveCategoryFilter === "all" || effectiveCategoryFilter === "future"
       ? futureBookings.filter(filterFn)
       : [];
   const filteredInquiries =
-    categoryFilter === "all" || categoryFilter === "inquiry"
+    effectiveCategoryFilter === "all" || effectiveCategoryFilter === "inquiry"
       ? fittingInquiries.filter(filterFn)
       : [];
 
@@ -126,7 +214,10 @@ export function GanttCalendar({
             {/* Today Button */}
             <button
               type="button"
-              onClick={handleScrollToToday}
+              onClick={() => {
+                onToday?.();
+                handleScrollToToday();
+              }}
               className="h-7.5 sm:h-8 px-2.5 sm:px-3 rounded-lg border border-[#D0D5DD] bg-white hover:bg-[#F8FAFC] text-xs font-medium text-[#344054] flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
             >
               <svg className="w-3.5 h-3.5 text-[#667085]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -142,7 +233,10 @@ export function GanttCalendar({
             <div className="flex items-center gap-1">
               <button
                 type="button"
-                onClick={handleScrollLeft}
+                onClick={() => {
+                  onPrevDateRange?.();
+                  handleScrollLeft();
+                }}
                 aria-label={tb.prev}
                 className="w-8 h-8 rounded-lg border border-[#D0D5DD] bg-white hover:bg-[#F8FAFC] text-[#667085] flex items-center justify-center transition-all shadow-2xs cursor-pointer"
               >
@@ -152,7 +246,10 @@ export function GanttCalendar({
               </button>
               <button
                 type="button"
-                onClick={handleScrollRight}
+                onClick={() => {
+                  onNextDateRange?.();
+                  handleScrollRight();
+                }}
                 aria-label={tb.next}
                 className="w-8 h-8 rounded-lg border border-[#D0D5DD] bg-white hover:bg-[#F8FAFC] text-[#667085] flex items-center justify-center transition-all shadow-2xs cursor-pointer"
               >
@@ -162,9 +259,9 @@ export function GanttCalendar({
               </button>
             </div>
 
-            {/* Date Range Display */}
+            {/* Date Range Display (Dynamic & functional date range filter) */}
             <span className="text-sm sm:text-[15px] font-semibold text-[#101828] pl-1 tracking-tight">
-              {tb.dateRange}
+              {dateRangeLabel || tb.dateRange}
             </span>
           </div>
 
@@ -249,9 +346,9 @@ export function GanttCalendar({
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => setCategoryFilter(tab.id)}
+                onClick={() => handleCategoryChange(tab.id)}
                 className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                  categoryFilter === tab.id
+                  effectiveCategoryFilter === tab.id
                     ? "bg-white text-[#101828] shadow-2xs"
                     : "text-[#667085] hover:text-[#101828]"
                 }`}
@@ -275,15 +372,15 @@ export function GanttCalendar({
             </svg>
             <input
               type="text"
-              value={filterQuery}
-              onChange={(e) => setFilterQuery(e.target.value)}
+              value={effectiveFilterQuery}
+              onChange={(e) => handleQueryChange(e.target.value)}
               placeholder={tb.searchPlaceholder}
               className="w-full h-8 pl-8 pr-7 rounded-lg border border-[#D0D5DD] bg-white text-xs text-[#101828] placeholder-[#98A2B3] focus:outline-hidden focus:border-[#7C5800]"
             />
-            {filterQuery && (
+            {effectiveFilterQuery && (
               <button
                 type="button"
-                onClick={() => setFilterQuery("")}
+                onClick={() => handleQueryChange("")}
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-[#98A2B3] hover:text-[#101828] p-0.5"
                 aria-label="Clear filter"
               >
@@ -390,10 +487,12 @@ export function GanttCalendar({
                 const isSelected = selectedItem?.id === item.id;
                 const periodDisplay = language === "de" ? item.periodDe : item.period;
 
-                // Calculate Gantt bar position
-                const barStart = item.startMonthIndex * MONTH_COL_WIDTH;
-                const barWidth =
-                  (item.endMonthIndex - item.startMonthIndex + 1) * MONTH_COL_WIDTH;
+                // Calculate Gantt bar position dynamically from actual booking dates
+                const { barStart, barWidth, isExtendingLeft, isExtendingRight } = computeBookingBar(
+                  item,
+                  months,
+                  MONTH_COL_WIDTH
+                );
 
                 return (
                   <div
@@ -438,16 +537,22 @@ export function GanttCalendar({
                         if (item.id === "booking-david") {
                           e.preventDefault();
                           setIsDragOverSlot4(false);
-                          const targetHans = fittingInquiries.find((i) => i.id === "inquiry-hans");
-                          if (targetHans) {
-                            onAllocateInquiry?.(targetHans);
+                          const target = fittingInquiries.find((i) => i.id === draggedInquiryId) || (selectedItem?.category === "inquiry" ? selectedItem : null);
+                          if (target) {
+                            onAllocateInquiry?.(target);
                           }
                         }
                       }}
                       className="flex-1 relative h-full flex items-center"
                     >
                       <div
-                        className="absolute h-[26px] rounded-md bg-[#F5EFE6] border border-[#EBE3D7] px-2 flex items-center overflow-hidden transition-all shadow-2xs hover:brightness-95"
+                        className={`absolute h-[26px] bg-[#F5EFE6] border border-[#EBE3D7] px-2 flex items-center justify-between gap-1.5 overflow-hidden transition-all shadow-2xs hover:brightness-95 ${
+                          isExtendingRight
+                            ? "rounded-l-md rounded-r-none"
+                            : isExtendingLeft
+                              ? "rounded-r-md rounded-l-none"
+                              : "rounded-md"
+                        }`}
                         style={{
                           left: `${barStart}px`,
                           width: `${barWidth}px`,
@@ -456,15 +561,26 @@ export function GanttCalendar({
                         <span className="text-[11px] font-medium text-[#47321B] truncate whitespace-nowrap">
                           {periodDisplay}
                         </span>
+                        {isExtendingRight && (
+                          <svg
+                            className="w-3.5 h-3.5 text-[#47321B] shrink-0 ml-1.5"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                          </svg>
+                        )}
                       </div>
 
-                      {/* Interactive Recommended Ghost Allocation Bar for Hans following David */}
-                      {item.id === "booking-david" && (selectedItem?.id === "inquiry-hans" || draggedInquiryId === "inquiry-hans") && (
+                      {/* Interactive Recommended Ghost Allocation Bar when a fitting inquiry is selected or dragged */}
+                      {item.id === "booking-david" && (selectedItem?.category === "inquiry" || (draggedInquiryId && fittingInquiries.some((i) => i.id === draggedInquiryId))) && (
                         <div
                           onClick={(e) => {
                             e.stopPropagation();
-                            const targetHans = fittingInquiries.find((i) => i.id === "inquiry-hans");
-                            if (targetHans) onAllocateInquiry?.(targetHans);
+                            const target = fittingInquiries.find((i) => i.id === draggedInquiryId) || (selectedItem?.category === "inquiry" ? selectedItem : null);
+                            if (target) onAllocateInquiry?.(target);
                           }}
                           className={`absolute h-[26px] rounded-md border-2 border-dashed flex items-center px-2 cursor-pointer transition-all z-20 ${
                             isDragOverSlot4
@@ -475,7 +591,7 @@ export function GanttCalendar({
                             left: `${barStart + barWidth}px`,
                             width: `${5 * MONTH_COL_WIDTH}px`,
                           }}
-                          title={tbl.recommendedSlotIndicator.replace("{name}", "Hans")}
+                          title={tbl.recommendedSlotIndicator.replace("{name}", selectedItem?.childName || "Inquiry")}
                         >
                           <div className="flex items-center gap-1.5 overflow-hidden">
                             <span className="w-1.5 h-1.5 rounded-full bg-[#12B76A] shrink-0 animate-ping" />
@@ -536,10 +652,11 @@ export function GanttCalendar({
                 const isSelected = selectedItem?.id === item.id;
                 const periodDisplay = language === "de" ? item.periodDe : item.period;
 
-                const barStart = item.startMonthIndex * MONTH_COL_WIDTH;
-                // Spans to the end of visible calendar or beyond
-                const barWidth =
-                  (months.length - item.startMonthIndex) * MONTH_COL_WIDTH;
+                const { barStart, barWidth, isExtendingLeft, isExtendingRight } = computeBookingBar(
+                  item,
+                  months,
+                  MONTH_COL_WIDTH
+                );
 
                 return (
                   <div
@@ -561,7 +678,13 @@ export function GanttCalendar({
 
                     <div className="flex-1 relative h-full flex items-center">
                       <div
-                        className="absolute h-[26px] rounded-l-md rounded-r-none bg-[#F4F0FF] border border-[#E9D7FE] px-2 flex items-center justify-between gap-1.5 overflow-hidden shadow-2xs hover:brightness-95"
+                        className={`absolute h-[26px] bg-[#F4F0FF] border border-[#E9D7FE] px-2 flex items-center justify-between gap-1.5 overflow-hidden shadow-2xs hover:brightness-95 ${
+                          isExtendingRight
+                            ? "rounded-l-md rounded-r-none"
+                            : isExtendingLeft
+                              ? "rounded-r-md rounded-l-none"
+                              : "rounded-md"
+                        }`}
                         style={{
                           left: `${barStart}px`,
                           width: `${barWidth}px`,
@@ -618,80 +741,89 @@ export function GanttCalendar({
                 <span className="text-[11px] font-bold text-[#344054] tracking-wide">
                   {tbl.fittingInquiries}
                 </span>
-                <span className="px-2 py-0.5 rounded-md bg-[#EFF8FF] text-[#175CD4] border border-[#D1E9FF] text-[10px] font-semibold">
-                  {tbl.inquiriesBadge.replace("{count}", "20")}
-                </span>
+                {fittingInquiries.length > 0 && (
+                  <span className="px-2 py-0.5 rounded-md bg-[#EFF8FF] text-[#175CD4] border border-[#D1E9FF] text-[10px] font-semibold">
+                    {tbl.inquiriesBadge.replace("{count}", String(fittingInquiries.length))}
+                  </span>
+                )}
               </div>
             </div>
 
             {/* Fitting Inquiries Rows */}
-            {!inquiriesCollapsed &&
-              filteredInquiries.map((item) => {
-                const isSelected = selectedItem?.id === item.id;
-                const periodDisplay = language === "de" ? item.periodDe : item.period;
+            {!inquiriesCollapsed && (
+              filteredInquiries.length === 0 ? (
+                <div className="py-5 px-4 text-center text-xs text-[#98A2B3]">
+                  {language === "de" ? "Keine offenen Betreuungsanfragen vorhanden" : "No pending inquiries"}
+                </div>
+              ) : (
+                filteredInquiries.map((item) => {
+                  const isSelected = selectedItem?.id === item.id;
+                  const periodDisplay = language === "de" ? item.periodDe : item.period;
 
-                const barStart = item.startMonthIndex * MONTH_COL_WIDTH;
-                const barWidth = 3 * MONTH_COL_WIDTH; // Compact inquiry block
+                  const { barStart } = computeBookingBar(item, months, MONTH_COL_WIDTH);
+                  const barWidth = 3 * MONTH_COL_WIDTH; // Compact inquiry block
 
-                return (
-                  <div
-                    key={item.id}
-                    onClick={() => onSelectItem(item)}
-                    className={`h-[38px] flex items-center border-b border-[#F2F4F7] transition-all cursor-pointer ${
-                      isSelected
-                        ? "bg-[#FDFBF7] ring-1 ring-inset ring-[#2E90FA]/30"
-                        : "hover:bg-[#FAF9F6]"
-                    }`}
-                  >
-                    {/* Drag Grip + Child Name */}
+                  return (
                     <div
-                      draggable={true}
-                      onDragStart={(e) => {
-                        setDraggedInquiryId(item.id);
-                        e.dataTransfer.setData("text/plain", item.id);
-                      }}
-                      onDragEnd={() => {
-                        setDraggedInquiryId(null);
-                        setIsDragOverSlot4(false);
-                      }}
-                      className="w-[140px] px-3 text-xs text-[#101828] font-normal shrink-0 flex items-center gap-2 truncate cursor-grab active:cursor-grabbing hover:bg-[#F2F4F7]/60 rounded-md py-1"
+                      key={item.id}
+                      onClick={() => onSelectItem(item)}
+                      className={`h-[38px] flex items-center border-b border-[#F2F4F7] transition-all cursor-pointer ${
+                        isSelected
+                          ? "bg-[#FDFBF7] ring-1 ring-inset ring-[#2E90FA]/30"
+                          : "hover:bg-[#FAF9F6]"
+                      }`}
                     >
-                      <span
-                        className="text-[#98A2B3] hover:text-[#475467] font-mono text-sm leading-none select-none"
-                        title={tbl.dragGripAria}
-                      >
-                        ⋮⋮
-                      </span>
-                      <span className="truncate">{item.childName}</span>
-                    </div>
-
-                    {/* Period Column */}
-                    <div className="w-[150px] px-3 text-[11px] text-[#475467] shrink-0 truncate">
-                      {periodDisplay}
-                    </div>
-
-                    {/* Timeline Grid Cell & Inquiry Pill */}
-                    <div className="flex-1 relative h-full flex items-center">
+                      {/* Drag Grip + Child Name */}
                       <div
-                        className="absolute h-[26px] rounded-md bg-[#EFF8FF] border border-[#D1E9FF] px-2 flex items-center justify-between gap-1 shadow-2xs hover:brightness-95"
-                        style={{
-                          left: `${barStart}px`,
-                          width: `${barWidth + 16}px`,
+                        draggable={true}
+                        onDragStart={(e) => {
+                          setDraggedInquiryId(item.id);
+                          e.dataTransfer.setData("text/plain", item.id);
                         }}
+                        onDragEnd={() => {
+                          setDraggedInquiryId(null);
+                          setIsDragOverSlot4(false);
+                        }}
+                        className="w-[140px] px-3 text-xs text-[#101828] font-normal shrink-0 flex items-center gap-2 truncate cursor-grab active:cursor-grabbing hover:bg-[#F2F4F7]/60 rounded-md py-1"
                       >
-                        <span className="text-[11px] font-medium text-[#175CD3] truncate whitespace-nowrap">
-                          {tbl.flexibility}
+                        <span
+                          className="text-[#98A2B3] hover:text-[#475467] font-mono text-sm leading-none select-none"
+                          title={tbl.dragGripAria}
+                        >
+                          ⋮⋮
                         </span>
-                        {showInquiryDensity && item.matchPercent && (
-                          <span className="text-[10px] font-bold text-[#175CD3] shrink-0">
-                            {item.matchPercent}%
+                        <span className="truncate">{item.childName}</span>
+                      </div>
+
+                      {/* Period Column */}
+                      <div className="w-[150px] px-3 text-[11px] text-[#475467] shrink-0 truncate">
+                        {periodDisplay}
+                      </div>
+
+                      {/* Timeline Grid Cell & Inquiry Pill */}
+                      <div className="flex-1 relative h-full flex items-center">
+                        <div
+                          className="absolute h-[26px] rounded-md bg-[#EFF8FF] border border-[#D1E9FF] px-2 flex items-center justify-between gap-1 shadow-2xs hover:brightness-95"
+                          style={{
+                            left: `${barStart}px`,
+                            width: `${barWidth + 16}px`,
+                          }}
+                        >
+                          <span className="text-[11px] font-medium text-[#175CD3] truncate whitespace-nowrap">
+                            {tbl.flexibility}
                           </span>
-                        )}
+                          {showInquiryDensity && item.matchPercent && (
+                            <span className="text-[10px] font-bold text-[#175CD3] shrink-0">
+                              {item.matchPercent}%
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )
+            )}
           </div>
         </div>
       </div>

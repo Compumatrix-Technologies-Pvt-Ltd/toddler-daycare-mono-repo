@@ -6,14 +6,17 @@ import { AdminSidebar } from "./components/layout/AdminSidebar";
 import { DashboardView } from "./components/dashboard/DashboardView";
 import { DaycaresTableSection } from "./components/dashboard/DaycaresTableSection";
 import { InquiriesView } from "./components/inquiries/InquiriesView";
+import { ContactMessagesView } from "./components/contact/ContactMessagesView";
 import { SettingsView } from "./components/settings/SettingsView";
 import { LogoutModal } from "./components/modals/LogoutModal";
 import { ApplicationDetailModal } from "./components/modals/ApplicationDetailModal";
 import { WorkPermitApproveModal } from "./components/modals/WorkPermitApproveModal";
+import { RejectModal } from "./components/modals/RejectModal";
 import { AdminLogin } from "./components/auth/AdminLogin";
 import { AdminForgotPassword } from "./components/auth/AdminForgotPassword";
 import { adminAuthService } from "./services/adminAuthService";
 import { adminDaycareService, AdminDashboardStats } from "./services/adminDaycareService";
+import { adminContactService } from "./services/adminContactService";
 import { adminSettingsService } from "./services/adminSettingsService";
 import { getAdminSocket } from "./utils/socket";
 import {
@@ -52,12 +55,14 @@ function AdminPortalInner() {
   const [logoutModalOpen, setLogoutModalOpen] = useState(false);
   const [selectedApp, setSelectedApp] = useState<DaycareApplication | null>(null);
   const [approveTargetApp, setApproveTargetApp] = useState<DaycareApplication | null>(null);
+  const [rejectTargetApp, setRejectTargetApp] = useState<DaycareApplication | null>(null);
 
   // Real Daycare Applications from MongoDB (zero mock data)
   const [applications, setApplications] = useState<DaycareApplication[]>([]);
   const [dashboardStats, setDashboardStats] = useState<AdminDashboardStats | null>(null);
   const [isLoadingApplications, setIsLoadingApplications] = useState(false);
   const [inquiriesCount, setInquiriesCount] = useState<number>(0);
+  const [unreadContactCount, setUnreadContactCount] = useState<number>(0);
   const [settings, setSettings] = useState<PlatformSettings>(INITIAL_SETTINGS);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -68,6 +73,8 @@ function AdminPortalInner() {
       setActiveTab("daycares");
     } else if (rawPath === "inquiries") {
       setActiveTab("inquiries");
+    } else if (rawPath === "contact" || rawPath === "messages") {
+      setActiveTab("contact");
     } else if (rawPath === "settings") {
       setActiveTab("settings");
     } else if (rawPath === "dashboard" || rawPath === "") {
@@ -146,6 +153,16 @@ function AdminPortalInner() {
         console.warn("Could not load platform settings:", err);
       });
 
+    // Fetch contact messages stats & unread count
+    adminContactService
+      .getAllMessages()
+      .then((res) => {
+        setUnreadContactCount(res.unread);
+      })
+      .catch((err) => {
+        console.warn("Could not load contact messages count:", err);
+      });
+
     const socket = getAdminSocket();
     if (!socket) return;
 
@@ -166,10 +183,16 @@ function AdminPortalInner() {
         .catch(() => {});
     };
 
+    const handleContactNew = () => {
+      setUnreadContactCount((prev) => prev + 1);
+    };
+
     socket.on("daycare:updated", handleDaycareUpdated);
+    socket.on("contact:new", handleContactNew);
 
     return () => {
       socket.off("daycare:updated", handleDaycareUpdated);
+      socket.off("contact:new", handleContactNew);
     };
   }, [currentUser]);
 
@@ -222,7 +245,12 @@ function AdminPortalInner() {
         setTimeout(() => setToastMessage(null), 3500);
       }
     } catch (err: any) {
-      setToastMessage(`Failed to update status: ${err.message || "Server error"}`);
+      const serverMsg =
+        err?.response?.data?.message ||
+        err?.response?.data?.errors?.permitId?.[0] ||
+        err?.message ||
+        "Server error";
+      setToastMessage(`Failed to update status: ${serverMsg}`);
       setTimeout(() => setToastMessage(null), 4000);
       throw err;
     }
@@ -295,6 +323,7 @@ function AdminPortalInner() {
           mobileOpen={mobileSidebarOpen}
           onCloseMobile={() => setMobileSidebarOpen(false)}
           pendingCount={pendingCount}
+          unreadContactCount={unreadContactCount}
           user={currentUser}
         />
 
@@ -322,6 +351,7 @@ function AdminPortalInner() {
               isLoading={isLoadingApplications}
               onViewAllDaycares={() => handleSelectTab("daycares")}
               onRequestApprove={(app) => setApproveTargetApp(app)}
+              onRequestReject={(app) => setRejectTargetApp(app)}
               onReject={(id) => handleUpdateStatus(id, "rejected")}
               onOpenDetails={(app) => setSelectedApp(app)}
             />
@@ -334,6 +364,7 @@ function AdminPortalInner() {
                 isLoading={isLoadingApplications}
                 mode="full"
                 onRequestApprove={(app) => setApproveTargetApp(app)}
+                onRequestReject={(app) => setRejectTargetApp(app)}
                 onReject={(id) => handleUpdateStatus(id, "rejected")}
                 onOpenDetails={(app) => setSelectedApp(app)}
               />
@@ -341,6 +372,10 @@ function AdminPortalInner() {
           )}
 
           {activeTab === "inquiries" && <InquiriesView />}
+
+          {activeTab === "contact" && (
+            <ContactMessagesView onUnreadCountChange={setUnreadContactCount} />
+          )}
 
           {activeTab === "settings" && (
             <SettingsView
@@ -366,17 +401,32 @@ function AdminPortalInner() {
           setSelectedApp(null);
           setApproveTargetApp(app);
         }}
+        onRequestReject={(app) => {
+          setSelectedApp(null);
+          setRejectTargetApp(app);
+        }}
         onReject={(id) => {
           handleUpdateStatus(id, "rejected");
           setSelectedApp(null);
         }}
       />
 
-      <WorkPermitApproveModal
-        application={approveTargetApp}
-        applications={applications}
-        onClose={() => setApproveTargetApp(null)}
-        onConfirmApprove={(id, details) => handleUpdateStatus(id, "approved", details)}
+      {approveTargetApp && (
+        <WorkPermitApproveModal
+          application={approveTargetApp}
+          applications={applications}
+          onClose={() => setApproveTargetApp(null)}
+          onConfirmApprove={(id, details) => handleUpdateStatus(id, "approved", details)}
+        />
+      )}
+
+      <RejectModal
+        application={rejectTargetApp}
+        isOpen={Boolean(rejectTargetApp)}
+        onClose={() => setRejectTargetApp(null)}
+        onConfirmReject={(id, adminNotes) =>
+          handleUpdateStatus(id, "rejected", adminNotes ? ({ adminNotes } as any) : undefined)
+        }
       />
     </div>
   );

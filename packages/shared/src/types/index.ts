@@ -27,3 +27,15 @@ export interface Role {
 export interface PaginatedResult<T> { data: T[]; total: number; page: number; limit: number; totalPages: number; }
 export interface ApiResponse<T> { success: boolean; data: T; message?: string; }
 export interface ApiError { success: false; error: string; code: string; details?: unknown; }
+
+export interface ContactMessage {
+  _id: string;
+  fullName: string;
+  email: string;
+  subject: string;
+  message: string;
+  status: "unread" | "read" | "replied" | "archived";
+  adminNotes?: string;
+  createdAt: string | Date;
+  updatedAt: string | Date;
+}

@@ -331,6 +331,11 @@ export const Calendar: React.FC<CalendarProps> = ({
   return (
     <div
       className={`bg-white rounded-2xl border border-[#E5DDD2] p-3.5 sm:p-4 shadow-lg select-none max-w-sm w-full font-sans transition-all duration-150 ${className}`}
+      style={{
+        backgroundColor: "#FFFFFF",
+        borderRadius: "16px",
+        border: "1px solid #E5DDD2",
+      }}
     >
       {/* HEADER SECTION */}
       <div className="flex items-center justify-between pb-3 border-b border-[#F0EAE1] gap-1.5">

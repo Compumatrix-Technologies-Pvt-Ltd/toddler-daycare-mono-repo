@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useLanguage } from "../i18n/LanguageContext";
 import { ParentComingSoonModal } from "./modals/ParentComingSoonModal";
 import { GermanFlagIcon, UkFlagIcon } from "./icons/WebIcons";
@@ -10,6 +11,7 @@ import { caretakerApi } from "../utils/caretakerApi";
 import { getSocket } from "../utils/socket";
 
 export function Header() {
+  const pathname = usePathname();
   const { t, language, setLanguage, toggleLanguage } = useLanguage();
   const { favoritesCount, pruneFavorites } = useSessionFavorites();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -17,6 +19,13 @@ export function Header() {
   const [isParentModalOpen, setIsParentModalOpen] = useState(false);
   const loginDropdownRef = useRef<HTMLDivElement>(null);
   const hasPrunedFavoritesRef = useRef(false);
+
+  const isNavActive = (href: string) => {
+    if (href === "/") {
+      return pathname === "/";
+    }
+    return pathname === href || pathname?.startsWith(`${href}/`);
+  };
 
   // Remove any deleted or unapproved daycares from the favorites session
   useEffect(() => {
@@ -33,7 +42,7 @@ export function Header() {
             .filter(Boolean);
           pruneFavorites(activeIds);
         })
-        .catch(() => {});
+        .catch(() => { });
     };
 
     if (favoritesCount > 0 && !hasPrunedFavoritesRef.current) {
@@ -125,16 +134,23 @@ export function Header() {
         <nav className="hidden lg:flex items-center gap-3.5 xl:gap-6 text-[13px] xl:text-[14px] font-medium text-[#4B3E2F] whitespace-nowrap">
           <Link
             href="/"
-            className="hover:text-[#A12D3A] transition-colors py-1"
+            className={`transition-all py-1 border-b-2 cursor-pointer ${isNavActive("/")
+                ? "text-[#A12D3A] font-bold border-[#A12D3A]"
+                : "text-[#4B3E2F] hover:text-[#A12D3A] font-medium border-transparent"
+              }`}
           >
             {t.nav.findSpots}
           </Link>
           <Link
             href="/favorites"
-            className="hover:text-[#A12D3A] transition-colors py-1 flex items-center gap-1.5"
+            className={`transition-all py-1 flex items-center gap-1.5 border-b-2 cursor-pointer ${isNavActive("/favorites")
+                ? "text-[#A12D3A] font-bold border-[#A12D3A]"
+                : "text-[#4B3E2F] hover:text-[#A12D3A] font-medium border-transparent"
+              }`}
           >
             <svg
-              className="w-4 h-4 text-[#AE2F34] fill-current"
+              className={`w-4 h-4 fill-current transition-colors ${isNavActive("/favorites") ? "text-[#A12D3A]" : "text-[#AE2F34]"
+                }`}
               viewBox="0 0 24 24"
             >
               <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
@@ -146,21 +162,30 @@ export function Header() {
               </span>
             )}
           </Link>
-          <a
-            href="#"
-            className="hover:text-[#A12D3A] transition-colors py-1"
+          <Link
+            href="/#"
+            className={`transition-all py-1 border-b-2 cursor-pointer ${isNavActive("/register")
+                ? "text-[#A12D3A] font-bold border-[#A12D3A]"
+                : "text-[#4B3E2F] hover:text-[#A12D3A] font-medium border-transparent"
+              }`}
           >
             {t.nav.offerSpots}
-          </a>
+          </Link>
           <Link
             href="/how-it-works"
-            className="hover:text-[#A12D3A] transition-colors py-1"
+            className={`transition-all py-1 border-b-2 cursor-pointer ${isNavActive("/how-it-works")
+                ? "text-[#A12D3A] font-bold border-[#A12D3A]"
+                : "text-[#4B3E2F] hover:text-[#A12D3A] font-medium border-transparent"
+              }`}
           >
             {t.nav.howItWorks}
           </Link>
           <Link
             href="/about"
-            className="hover:text-[#A12D3A] transition-colors py-1"
+            className={`transition-all py-1 border-b-2 cursor-pointer ${isNavActive("/about")
+                ? "text-[#A12D3A] font-bold border-[#A12D3A]"
+                : "text-[#4B3E2F] hover:text-[#A12D3A] font-medium border-transparent"
+              }`}
           >
             {t.nav.aboutUs}
           </Link>
@@ -216,19 +241,17 @@ export function Header() {
             <button
               type="button"
               onClick={() => setLoginDropdownOpen((prev) => !prev)}
-              className={`inline-flex items-center gap-1.5 text-[13px] xl:text-[14px] font-medium transition-all px-3 py-1.5 rounded-lg whitespace-nowrap min-h-[40px] cursor-pointer ${
-                loginDropdownOpen
-                  ? "bg-[#F3ECE2] text-[#A12D3A]"
+              className={`inline-flex items-center gap-1.5 text-[13px] xl:text-[14px] font-medium transition-all px-3 py-1.5 rounded-lg whitespace-nowrap min-h-[40px] cursor-pointer ${loginDropdownOpen || isNavActive("/login")
+                  ? "bg-[#F3ECE2] text-[#A12D3A] font-semibold"
                   : "text-[#2B231B] hover:text-[#A12D3A] hover:bg-[#F3ECE2]"
-              }`}
+                }`}
               aria-expanded={loginDropdownOpen}
               aria-haspopup="true"
             >
               <span>{t.nav.login}</span>
               <svg
-                className={`w-3.5 h-3.5 text-[#7A6E62] transition-transform duration-200 ${
-                  loginDropdownOpen ? "rotate-180 text-[#A12D3A]" : ""
-                }`}
+                className={`w-3.5 h-3.5 text-[#7A6E62] transition-transform duration-200 ${loginDropdownOpen ? "rotate-180 text-[#A12D3A]" : ""
+                  }`}
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2.5"
@@ -396,18 +419,25 @@ export function Header() {
           <Link
             href="/"
             onClick={() => setMobileMenuOpen(false)}
-            className="flex items-center px-3 py-2.5 text-sm font-semibold text-[#A12D3A] bg-[#FFF8F2] rounded-lg min-h-[44px]"
+            className={`flex items-center px-3 py-2.5 text-sm rounded-lg min-h-[44px] transition-colors cursor-pointer ${isNavActive("/")
+                ? "font-semibold text-[#A12D3A] bg-[#FFF8F2] border-l-4 border-[#A12D3A]"
+                : "font-medium text-[#4B3E2F] hover:bg-[#F3ECE2]"
+              }`}
           >
             {t.nav.findSpots}
           </Link>
           <Link
             href="/favorites"
             onClick={() => setMobileMenuOpen(false)}
-            className="flex items-center justify-between px-3 py-2.5 text-sm font-medium text-[#4B3E2F] hover:bg-[#F3ECE2] rounded-lg min-h-[44px]"
+            className={`flex items-center justify-between px-3 py-2.5 text-sm rounded-lg min-h-[44px] transition-colors cursor-pointer ${isNavActive("/favorites")
+                ? "font-semibold text-[#A12D3A] bg-[#FFF8F2] border-l-4 border-[#A12D3A]"
+                : "font-medium text-[#4B3E2F] hover:bg-[#F3ECE2]"
+              }`}
           >
             <div className="flex items-center gap-2">
               <svg
-                className="w-4 h-4 text-[#AE2F34] fill-current"
+                className={`w-4 h-4 fill-current ${isNavActive("/favorites") ? "text-[#A12D3A]" : "text-[#AE2F34]"
+                  }`}
                 viewBox="0 0 24 24"
               >
                 <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
@@ -420,23 +450,33 @@ export function Header() {
               </span>
             )}
           </Link>
-          <a
-            href="#"
-            className="flex items-center px-3 py-2.5 text-sm font-medium text-[#4B3E2F] hover:bg-[#F3ECE2] rounded-lg min-h-[44px]"
+          <Link
+            href="/register"
+            onClick={() => setMobileMenuOpen(false)}
+            className={`flex items-center px-3 py-2.5 text-sm rounded-lg min-h-[44px] transition-colors cursor-pointer ${isNavActive("/register")
+                ? "font-semibold text-[#A12D3A] bg-[#FFF8F2] border-l-4 border-[#A12D3A]"
+                : "font-medium text-[#4B3E2F] hover:bg-[#F3ECE2]"
+              }`}
           >
             {t.nav.offerSpots}
-          </a>
+          </Link>
           <Link
             href="/how-it-works"
             onClick={() => setMobileMenuOpen(false)}
-            className="flex items-center px-3 py-2.5 text-sm font-medium text-[#4B3E2F] hover:bg-[#F3ECE2] rounded-lg min-h-[44px]"
+            className={`flex items-center px-3 py-2.5 text-sm rounded-lg min-h-[44px] transition-colors cursor-pointer ${isNavActive("/how-it-works")
+                ? "font-semibold text-[#A12D3A] bg-[#FFF8F2] border-l-4 border-[#A12D3A]"
+                : "font-medium text-[#4B3E2F] hover:bg-[#F3ECE2]"
+              }`}
           >
             {t.nav.howItWorks}
           </Link>
           <Link
             href="/about"
             onClick={() => setMobileMenuOpen(false)}
-            className="flex items-center px-3 py-2.5 text-sm font-medium text-[#4B3E2F] hover:bg-[#F3ECE2] rounded-lg min-h-[44px]"
+            className={`flex items-center px-3 py-2.5 text-sm rounded-lg min-h-[44px] transition-colors cursor-pointer ${isNavActive("/about")
+                ? "font-semibold text-[#A12D3A] bg-[#FFF8F2] border-l-4 border-[#A12D3A]"
+                : "font-medium text-[#4B3E2F] hover:bg-[#F3ECE2]"
+              }`}
           >
             {t.nav.aboutUs}
           </Link>

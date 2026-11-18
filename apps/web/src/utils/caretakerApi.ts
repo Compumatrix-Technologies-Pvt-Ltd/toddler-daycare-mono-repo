@@ -163,6 +163,24 @@ export const caretakerApi = {
         return result.data || [];
     },
 
+    // Get single daycare availability & next available dates
+    async getDaycareAvailability(daycareId: string, minSlots: number = 1): Promise<any> {
+        try {
+            const res = await fetch(`${API_BASE_URL}/caretaker/daycare/${daycareId}/availability?minSlots=${minSlots}`, {
+                method: "GET",
+                headers: { "Content-Type": "application/json" },
+            });
+
+            const result = await res.json();
+            if (res.ok && result.success) {
+                return result.data;
+            }
+        } catch (err) {
+            console.warn(`Could not fetch availability for daycare ${daycareId}:`, err);
+        }
+        return null;
+    },
+
     // Get platform settings (including admin-configured catchment radius)
     async getSettings(): Promise<{ defaultCatchmentRadiusKm: number;[key: string]: any }> {
         try {
@@ -244,6 +262,107 @@ export const caretakerApi = {
             }
         }
         return null;
+    },
+
+    // Get parent search history visible to caretaker's daycare within catchment radius for 30 days
+    async getNearbySearchHistory(): Promise<{
+        daycare: {
+            id: string;
+            name: string;
+            location: any;
+            radiusKm: number;
+            areaType: string;
+        } | null;
+        totalNearby: number;
+        searches: any[];
+    }> {
+        const token = this.getToken();
+        const res = await fetch(`${API_BASE_URL}/caretaker/search-history`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        const result = await res.json();
+        if (!res.ok) {
+            throw new Error(result.message || "Failed to fetch nearby search history");
+        }
+        return result.data || { daycare: null, totalNearby: 0, searches: [] };
+    },
+
+    // Caretaker Bookings API
+    async getBookings(query?: { category?: string; status?: string; search?: string; startDate?: string; endDate?: string }): Promise<any[]> {
+        const token = this.getToken();
+        const caretakerId = this.getCaretakerId();
+        const params = new URLSearchParams();
+        if (query?.category && query.category !== "all") params.append("category", query.category);
+        if (query?.status && query.status !== "all") params.append("status", query.status);
+        if (query?.search) params.append("search", query.search);
+        if (query?.startDate) params.append("startDate", query.startDate);
+        if (query?.endDate) params.append("endDate", query.endDate);
+        if (caretakerId) params.append("caretakerId", caretakerId);
+
+        const res = await fetch(`${API_BASE_URL}/caretaker/bookings?${params.toString()}`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        const result = await res.json();
+        if (!res.ok) {
+            throw new Error(result.message || "Failed to fetch bookings");
+        }
+        return result.data || [];
+    },
+
+    async createBooking(data: any): Promise<any> {
+        const token = this.getToken();
+        const caretakerId = this.getCaretakerId();
+        const payload = {
+            ...data,
+            caretakerId: data.caretakerId || caretakerId,
+        };
+
+        const res = await fetch(`${API_BASE_URL}/caretaker/bookings`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify(payload),
+        });
+        const result = await res.json();
+        if (!res.ok) {
+            const errorMsg =
+                result.message ||
+                (result.errors ? Object.values(result.errors).flat().join(", ") : "Failed to create booking");
+            throw new Error(errorMsg);
+        }
+        return result.data;
+    },
+
+    async updateBooking(id: string, data: any): Promise<any> {
+        const token = this.getToken();
+        const res = await fetch(`${API_BASE_URL}/caretaker/bookings/${id}`, {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json",
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify(data),
+        });
+        const result = await res.json();
+        if (!res.ok) {
+            throw new Error(result.message || "Failed to update booking");
+        }
+        return result.data;
+    },
+
+    async deleteBooking(id: string): Promise<boolean> {
+        const token = this.getToken();
+        const res = await fetch(`${API_BASE_URL}/caretaker/bookings/${id}`, {
+            method: "DELETE",
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        const result = await res.json();
+        if (!res.ok) {
+            throw new Error(result.message || "Failed to delete booking");
+        }
+        return true;
     },
 
     // Logout
