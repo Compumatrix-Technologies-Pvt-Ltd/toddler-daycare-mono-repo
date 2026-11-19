@@ -760,18 +760,18 @@ export function KitaDetail({
       )}
 
       {/* Caretaker Gender, Phone & Website */}
-      {(kita.gender || kita.phone || kita.website) && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3 py-3 border-b border-[#F0EAE1]">
+      {(kita.gender || kita.phone || kita.website || kita.email) && (
+        <div className="flex flex-wrap items-start gap-3 sm:gap-4 py-3 border-b border-[#F0EAE1]">
           {kita.gender && (
             <div className="flex items-center gap-2 min-w-0">
               <div className="w-7 h-7 rounded-lg bg-[#F7F4EE] flex items-center justify-center text-[#7A6E62] shrink-0">
                 <UserIcon className="w-3.5 h-3.5 text-[#A12D3A]" />
               </div>
               <div className="min-w-0">
-                <div className="text-[10px] font-medium text-[#7A6E62] truncate">
+                <div className="text-[10px] font-medium text-[#7A6E62] break-words">
                   {t.detail.caretakerGender}
                 </div>
-                <div className="text-xs font-semibold text-[#1E1B18] truncate">
+                <div className="text-xs font-semibold text-[#1E1B18] break-words">
                   {caretakerRole ? `${caretakerRole}` : ""}
                 </div>
               </div>
@@ -786,14 +786,35 @@ export function KitaDetail({
                 </svg>
               </div>
               <div className="min-w-0">
-                <div className="text-[10px] font-medium text-[#7A6E62] truncate">
+                <div className="text-[10px] font-medium text-[#7A6E62] break-words">
                   {t.detail.phone}
                 </div>
                 <a
                   href={`tel:${kita.phone}`}
-                  className="text-xs font-semibold text-[#A12D3A] hover:underline truncate block"
+                  className="text-xs font-semibold text-[#A12D3A] hover:underline break-words block"
                 >
                   {kita.phone}
+                </a>
+              </div>
+            </div>
+          )}
+
+          {kita.email && (
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-7 h-7 rounded-lg bg-[#F7F4EE] flex items-center justify-center text-[#7A6E62] shrink-0">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <div className="min-w-0">
+                <div className="text-[10px] font-medium text-[#7A6E62] break-words">
+                  {language === "de" ? "E-Mail" : "Email"}
+                </div>
+                <a
+                  href={`mailto:${kita.email}`}
+                  className="text-xs font-semibold text-[#A12D3A] hover:underline break-words block"
+                >
+                  {kita.email}
                 </a>
               </div>
             </div>
@@ -808,7 +829,7 @@ export function KitaDetail({
                 </svg>
               </div>
               <div className="min-w-0">
-                <div className="text-[10px] font-medium text-[#7A6E62] truncate">
+                <div className="text-[10px] font-medium text-[#7A6E62] break-words">
                   {t.detail.website}
                 </div>
                 <a
@@ -819,7 +840,7 @@ export function KitaDetail({
                   }
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs font-semibold text-[#A12D3A] hover:underline truncate block"
+                  className="text-xs font-semibold text-[#A12D3A] hover:underline break-words block"
                 >
                   {kita.website.replace(/^https?:\/\//, "")}
                 </a>

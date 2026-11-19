@@ -79,3 +79,15 @@ export function emitContactMessageCreated(message: any): void {
   io.to("admin").emit("contact:new", message);
 }
 
+export function emitSearchHistoryUpdated(payload: {
+  referenceId?: string;
+  email?: string;
+  action: "created" | "deleted";
+}): void {
+  if (!io) return;
+  const event = payload.action === "deleted" ? "search:deleted" : "search:recorded";
+  io.emit(event, payload);
+  io.to("admin").emit(event, payload);
+  io.emit("inquiry:updated", { referenceId: payload.referenceId, action: payload.action });
+}
+

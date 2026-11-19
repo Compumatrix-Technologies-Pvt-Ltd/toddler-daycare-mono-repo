@@ -1,4 +1,5 @@
 import { Kita } from "../types";
+import { getGlobalCatchmentSettings } from "../components/map/mapUtils";
 
 export function mapDaycareToKita(doc: any): Kita {
   const resolvePhotoUrl = (url?: string): string => {
@@ -128,8 +129,13 @@ export function mapDaycareToKita(doc: any): Kita {
         `${addressStr} ${doc.location?.city || ""}`.toLowerCase().includes(kw)
       ));
   const areaType: "urban" | "rural" = isRural ? "rural" : "urban";
+  const globalCatchment = getGlobalCatchmentSettings();
+  const defaultRadius =
+    areaType === "rural"
+      ? (globalCatchment?.ruralCatchmentRadiusKm ?? 10)
+      : (globalCatchment?.urbanCatchmentRadiusKm ?? 3);
   const catchmentRadiusKm =
-    Number(doc.location?.catchmentRadiusKm) || (areaType === "rural" ? 10 : 3);
+    Number(doc.location?.catchmentRadiusKm) || defaultRadius;
 
   const effectiveNextDate =
     doc.nextDate ||
@@ -180,6 +186,7 @@ export function mapDaycareToKita(doc: any): Kita {
     gender,
     website: doc.contact?.website ? String(doc.contact.website).trim() : "",
     phone: doc.contact?.phone ? String(doc.contact.phone).trim() : "",
+    email: doc.contact?.email ? String(doc.contact.email).trim() : "",
     openingFrom,
     openingUntil,
     areaType,

@@ -189,7 +189,7 @@ export const createInquiryService = async (input: CreateInquiryInput): Promise<I
     phone: input.phone,
     email: input.email,
     note: input.note || "",
-    consentMapVisibility: input.consentMapVisibility ?? true,
+    consentMapVisibility: input.consentMapVisibility === true,
     searchLocation: input.searchLocation,
     currentLocation: input.currentLocation,
     locationDistance: formattedDist,
@@ -200,64 +200,68 @@ export const createInquiryService = async (input: CreateInquiryInput): Promise<I
   await inquiry.save();
   console.log(`[InquiryService] Saved inquiry ${referenceId} to MongoDB.`);
 
-  // 1b. Automatically record parent search history for 30-day daycare radius & admin visibility
-  try {
-    let sLat = input.searchLocation?.lat ?? input.currentLocation?.lat;
-    let sLng =
-      input.searchLocation?.lng ??
-      input.searchLocation?.log ??
-      input.currentLocation?.lng ??
-      input.currentLocation?.log;
-    let sArea =
-      input.searchLocation?.area ||
-      input.searchLocation?.address ||
-      input.currentLocation?.area ||
-      "";
+  // 1b. Record parent search history for 30-day daycare radius & admin visibility ONLY when consentMapVisibility is true!
+  if (input.consentMapVisibility === true) {
+    try {
+      let sLat = input.searchLocation?.lat ?? input.currentLocation?.lat;
+      let sLng =
+        input.searchLocation?.lng ??
+        input.searchLocation?.log ??
+        input.currentLocation?.lng ??
+        input.currentLocation?.log;
+      let sArea =
+        input.searchLocation?.area ||
+        input.searchLocation?.address ||
+        input.currentLocation?.area ||
+        "";
 
-    // If coordinates were not explicitly passed from client, derive from first contacted daycare or default to Berlin
-    if ((sLat === undefined || sLng === undefined) && daycaresToContact.length > 0) {
-      const primaryDaycare = await Daycare.findById(daycaresToContact[0]?.id);
-      if (primaryDaycare?.location?.latitude && primaryDaycare?.location?.longitude) {
-        sLat = Number(primaryDaycare.location.latitude);
-        sLng = Number(primaryDaycare.location.longitude);
-        sArea = `${primaryDaycare.location.city || ""}, ${primaryDaycare.location.street || ""}`.trim();
+      // If coordinates were not explicitly passed from client, derive from first contacted daycare or default to Berlin
+      if ((sLat === undefined || sLng === undefined) && daycaresToContact.length > 0) {
+        const primaryDaycare = await Daycare.findById(daycaresToContact[0]?.id);
+        if (primaryDaycare?.location?.latitude && primaryDaycare?.location?.longitude) {
+          sLat = Number(primaryDaycare.location.latitude);
+          sLng = Number(primaryDaycare.location.longitude);
+          sArea = `${primaryDaycare.location.city || ""}, ${primaryDaycare.location.street || ""}`.trim();
+        }
       }
-    }
 
-    if (sLat === undefined || sLng === undefined) {
-      sLat = 52.52;
-      sLng = 13.405;
-      if (!sArea) sArea = "Berlin";
-    }
+      if (sLat === undefined || sLng === undefined) {
+        sLat = 52.52;
+        sLng = 13.405;
+        if (!sArea) sArea = "Berlin";
+      }
 
-    await recordSearchHistory({
-      parentName: inquiry.parentName,
-      email: inquiry.email,
-      phone: inquiry.phone,
-      note: inquiry.note,
-      message: inquiry.note,
-      scope: inquiry.scope || "single",
-      inquiryId: inquiry._id,
-      referenceId: inquiry.referenceId,
-      searchLocation: {
-        lat: sLat,
-        lng: sLng,
-        area: sArea,
-        address: sArea,
-      },
-      currentLocation: input.currentLocation || {
-        lat: sLat,
-        lng: sLng,
-        area: sArea,
-      },
-      searchFilters: input.searchFilters,
-      daycareIds: finalDaycareIds,
-      daycareNames: finalDaycareNames,
-      caretakerIds: resolvedCaretakerIds,
-    });
-    console.log(`[InquiryService] Recorded search history for inquiry ${referenceId} (30-day radius visibility).`);
-  } catch (err) {
-    console.warn("[InquiryService] Failed to record parent search history:", err);
+      await recordSearchHistory({
+        parentName: inquiry.parentName,
+        email: inquiry.email,
+        phone: inquiry.phone,
+        note: inquiry.note,
+        message: inquiry.note,
+        scope: inquiry.scope || "single",
+        inquiryId: inquiry._id,
+        referenceId: inquiry.referenceId,
+        searchLocation: {
+          lat: sLat,
+          lng: sLng,
+          area: sArea,
+          address: sArea,
+        },
+        currentLocation: input.currentLocation || {
+          lat: sLat,
+          lng: sLng,
+          area: sArea,
+        },
+        searchFilters: input.searchFilters,
+        daycareIds: finalDaycareIds,
+        daycareNames: finalDaycareNames,
+        caretakerIds: resolvedCaretakerIds,
+      });
+      console.log(`[InquiryService] Recorded search history for inquiry ${referenceId} (30-day radius visibility).`);
+    } catch (err) {
+      console.warn("[InquiryService] Failed to record parent search history:", err);
+    }
+  } else {
+    console.log(`[InquiryService] Parent did not consent to 30-day map visibility. Search history was NOT stored in database.`);
   }
 
   // 2. Dispatch Email Notifications

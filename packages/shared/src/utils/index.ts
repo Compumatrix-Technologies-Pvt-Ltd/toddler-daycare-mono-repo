@@ -9,4 +9,5 @@ export function slugify(input: string): string {
 }
 
 export * from "./bookingDate.js";
+export * from "./validation.js";
 

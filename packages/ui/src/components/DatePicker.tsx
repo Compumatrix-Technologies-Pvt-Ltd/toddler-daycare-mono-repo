@@ -13,7 +13,7 @@ export interface DatePickerProps {
   minDate?: Date | string | null | undefined;
   maxDate?: Date | string | null | undefined;
   locale?: "de" | "en" | undefined;
-  format?: "default" | "dd,mmm,yyyy" | "YYYY-MM-DD" | "DD.MM.YYYY" | "mmm,yyyy" | undefined;
+  format?: "default" | "dd,mmm,yyyy" | "dd mmm,yyyy" | "dd mmm, yyyy" | "YYYY-MM-DD" | "DD.MM.YYYY" | "mmm,yyyy" | undefined;
   id?: string | undefined;
   disabled?: boolean | undefined;
   required?: boolean | undefined;
@@ -97,9 +97,9 @@ function formatDateDisplay(d: Date, locale: "de" | "en", format?: string): strin
     return `${monthName}, ${year}`;
   }
 
-  if (format === "dd,mmm,yyyy") {
+  if (format === "dd mmm,yyyy" || format === "dd mmm, yyyy" || format === "dd,mmm,yyyy") {
     const monthName = locale === "de" ? MONTH_NAMES_DE[d.getMonth()] : MONTH_NAMES_EN[d.getMonth()];
-    return `${day}, ${monthName}, ${year}`;
+    return `${day} ${monthName}, ${year}`;
   }
 
   if (locale === "de") {

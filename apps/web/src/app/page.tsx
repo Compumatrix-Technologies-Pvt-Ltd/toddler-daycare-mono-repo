@@ -17,7 +17,7 @@ import { getSocket } from "../utils/socket";
 import { caretakerApi } from "../utils/caretakerApi";
 import { mapDaycareToKita } from "../utils/daycareMapper";
 import { calculateDistanceKm } from "../utils/geoDistance";
-import { classifyAreaFromOsm } from "../components/map/mapUtils";
+import { classifyAreaFromOsm, setGlobalCatchmentSettings } from "../components/map/mapUtils";
 import { Kita, FilterState } from "../types";
 import {
   FemaleIcon,
@@ -317,10 +317,13 @@ export default function ToddlerLandingPage() {
           caretakerApi.getSettings(),
         ]);
         if (isMounted) {
-          const adminRadius = Number(settings?.defaultCatchmentRadiusKm) || 3;
+          const urbanRadius = Number(settings?.urbanCatchmentRadiusKm) || Number(settings?.defaultCatchmentRadiusKm) || 3;
+          const ruralRadius = Number(settings?.ruralCatchmentRadiusKm) || 10;
+          setGlobalCatchmentSettings({ urbanCatchmentRadiusKm: urbanRadius, ruralCatchmentRadiusKm: ruralRadius });
+
           setFilters((prev) => ({
             ...prev,
-            radiusKm: prev.areaFilter === "rural" ? 10 : prev.radiusKm || adminRadius,
+            radiusKm: prev.areaFilter === "rural" ? ruralRadius : prev.radiusKm || urbanRadius,
           }));
 
           // Strictly show only active daycares approved by admin

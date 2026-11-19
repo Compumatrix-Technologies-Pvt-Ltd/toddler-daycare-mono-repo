@@ -1,6 +1,7 @@
 import { Types } from "mongoose";
 import { ParentSearch } from "../../modules/caretaker/search.js";
 import { Daycare } from "../../modules/caretaker/daycare.js";
+import { Inquiry } from "../../modules/inquiry/inquiry.js";
 import { Iparentsearchhistory } from "../../types/caretaker/search.js";
 
 export interface RecordSearchHistoryInput {
@@ -355,4 +356,74 @@ export async function getAllSearchHistoryAdmin(params?: {
     page,
     totalPages: Math.ceil(total / limit) || 1,
   };
+}
+
+/**
+ * Cancel and delete 30-day parent search history demand from database.
+ * Also updates associated inquiry consentMapVisibility to false.
+ */
+export async function cancelAndDeleteSearchHistory(params: {
+  referenceId?: string;
+  email?: string;
+  inquiryId?: string;
+}): Promise<{ deletedCount: number; updatedInquiry: boolean; referenceId?: string }> {
+  const { referenceId, email, inquiryId } = params;
+  const orQueries: any[] = [];
+
+  const ref = referenceId?.trim();
+  const inq = inquiryId?.trim();
+  const em = email?.trim().toLowerCase();
+
+  if (ref) {
+    orQueries.push({ referenceId: ref });
+  }
+  if (inq) {
+    orQueries.push({ inquiryId: inq });
+    if (Types.ObjectId.isValid(inq)) {
+      orQueries.push({ _id: new Types.ObjectId(inq) });
+    }
+  }
+  if (em && ref) {
+    orQueries.push({ email: em, referenceId: ref });
+  } else if (em && !ref && !inq) {
+    orQueries.push({ email: em });
+  }
+
+  if (orQueries.length === 0) {
+    return { deletedCount: 0, updatedInquiry: false };
+  }
+
+  // Find existing records to identify referenceId if not directly provided
+  let resolvedRef = ref;
+  if (!resolvedRef) {
+    const existing = await ParentSearch.findOne({ $or: orQueries });
+    if (existing?.referenceId) {
+      resolvedRef = existing.referenceId;
+    }
+  }
+
+  const deleteResult = await ParentSearch.deleteMany({ $or: orQueries });
+  const deletedCount = deleteResult.deletedCount ?? 0;
+
+  let updatedInquiry = false;
+  if (resolvedRef || inq || em) {
+    const inqQueries: any[] = [];
+    if (resolvedRef) inqQueries.push({ referenceId: resolvedRef });
+    if (inq && Types.ObjectId.isValid(inq)) inqQueries.push({ _id: new Types.ObjectId(inq) });
+    if (em) inqQueries.push({ email: em });
+
+    if (inqQueries.length > 0) {
+      const updateResult = await Inquiry.updateMany(
+        { $or: inqQueries },
+        { $set: { consentMapVisibility: false } }
+      );
+      updatedInquiry = (updateResult.modifiedCount ?? 0) > 0;
+    }
+  }
+
+  console.log(
+    `[SearchHistory] Deleted ${deletedCount} parent search records and deactivated map visibility (Ref: ${resolvedRef || "unknown"}).`
+  );
+
+  return { deletedCount, updatedInquiry, referenceId: resolvedRef };
 }

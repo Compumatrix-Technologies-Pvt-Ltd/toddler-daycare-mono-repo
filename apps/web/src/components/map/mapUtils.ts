@@ -143,12 +143,70 @@ export function formatStreetDisplay(street?: string, houseNumber?: string): stri
 
 /**
  * Formats postcode and city cleanly with a comma separator (e.g. "422006, Nashik").
+ * Avoids duplicate postcodes if city string already embeds the postcode.
  */
 export function formatPostcodeCity(postcode?: string, city?: string): string {
   const p = (postcode || "").trim();
-  const c = (city || "").trim();
-  if (p && c) return `${p}, ${c}`;
-  return p || c;
+  let c = (city || "").trim();
+  if (!p) return c;
+  if (!c) return p;
+  if (c.includes(p)) {
+    c = c.replace(p, "").replace(/^[\s,]+|[\s,]+$/g, "").trim();
+    if (!c) return p;
+  }
+  return `${p}, ${c}`;
+}
+
+/**
+ * Detects if a street input string actually contains a postcode and/or city name.
+ * e.g. "Alexanderstraße 3, 10178 Berlin" -> { streetDisplay: "Alexanderstraße 3", postcode: "10178", city: "Berlin" }
+ * e.g. "Main Road, Mehunbare, 424106" -> { streetDisplay: "Main Road", postcode: "424106", city: "Mehunbare" }
+ */
+export function extractPostcodeCityFromAddressString(input: string): {
+  streetDisplay: string;
+  postcode: string;
+  city: string;
+} | null {
+  const trimmed = (input || "").trim();
+  if (!trimmed) return null;
+
+  // Pattern 1: Comma separated, with a 4-8 digit postcode in one of the parts
+  const commaParts = trimmed.split(",").map((s) => s.trim()).filter(Boolean);
+  if (commaParts.length >= 2) {
+    for (let i = 1; i < commaParts.length; i++) {
+      const part = commaParts[i];
+      const match = part.match(/\b(\d{4,8})\b/);
+      if (match) {
+        const postcode = match[1];
+        const cityOnly = part.replace(postcode, "").replace(/^[,\s-]+|[,\s-]+$/g, "").trim();
+        const streetParts = commaParts.slice(0, i).join(", ");
+        const remainingCities = commaParts.slice(i + 1).join(", ");
+        const finalCity = [cityOnly, remainingCities].filter(Boolean).join(", ");
+        return {
+          streetDisplay: streetParts,
+          postcode,
+          city: finalCity,
+        };
+      }
+    }
+  }
+
+  // Pattern 2: Single string without comma containing a postcode (e.g. "Musterstr 12 10115 Berlin")
+  const matchNoComma = trimmed.match(/^(.*?)(?:[,\s]+)(\b\d{4,8}\b)(?:[\s,]+(.*))?$/);
+  if (matchNoComma && matchNoComma[1] && matchNoComma[2]) {
+    const streetPart = matchNoComma[1].trim();
+    const postcode = matchNoComma[2].trim();
+    const cityPart = (matchNoComma[3] || "").trim();
+    if (cityPart || streetPart.length > 2) {
+      return {
+        streetDisplay: streetPart,
+        postcode,
+        city: cityPart,
+      };
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -177,6 +235,16 @@ export function parseAddressComponents(rawStreet: string, rawCity: string) {
 
 export type DaycareAreaType = "urban" | "rural";
 
+let _cachedCatchmentSettings: { urbanCatchmentRadiusKm?: number; ruralCatchmentRadiusKm?: number } | null = null;
+
+export function setGlobalCatchmentSettings(settings: { urbanCatchmentRadiusKm?: number; ruralCatchmentRadiusKm?: number }) {
+  _cachedCatchmentSettings = settings;
+}
+
+export function getGlobalCatchmentSettings() {
+  return _cachedCatchmentSettings;
+}
+
 export interface AreaClassificationResult {
   areaType: DaycareAreaType;
   catchmentRadiusKm: number;
@@ -188,13 +256,18 @@ export interface AreaClassificationResult {
  * Classifies an address or map position into Urban (3 km reach) or Rural (10 km reach)
  * using OpenStreetMap Nominatim metadata, boundary tags, and place types.
  */
-export function classifyAreaFromOsm(data?: {
-  type?: string;
-  class?: string;
-  addresstype?: string;
-  display_name?: string;
-  address?: Record<string, string | undefined>;
-}): AreaClassificationResult {
+export function classifyAreaFromOsm(
+  data?: {
+    type?: string;
+    class?: string;
+    addresstype?: string;
+    display_name?: string;
+    address?: Record<string, string | undefined>;
+  },
+  customSettings?: { urbanCatchmentRadiusKm?: number; ruralCatchmentRadiusKm?: number }
+): AreaClassificationResult {
+  const ruralRadius = customSettings?.ruralCatchmentRadiusKm ?? _cachedCatchmentSettings?.ruralCatchmentRadiusKm ?? 10;
+  const urbanRadius = customSettings?.urbanCatchmentRadiusKm ?? _cachedCatchmentSettings?.urbanCatchmentRadiusKm ?? 3;
   const a = data?.address || {};
   const osmType = String(data?.type || data?.addresstype || "").toLowerCase();
   const fullText = `${data?.display_name || ""} ${Object.values(a).join(" ")}`.toLowerCase();
@@ -243,12 +316,12 @@ export function classifyAreaFromOsm(data?: {
     return fullText.includes(kw);
   }) || /(?:^|[^a-zäöüß])\w*dorf(?:[^a-zäöüß]|$)/i.test(fullText);
 
-  // If explicit rural indicator or settlement keyword matches -> Rural (10 km)
+  // If explicit rural indicator or settlement keyword matches -> Rural
   if (hasRuralAddress || hasRuralType || hasRuralText) {
     const label = a.village || a.hamlet || a.locality || a.county || "Rural Area";
     return {
       areaType: "rural",
-      catchmentRadiusKm: 10,
+      catchmentRadiusKm: ruralRadius,
       areaLabel: label,
       source: "openstreetmap",
     };
@@ -270,7 +343,7 @@ export function classifyAreaFromOsm(data?: {
     const label = a.city_district || a.quarter || a.suburb || a.city || "Urban Area";
     return {
       areaType: "urban",
-      catchmentRadiusKm: 3,
+      catchmentRadiusKm: urbanRadius,
       areaLabel: label,
       source: "openstreetmap",
     };
@@ -280,7 +353,7 @@ export function classifyAreaFromOsm(data?: {
   if (a.county && !a.city) {
     return {
       areaType: "rural",
-      catchmentRadiusKm: 10,
+      catchmentRadiusKm: ruralRadius,
       areaLabel: a.county || "Rural Area",
       source: "openstreetmap",
     };
@@ -288,7 +361,7 @@ export function classifyAreaFromOsm(data?: {
 
   return {
     areaType: "urban",
-    catchmentRadiusKm: 3,
+    catchmentRadiusKm: urbanRadius,
     areaLabel: "Urban Area",
     source: "openstreetmap",
   };
@@ -297,17 +370,23 @@ export function classifyAreaFromOsm(data?: {
 /**
  * Offline / fallback classifier for daycare locations based on street, city, and postcode strings.
  */
-export function detectAreaTypeFromLocation(loc?: {
-  street?: string;
-  city?: string;
-  postcode?: string;
-  areaType?: DaycareAreaType;
-  catchmentRadiusKm?: number;
-}): AreaClassificationResult {
+export function detectAreaTypeFromLocation(
+  loc?: {
+    street?: string;
+    city?: string;
+    postcode?: string;
+    areaType?: DaycareAreaType;
+    catchmentRadiusKm?: number;
+  },
+  customSettings?: { urbanCatchmentRadiusKm?: number; ruralCatchmentRadiusKm?: number }
+): AreaClassificationResult {
+  const ruralRadius = customSettings?.ruralCatchmentRadiusKm ?? _cachedCatchmentSettings?.ruralCatchmentRadiusKm ?? 10;
+  const urbanRadius = customSettings?.urbanCatchmentRadiusKm ?? _cachedCatchmentSettings?.urbanCatchmentRadiusKm ?? 3;
+
   if (loc?.areaType === "rural" || loc?.areaType === "urban") {
     return {
       areaType: loc.areaType,
-      catchmentRadiusKm: loc.catchmentRadiusKm || (loc.areaType === "rural" ? 10 : 3),
+      catchmentRadiusKm: loc.catchmentRadiusKm || (loc.areaType === "rural" ? ruralRadius : urbanRadius),
       areaLabel: loc.areaType === "rural" ? "Rural Area" : "Urban Area",
       source: "fallback",
     };
@@ -329,7 +408,7 @@ export function detectAreaTypeFromLocation(loc?: {
 
   return {
     areaType: isRural ? "rural" : "urban",
-    catchmentRadiusKm: isRural ? 10 : 3,
+    catchmentRadiusKm: isRural ? ruralRadius : urbanRadius,
     areaLabel: isRural ? "Rural Area" : "Urban Area",
     source: "fallback",
   };

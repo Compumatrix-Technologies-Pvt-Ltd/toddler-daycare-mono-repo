@@ -11,11 +11,14 @@ function ConfirmEnquiryContent() {
   const searchParams = useSearchParams();
   const refId = searchParams.get("ref") || undefined;
   const contacted = searchParams.get("contacted") || undefined;
+  const consentParam = searchParams.get("consent");
+  const showMapVisibility = consentParam === "true" || consentParam === "1";
 
   return (
     <EnquiryConfirmation
       referenceId={refId}
       caretakersContacted={contacted}
+      showMapVisibility={showMapVisibility}
       onBackToSearch={() => router.push("/")}
       onViewFavorites={() => router.push("/favorites")}
     />

@@ -4,6 +4,8 @@ export interface ICaretaker extends Document {
     email: string;
     password: string;
     isActive: boolean;
+    resetPasswordCode?: string;
+    resetPasswordExpires?: Date;
 }
 
 const caretakerSchema = new Schema<ICaretaker>(
@@ -23,6 +25,14 @@ const caretakerSchema = new Schema<ICaretaker>(
         isActive: {
             type: Boolean,
             default: false,
+        },
+        resetPasswordCode: {
+            type: String,
+            select: false,
+        },
+        resetPasswordExpires: {
+            type: Date,
+            select: false,
         },
     },
     { timestamps: true }

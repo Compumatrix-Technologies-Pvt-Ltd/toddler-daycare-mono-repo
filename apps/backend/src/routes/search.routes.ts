@@ -4,6 +4,7 @@ import {
   getCaretakerNearbySearches,
   getAdminSearchHistory,
   triggerSearchCleanup,
+  cancelSearchHistory,
 } from "../controllers/caretaker/searchHistoryController.js";
 import { caretakerMiddleware } from "../middlewares/caretaker.middleware.js";
 import { adminMiddleware } from "../middlewares/admin.middleware.js";
@@ -13,6 +14,12 @@ const router = Router();
 // Public / Parent: Record parent search demand history
 router.post("/", createSearchHistory);
 router.post("/record", createSearchHistory);
+
+// Public / Parent: Cancel and delete search history from database
+router.delete("/cancel", cancelSearchHistory);
+router.post("/cancel", cancelSearchHistory);
+router.get("/cancel", cancelSearchHistory);
+router.delete("/:id", cancelSearchHistory);
 
 // Caretaker: View search history within daycare catchment radius (30-day active window)
 router.get("/nearby", caretakerMiddleware, getCaretakerNearbySearches);

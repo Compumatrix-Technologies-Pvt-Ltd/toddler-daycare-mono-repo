@@ -119,13 +119,39 @@ export async function fetchInquiries(params?: {
 }
 
 /**
+ * Cancel and delete 30-day parent search history demand from database
+ */
+export async function cancelSearchHistoryApi(params: {
+  referenceId?: string;
+  email?: string;
+  inquiryId?: string;
+}): Promise<any> {
+  const res = await fetch(`${API_BASE_URL}/search/cancel`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+
+  const result = await res.json();
+  if (!res.ok) {
+    throw new Error(result.message || "Failed to cancel search history");
+  }
+  return result;
+}
+
+
+/**
  * Update an inquiry status (pending, reviewed, contacted, accepted, declined)
  */
-export async function updateInquiryStatus(id: string, status: string): Promise<any> {
+export async function updateInquiryStatus(
+  id: string,
+  status: string,
+  reason?: string
+): Promise<any> {
   const res = await fetch(`${API_BASE_URL}/inquiries/${id}/status`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, reason }),
   });
 
   const result = await res.json();

@@ -200,6 +200,22 @@ function AdminPortalInner() {
     try {
       const updated = await adminSettingsService.updateSettings(newSettings);
       setSettings(updated);
+      try {
+        const refreshed = await adminDaycareService.getDaycares();
+        if (Array.isArray(refreshed) && refreshed.length > 0) {
+          setApplications(refreshed);
+        }
+      } catch {
+        setApplications((prev) =>
+          prev.map((app) => ({
+            ...app,
+            catchmentRadiusKm:
+              app.areaType === "rural"
+                ? updated.ruralCatchmentRadiusKm
+                : updated.urbanCatchmentRadiusKm,
+          }))
+        );
+      }
       setToastMessage(t.admin.settings.savedToast || "Settings saved successfully.");
       setTimeout(() => setToastMessage(null), 3500);
     } catch (err: any) {
@@ -329,14 +345,31 @@ function AdminPortalInner() {
 
         {/* Content Area */}
         <main className="flex-1 min-w-0 h-full overflow-y-auto p-4 sm:p-5 lg:p-6 xl:p-8">
-          {/* Toast Notification */}
+          {/* Toast Notification (Fixed Floating on Top) */}
           {toastMessage && (
-            <div className="mb-4 sm:mb-5 p-3.5 sm:p-4 rounded-xl bg-[#DCFCE7] border border-[#86EFAC] text-[#166534] text-xs sm:text-sm font-semibold flex items-center justify-between shadow-2xs animate-in fade-in slide-in-from-top-2">
-              <span>{toastMessage}</span>
+            <div
+              className={`fixed top-20 left-1/2 -translate-x-1/2 z-60 max-w-lg w-[calc(100%-2rem)] p-3.5 sm:p-4 rounded-xl border text-xs sm:text-sm font-semibold flex items-center justify-between shadow-xl animate-in fade-in slide-in-from-top-4 transition-all duration-300 ${
+                toastMessage.toLowerCase().includes("fail") || toastMessage.toLowerCase().includes("error")
+                  ? "bg-[#FEF2F2] border-[#FCA5A5] text-[#991B1B]"
+                  : "bg-[#DCFCE7] border-[#86EFAC] text-[#166534]"
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                {toastMessage.toLowerCase().includes("fail") || toastMessage.toLowerCase().includes("error") ? (
+                  <svg className="w-5 h-5 text-[#DC2626] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5 text-[#16A34A] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+                <span>{toastMessage}</span>
+              </div>
               <button
                 type="button"
                 onClick={() => setToastMessage(null)}
-                className="text-[#166534] hover:text-[#14532D] text-xs font-bold uppercase tracking-wider ml-4 cursor-pointer"
+                className="hover:opacity-75 text-xs font-bold uppercase tracking-wider ml-4 cursor-pointer shrink-0"
               >
                 {t.admin.dashboard.detailModal.close}
               </button>

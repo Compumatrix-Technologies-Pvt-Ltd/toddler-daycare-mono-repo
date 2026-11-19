@@ -1,4 +1,6 @@
 import PlatformSettingsModel from "@/modules/admin/settings";
+import Daycare from "@/modules/caretaker/daycare";
+import { emitDaycareUpdated } from "@/config/socket";
 
 export const getSettingsService = async () => {
   let settings = await PlatformSettingsModel.findOne();
@@ -45,6 +47,8 @@ export const updateSettingsService = async (data: any) => {
     }
     if (data.urbanCatchmentRadiusKm !== undefined) {
       settings.urbanCatchmentRadiusKm = Number(data.urbanCatchmentRadiusKm);
+      // Keep defaultCatchmentRadiusKm in sync with urban catchment radius
+      settings.defaultCatchmentRadiusKm = Number(data.urbanCatchmentRadiusKm);
     }
     if (data.ruralCatchmentRadiusKm !== undefined) {
       settings.ruralCatchmentRadiusKm = Number(data.ruralCatchmentRadiusKm);
@@ -60,6 +64,29 @@ export const updateSettingsService = async (data: any) => {
 
     await settings.save();
   }
+
+  // Propagate updated urban & rural catchment radius to all existing daycares in MongoDB
+  const urbanRadius = Number(settings.urbanCatchmentRadiusKm) || 3.0;
+  const ruralRadius = Number(settings.ruralCatchmentRadiusKm) || 10.0;
+
+  try {
+    // Update all urban daycares
+    await Daycare.updateMany(
+      { "location.areaType": { $ne: "rural" } },
+      { $set: { "location.catchmentRadiusKm": urbanRadius, "location.areaType": "urban" } }
+    );
+    // Update all rural daycares
+    await Daycare.updateMany(
+      { "location.areaType": "rural" },
+      { $set: { "location.catchmentRadiusKm": ruralRadius } }
+    );
+
+    // Notify connected web clients in real time via socket
+    emitDaycareUpdated();
+  } catch (err) {
+    console.error("Failed to propagate catchment radius changes to daycares:", err);
+  }
+
   return settings;
 };
 

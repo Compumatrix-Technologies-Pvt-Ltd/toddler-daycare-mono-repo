@@ -47,6 +47,28 @@ export interface ContactReplyEmailPayload {
   adminName?: string;
 }
 
+export interface BookingConfirmationEmailPayload {
+  toEmail: string;
+  parentName?: string;
+  childName: string;
+  daycareName: string;
+  placementStart: string;
+  kindergartenTransition: string;
+  dailyHours: string;
+  preferences?: string;
+  referenceId: string;
+  phone?: string;
+}
+
+export interface InquiryCancellationEmailPayload {
+  toEmail: string;
+  parentName?: string;
+  childName: string;
+  daycareName: string;
+  referenceId: string;
+  reason: string;
+}
+
 class EmailService {
   private transporter: nodemailer.Transporter | null = null;
   private initializingPromise: Promise<nodemailer.Transporter> | null = null;
@@ -243,6 +265,12 @@ class EmailService {
     const transporter = await this.getTransporter();
     const subject = `Bestätigung Ihrer Betreuungsanfrage [Ref: ${inquiry.referenceId}]`;
 
+    const webBaseUrl =
+      process.env.WEB_URL || process.env.FRONTEND_URL || "http://localhost:3000";
+    const cancelUrl = `${webBaseUrl}/cancel-search?ref=${encodeURIComponent(
+      inquiry.referenceId
+    )}&email=${encodeURIComponent(parentEmail)}`;
+
     const html = `
       <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 620px; margin: 0 auto; padding: 24px; background-color: #FAF7F2; border: 1px solid #E5DDD2; border-radius: 16px;">
         <!-- Header -->
@@ -322,8 +350,22 @@ class EmailService {
           ${
             inquiry.consentMapVisibility
               ? `
-            <div style="margin-top: 18px; padding: 12px 16px; background-color: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 8px; font-size: 12px; color: #166534; line-height: 1.5;">
-              ✓ <strong>30-Tage Kartensichtbarkeit aktiv:</strong> Ihre Suchanfrage bleibt für zertifizierte Tagespflegepersonen in Ihrer Nähe 30 Tage lang sichtbar.
+            <div style="margin-top: 18px; padding: 16px; background-color: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 10px; font-size: 13px; color: #166534; line-height: 1.5;">
+              <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                <span style="font-weight: bold; font-size: 14px; color: #15803D;">✓ 30-Tage Kartensichtbarkeit aktiv</span>
+              </div>
+              <p style="margin: 0 0 12px 0; font-size: 12px; color: #166534; line-height: 1.5;">
+                Ihre Suchanfrage bleibt für verifizierte Tagespflegepersonen in Ihrem Umkreis für 30 Tage auf der Karte sichtbar. Falls Sie bereits einen Betreuungsplatz gefunden haben oder Ihre Suchdaten nicht mehr teilen möchten, können Sie die Sichtbarkeit und Ihren Suchverlauf jederzeit mit einem Klick löschen:
+              </p>
+              <div style="text-align: center; margin: 14px 0 10px 0;">
+                <a href="${cancelUrl}" target="_blank" style="display: inline-block; background-color: #DC2626; color: #ffffff; font-weight: bold; font-size: 13px; text-decoration: none; padding: 10px 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(220, 38, 38, 0.2);">
+                  🗑️ 30-Tage Suchverlauf & Sichtbarkeit löschen
+                </a>
+              </div>
+              <p style="margin: 0; font-size: 11px; color: #4B5563; text-align: center;">
+                Oder öffnen Sie diesen Link im Browser: <br/>
+                <a href="${cancelUrl}" style="color: #DC2626; word-break: break-all; text-decoration: underline;">${cancelUrl}</a>
+              </p>
             </div>
             `
               : ""
@@ -590,6 +632,267 @@ class EmailService {
     } catch (err: any) {
       console.error(
         `[EmailService] Failed to send contact reply email to ${payload.toEmail}:`,
+        err.message
+      );
+      return { success: false, error: err.message };
+    }
+  }
+
+  async sendPasswordResetCode(toEmail: string, code: string): Promise<SendEmailResult> {
+    const transporter = await this.getTransporter();
+
+    const html = `
+      <div style="font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif; max-width: 580px; margin: 0 auto; background-color: #FAF7F2; padding: 32px 20px; border-radius: 16px;">
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h1 style="color: #A12D3A; margin: 0; font-size: 22px; font-weight: bold;">Toddler Daycare</h1>
+          <p style="color: #7A6E62; margin: 4px 0 0 0; font-size: 13px;">Kindertagespflege Plattform</p>
+        </div>
+
+        <div style="background-color: #FFFFFF; border: 1px solid #E5DDD2; border-radius: 14px; padding: 28px 24px; margin-bottom: 24px; box-shadow: 0 2px 10px rgba(0,0,0,0.03);">
+          <h2 style="color: #1E1B18; margin: 0 0 12px 0; font-size: 18px; font-weight: bold;">Passwort zurücksetzen / Password Reset</h2>
+          <p style="color: #5C5043; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
+            Sie haben eine Anfrage zum Zurücksetzen Ihres Passworts erhalten. Verwenden Sie den folgenden 6-stelligen Bestätigungscode, um Ihr neues Passwort festzulegen:
+          </p>
+
+          <div style="background-color: #FAF7F2; border: 2px dashed #E5DDD2; border-radius: 12px; padding: 20px; text-align: center; margin-bottom: 20px;">
+            <span style="font-family: 'Courier New', Courier, monospace; font-size: 32px; font-weight: 800; letter-spacing: 8px; color: #A12D3A; display: inline-block;">
+              ${code}
+            </span>
+          </div>
+
+          <p style="color: #7A6E62; font-size: 12px; line-height: 1.5; margin: 0 0 16px 0;">
+            Dieser Code ist für <strong>15 Minuten</strong> gültig. Falls Sie diese Anfrage nicht gestellt haben, können Sie diese E-Mail sicher ignorieren.
+          </p>
+
+          <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #F0EBE1; font-size: 13px; color: #423223;">
+            <p style="margin: 0;">Herzliche Grüße,</p>
+            <p style="margin: 4px 0 0 0; font-weight: bold; color: #1E1B18;">Toddler Daycare Team</p>
+          </div>
+        </div>
+
+        <div style="text-align: center; color: #7A6E62; font-size: 11px; line-height: 1.5;">
+          <p style="margin: 0;">Find Toddler Daycare GmbH &bull; Ihr Partner für vertrauensvolle Kindertagespflege</p>
+        </div>
+      </div>
+    `;
+
+    try {
+      const info = await transporter.sendMail({
+        from: `"Toddler Daycare Security" <${this.fromEmail}>`,
+        to: toEmail,
+        subject: `${code} is your Toddler Daycare verification code`,
+        html,
+      });
+
+      const previewUrl = nodemailer.getTestMessageUrl(info);
+      console.log(
+        `[EmailService] Password reset code email sent to ${toEmail}. Code: ${code}. MessageId: ${info.messageId}`
+      );
+      if (previewUrl) {
+        console.log(`[EmailService] Password Reset Email Preview URL: ${previewUrl}`);
+      }
+
+      return { success: true, messageId: info.messageId, previewUrl };
+    } catch (err: any) {
+      console.error(
+        `[EmailService] Failed to send password reset code email to ${toEmail}:`,
+        err.message
+      );
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * Send Booking Confirmation email to Parent when caretaker confirms a booking or converts inquiry
+   */
+  async sendBookingConfirmationToParent(
+    payload: BookingConfirmationEmailPayload
+  ): Promise<SendEmailResult> {
+    const transporter = await this.getTransporter();
+    const subject = `Buchungsbestätigung: Betreuungsplatz für ${payload.childName} bestätigt [Ref: ${payload.referenceId}]`;
+
+    const html = `
+      <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 620px; margin: 0 auto; padding: 24px; background-color: #FAF7F2; border: 1px solid #E5DDD2; border-radius: 16px;">
+        <!-- Header -->
+        <div style="background-color: #16A34A; padding: 22px 24px; border-radius: 12px; margin-bottom: 24px; text-align: center;">
+          <h1 style="color: #ffffff; margin: 0; font-size: 22px; font-weight: bold; letter-spacing: 0.5px;">Betreuungsplatz verbindlich bestätigt</h1>
+          <p style="color: #DCFCE7; margin: 6px 0 0 0; font-size: 13px;">Toddler Daycare Booking Confirmation</p>
+        </div>
+
+        <div style="background-color: #ffffff; padding: 24px; border-radius: 12px; border: 1px solid #E5DDD2; margin-bottom: 20px;">
+          <p style="font-size: 15px; color: #1E1B18; margin: 0 0 12px 0;">
+            Hallo <strong>${payload.parentName || "Liebe Eltern"}</strong>,
+          </p>
+          <p style="font-size: 13px; color: #4E443B; line-height: 1.6; margin: 0 0 20px 0;">
+            Gute Nachrichten! Die Kindertagespflege <strong>${payload.daycareName}</strong> hat Ihren Betreuungsplatz für <strong>${payload.childName}</strong> verbindlich bestätigt und fest in die Belegungsplanung aufgenommen.
+          </p>
+
+          <!-- Reference & Status Badge -->
+          <div style="background-color: #FAF7F2; border: 1px solid #E5DDD2; border-radius: 10px; padding: 14px 18px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <div style="font-size: 11px; color: #7A6E62; text-transform: uppercase; font-weight: bold; margin-bottom: 2px;">Buchungs-Referenz / Booking ID</div>
+              <div style="font-size: 18px; color: #16A34A; font-weight: bold; letter-spacing: 0.5px;">${payload.referenceId}</div>
+            </div>
+            <div style="background-color: #DCFCE7; color: #166534; font-size: 11px; font-weight: bold; padding: 5px 12px; border-radius: 12px;">
+              ✓ Bestätigt / Booked
+            </div>
+          </div>
+
+          <!-- Booking Summary Table -->
+          <h3 style="font-size: 13px; text-transform: uppercase; color: #7A6E62; margin: 18px 0 8px 0; letter-spacing: 0.5px;">Übersicht der Betreuungsdaten:</h3>
+          <table style="width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 16px;">
+            <tr style="border-bottom: 1px solid #F0E8DC;">
+              <td style="padding: 8px 0; color: #6D6154; width: 44%;">Name des Kindes:</td>
+              <td style="padding: 8px 0; font-weight: bold; color: #1E1B18;">${payload.childName}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #F0E8DC;">
+              <td style="padding: 8px 0; color: #6D6154;">Tagespflege / Einrichtung:</td>
+              <td style="padding: 8px 0; font-weight: bold; color: #1E1B18;">${payload.daycareName}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #F0E8DC;">
+              <td style="padding: 8px 0; color: #6D6154;">Betreuungsbeginn (Start):</td>
+              <td style="padding: 8px 0; font-weight: bold; color: #1E1B18;">${payload.placementStart}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #F0E8DC;">
+              <td style="padding: 8px 0; color: #6D6154;">Kita-Übergang (Ende):</td>
+              <td style="padding: 8px 0; font-weight: bold; color: #1E1B18;">${payload.kindergartenTransition}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #F0E8DC;">
+              <td style="padding: 8px 0; color: #6D6154;">Betreuungszeiten:</td>
+              <td style="padding: 8px 0; font-weight: bold; color: #1E1B18;">${payload.dailyHours}</td>
+            </tr>
+            ${
+              payload.preferences
+                ? `
+            <tr style="border-bottom: 1px solid #F0E8DC;">
+              <td style="padding: 8px 0; color: #6D6154;">Präferenzen:</td>
+              <td style="padding: 8px 0; font-weight: bold; color: #1E1B18;">${payload.preferences}</td>
+            </tr>
+            `
+                : ""
+            }
+          </table>
+
+          <div style="margin-top: 18px; padding: 14px 16px; background-color: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 8px; font-size: 12px; color: #166534; line-height: 1.5;">
+            ✓ <strong>Platz verbindlich reserviert:</strong> Ihre Kindertagespflegeperson wird sich vor Betreuungsstart mit Ihnen in Verbindung setzen, um den Eingewöhnungsplan und die nächsten Schritte persönlich abzustimmen.
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div style="text-align: center; color: #7A6E62; font-size: 11px; line-height: 1.5;">
+          <p style="margin: 0;">Find Toddler Daycare GmbH &bull; Ihr Partner für vertrauensvolle Kindertagespflege</p>
+          <p style="margin: 4px 0 0 0;">Bei Fragen schreiben Sie uns an: <a href="mailto:support@toddlerdaycare.de" style="color: #A12D3A;">support@toddlerdaycare.de</a></p>
+        </div>
+      </div>
+    `;
+
+    try {
+      const info = await transporter.sendMail({
+        from: `"Toddler Daycare Platform" <${this.fromEmail}>`,
+        to: payload.toEmail,
+        subject,
+        html,
+      });
+
+      const previewUrl = nodemailer.getTestMessageUrl(info);
+      console.log(
+        `[EmailService] Booking confirmation email sent to parent (${payload.toEmail}). MessageId: ${info.messageId}`
+      );
+      if (previewUrl) {
+        console.log(`[EmailService] Booking Confirmation Preview URL: ${previewUrl}`);
+      }
+      return { success: true, messageId: info.messageId, previewUrl };
+    } catch (err: any) {
+      console.error(
+        `[EmailService] Failed to send booking confirmation email to ${payload.toEmail}:`,
+        err.message
+      );
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * Send Inquiry Cancellation / Decline email to Parent with caretaker's reason
+   */
+  async sendInquiryCancellationToParent(
+    payload: InquiryCancellationEmailPayload
+  ): Promise<SendEmailResult> {
+    const transporter = await this.getTransporter();
+    const subject = `Rückmeldung zu Ihrer Betreuungsanfrage [Ref: ${payload.referenceId}] - ${payload.daycareName}`;
+
+    const webBaseUrl =
+      process.env.WEB_URL || process.env.FRONTEND_URL || "http://localhost:3000";
+
+    const html = `
+      <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 620px; margin: 0 auto; padding: 24px; background-color: #FAF7F2; border: 1px solid #E5DDD2; border-radius: 16px;">
+        <!-- Header -->
+        <div style="background-color: #475467; padding: 22px 24px; border-radius: 12px; margin-bottom: 24px; text-align: center;">
+          <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: bold; letter-spacing: 0.5px;">Rückmeldung zu Ihrer Betreuungsanfrage</h1>
+          <p style="color: #EAECF0; margin: 6px 0 0 0; font-size: 13px;">Inquiry Status Update</p>
+        </div>
+
+        <div style="background-color: #ffffff; padding: 24px; border-radius: 12px; border: 1px solid #E5DDD2; margin-bottom: 20px;">
+          <p style="font-size: 15px; color: #1E1B18; margin: 0 0 12px 0;">
+            Hallo <strong>${payload.parentName || "Liebe Familie"}</strong>,
+          </p>
+          <p style="font-size: 13px; color: #4E443B; line-height: 1.6; margin: 0 0 18px 0;">
+            Vielen Dank für Ihre Betreuungsanfrage für <strong>${payload.childName}</strong> bei der Kindertagespflege <strong>${payload.daycareName}</strong> [Referenz: ${payload.referenceId}].
+          </p>
+          <p style="font-size: 13px; color: #4E443B; line-height: 1.6; margin: 0 0 18px 0;">
+            Leider müssen wir Ihnen mitteilen, dass die Tagespflegeperson Ihre Anfrage zum gewünschten Zeitraum nicht berücksichtigen kann.
+          </p>
+
+          <!-- Reason Box -->
+          <div style="background-color: #FEF3F2; border-left: 4px solid #D92D20; border-radius: 6px; padding: 14px 18px; margin-bottom: 20px;">
+            <div style="font-size: 11px; font-weight: bold; color: #B42318; text-transform: uppercase; margin-bottom: 4px;">
+              Grund für die Absage / Reason:
+            </div>
+            <div style="font-size: 13px; color: #912018; line-height: 1.5; font-style: italic;">
+              "${payload.reason || "Derzeit leider keine freien Kapazitäten für die gewünschte Altersgruppe oder Betreuungszeit verfügbar."}"
+            </div>
+          </div>
+
+          <!-- Next Steps & Recommendations -->
+          <div style="background-color: #FAF7F2; border: 1px solid #E5DDD2; border-radius: 10px; padding: 16px; margin-bottom: 16px;">
+            <h4 style="margin: 0 0 8px 0; font-size: 13px; color: #1E1B18;">Wie geht es weiter?</h4>
+            <p style="margin: 0 0 12px 0; font-size: 12px; color: #5C5044; line-height: 1.5;">
+              Lassen Sie sich nicht entmutigen! Auf unserer Plattform finden Sie zahlreiche weitere zertifizierte Kindertagespflegen in Ihrer Umgebung mit freien Plätzen.
+            </p>
+            <div style="text-align: center; margin: 12px 0 4px 0;">
+              <a href="${webBaseUrl}/" target="_blank" style="display: inline-block; background-color: #A12D3A; color: #ffffff; font-weight: bold; font-size: 13px; text-decoration: none; padding: 10px 22px; border-radius: 8px;">
+                🔍 Weitere Tagespflegen in der Nähe suchen
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div style="text-align: center; color: #7A6E62; font-size: 11px; line-height: 1.5;">
+          <p style="margin: 0;">Find Toddler Daycare GmbH &bull; Ihr Partner für vertrauensvolle Kindertagespflege</p>
+          <p style="margin: 4px 0 0 0;">Bei Fragen schreiben Sie uns an: <a href="mailto:support@toddlerdaycare.de" style="color: #A12D3A;">support@toddlerdaycare.de</a></p>
+        </div>
+      </div>
+    `;
+
+    try {
+      const info = await transporter.sendMail({
+        from: `"Toddler Daycare Platform" <${this.fromEmail}>`,
+        to: payload.toEmail,
+        subject,
+        html,
+      });
+
+      const previewUrl = nodemailer.getTestMessageUrl(info);
+      console.log(
+        `[EmailService] Inquiry cancellation email sent to parent (${payload.toEmail}). MessageId: ${info.messageId}`
+      );
+      if (previewUrl) {
+        console.log(`[EmailService] Inquiry Cancellation Preview URL: ${previewUrl}`);
+      }
+      return { success: true, messageId: info.messageId, previewUrl };
+    } catch (err: any) {
+      console.error(
+        `[EmailService] Failed to send inquiry cancellation email to ${payload.toEmail}:`,
         err.message
       );
       return { success: false, error: err.message };

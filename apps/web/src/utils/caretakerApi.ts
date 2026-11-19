@@ -68,6 +68,52 @@ export const caretakerApi = {
         return result.data;
     },
 
+    // Forgot Password - request 6-digit OTP code
+    async forgotPassword(email: string): Promise<{ success: boolean; message: string; code?: string }> {
+        const res = await fetch(`${API_BASE_URL}/caretaker/auth/forgot-password`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: email.toLowerCase().trim() }),
+        });
+        const result = await res.json();
+        if (!res.ok || !result.success) {
+            throw new Error(result.message || "Failed to send reset code");
+        }
+        return result.data || result;
+    },
+
+    // Verify 6-digit code
+    async verifyResetCode(email: string, code: string): Promise<{ success: boolean; message: string }> {
+        const res = await fetch(`${API_BASE_URL}/caretaker/auth/verify-code`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: email.toLowerCase().trim(), code: code.trim() }),
+        });
+        const result = await res.json();
+        if (!res.ok || !result.success) {
+            throw new Error(result.message || "Invalid or expired code");
+        }
+        return result.data || result;
+    },
+
+    // Reset Password with verified code
+    async resetPassword(email: string, code: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+        const res = await fetch(`${API_BASE_URL}/caretaker/auth/reset-password`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                email: email.toLowerCase().trim(),
+                code: code.trim(),
+                newPassword,
+            }),
+        });
+        const result = await res.json();
+        if (!res.ok || !result.success) {
+            throw new Error(result.message || "Failed to reset password");
+        }
+        return result.data || result;
+    },
+
     // Verify token validity with backend
     async verifyToken(token?: string): Promise<any> {
         const activeToken = token || this.getToken();

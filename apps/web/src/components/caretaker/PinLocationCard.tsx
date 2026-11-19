@@ -12,6 +12,8 @@ import {
   parseNominatimAddress,
   classifyAreaFromOsm,
   detectAreaTypeFromLocation,
+  setGlobalCatchmentSettings,
+  extractPostcodeCityFromAddressString,
   type AreaClassificationResult,
 } from "../map/mapUtils";
 
@@ -37,6 +39,16 @@ const LocationPickerMap = dynamic(
   }
 );
 
+interface AddressSuggestion {
+  displayName: string;
+  streetDisplay: string;
+  postcode: string;
+  city: string;
+  lat: number;
+  lng: number;
+  area: AreaClassificationResult;
+}
+
 export function PinLocationCard() {
   const { t } = useLanguage();
   const { profile, updateProfile, syncFromBackendDaycare } = useCaretaker();
@@ -45,6 +57,13 @@ export function PinLocationCard() {
   const [city, setCity] = useState(profile.city || "");
   const [lat, setLat] = useState(profile.lat || "");
   const [lng, setLng] = useState(profile.lng || "");
+
+  const [addressSuggestions, setAddressSuggestions] = useState<AddressSuggestion[]>([]);
+  const [isSearchingSuggestions, setIsSearchingSuggestions] = useState(false);
+  const [showSuggestionsDropdown, setShowSuggestionsDropdown] = useState(false);
+  const [autoFillBadge, setAutoFillBadge] = useState<string | null>(null);
+  const streetContainerRef = useRef<HTMLDivElement>(null);
+  const autoLookupTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const [isLookingUp, setIsLookingUp] = useState(false);
   const [isReverseGeocoding, setIsReverseGeocoding] = useState(false);
@@ -93,8 +112,20 @@ export function PinLocationCard() {
     return () => window.removeEventListener("daycare-profile-saved", handleProfileSaved);
   }, [profile.street, profile.city, profile.lat, profile.lng, street, city, lat, lng]);
 
-  // Fetch saved location from MongoDB on initial mount
+  // Fetch saved location and platform settings on initial mount
   useEffect(() => {
+    caretakerApi
+      .getSettings()
+      .then((s) => {
+        if (s) {
+          setGlobalCatchmentSettings({
+            urbanCatchmentRadiusKm: Number(s.urbanCatchmentRadiusKm) || 3,
+            ruralCatchmentRadiusKm: Number(s.ruralCatchmentRadiusKm) || 10,
+          });
+        }
+      })
+      .catch(() => { });
+
     const token = caretakerApi.getToken();
     if (!token) return;
 
@@ -260,7 +291,7 @@ export function PinLocationCard() {
 
       // Fallback to OpenStreetMap Nominatim Reverse Geocoding (zoom=18 resolves buildings/hospitals/POIs)
       let resolvedArea: AreaClassificationResult | null = null;
-      if (!resolvedStreet || !resolvedCity) {
+      if (!resolvedStreet || !resolvedCity || !resolvedCity.match(/\d{4,8}/)) {
         const osmUrl = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${newLat}&lon=${newLng}&zoom=18&addressdetails=1&namedetails=1`;
         const res = await fetch(osmUrl, {
           headers: { "Accept-Language": "de,en" },
@@ -271,7 +302,7 @@ export function PinLocationCard() {
         if (!resolvedStreet && parsedOsm.streetLabel) {
           resolvedStreet = parsedOsm.streetLabel;
         }
-        if (!resolvedCity && parsedOsm.cityLabel) {
+        if (parsedOsm.cityLabel) {
           resolvedCity = parsedOsm.cityLabel;
         }
         resolvedArea = classifyAreaFromOsm(data);
@@ -295,7 +326,10 @@ export function PinLocationCard() {
       }
 
       if (resolvedStreet) setStreet(finalStreet);
-      if (resolvedCity) setCity(finalCity);
+      if (resolvedCity) {
+        setCity(finalCity);
+        setAutoFillBadge(t.caretakerProfile.location.autoFillSuccess || "PLZ & Stadt automatisch ermittelt");
+      }
 
       setStatusMessage({
         type: "success",
@@ -371,6 +405,17 @@ export function PinLocationCard() {
           foundLng = parseFloat(feature.center[0].toFixed(6));
           foundLat = parseFloat(feature.center[1].toFixed(6));
           formattedPlace = feature.place_name || "";
+          const postcodeObj = feature.context?.find((c: any) => c.id.startsWith("postcode"));
+          const placeObj = feature.context?.find((c: any) => c.id.startsWith("place") || c.id.startsWith("locality"));
+          const pc = postcodeObj?.text || "";
+          const cn = placeObj?.text || "";
+          if (pc || cn) {
+            const autoCity = formatPostcodeCity(pc, cn);
+            if (autoCity) {
+              setCity(autoCity);
+              setAutoFillBadge(t.caretakerProfile.location.autoFillSuccess || "PLZ & Stadt automatisch ermittelt");
+            }
+          }
         }
       }
 
@@ -391,6 +436,12 @@ export function PinLocationCard() {
           formattedPlace = data[0].display_name || "";
           resolvedLookupArea = classifyAreaFromOsm(data[0]);
           setAreaClassification(resolvedLookupArea);
+
+          const parsed = parseNominatimAddress(data[0]);
+          if (parsed.cityLabel) {
+            setCity(parsed.cityLabel);
+            setAutoFillBadge(t.caretakerProfile.location.autoFillSuccess || "PLZ & Stadt automatisch ermittelt");
+          }
         }
       }
 
@@ -441,11 +492,285 @@ export function PinLocationCard() {
     }
   };
 
+  // Fetch address suggestions based on street input
+  const fetchAddressSuggestions = async (query: string) => {
+    const trimmed = query.trim();
+    if (trimmed.length < 3) {
+      setAddressSuggestions([]);
+      setShowSuggestionsDropdown(false);
+      return;
+    }
+
+    try {
+      setIsSearchingSuggestions(true);
+      const rawMapboxToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN?.trim();
+      const mapboxToken = rawMapboxToken?.startsWith("pk.") ? rawMapboxToken : undefined;
+
+      const suggestions: AddressSuggestion[] = [];
+
+      // 1. Try Mapbox if token present
+      if (mapboxToken) {
+        const mbUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
+          trimmed
+        )}.json?access_token=${mapboxToken}&language=de,en&types=address,poi,place&limit=5`;
+        const res = await fetch(mbUrl);
+        const data = await res.json();
+        if (data.features && data.features.length > 0) {
+          for (const feat of data.features) {
+            const streetPart = feat.text || "";
+            const housePart = feat.address ? ` ${feat.address}` : "";
+            const streetDisplay = `${streetPart}${housePart}`.trim();
+            const postcodeObj = feat.context?.find((c: any) => c.id.startsWith("postcode"));
+            const placeObj = feat.context?.find((c: any) => c.id.startsWith("place") || c.id.startsWith("locality"));
+            const postcode = postcodeObj?.text || "";
+            const cityName = placeObj?.text || "";
+            const latVal = parseFloat(feat.center[1].toFixed(6));
+            const lngVal = parseFloat(feat.center[0].toFixed(6));
+            suggestions.push({
+              displayName: feat.place_name || streetDisplay,
+              streetDisplay: streetDisplay || feat.place_name,
+              postcode,
+              city: cityName,
+              lat: latVal,
+              lng: lngVal,
+              area: detectAreaTypeFromLocation({ street: streetDisplay, city: formatPostcodeCity(postcode, cityName) }),
+            });
+          }
+        }
+      }
+
+      // 2. Fallback / supplementary OpenStreetMap Nominatim
+      if (suggestions.length === 0) {
+        const osmUrl = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(
+          trimmed
+        )}&addressdetails=1&limit=5`;
+        const res = await fetch(osmUrl, {
+          headers: { "Accept-Language": "de,en" },
+        });
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          for (const item of data) {
+            const road = item.address?.road || item.address?.pedestrian || item.address?.street || item.name || "";
+            const houseNo = item.address?.house_number || "";
+            const streetDisplay = [road, houseNo].filter(Boolean).join(" ");
+            const postcode = item.address?.postcode || "";
+            const cityName = item.address?.city || item.address?.town || item.address?.village || item.address?.municipality || item.address?.county || "";
+            const latVal = parseFloat(parseFloat(item.lat).toFixed(6));
+            const lngVal = parseFloat(parseFloat(item.lon).toFixed(6));
+            const area = classifyAreaFromOsm(item);
+            suggestions.push({
+              displayName: item.display_name || streetDisplay,
+              streetDisplay: streetDisplay || item.display_name.split(",")[0]?.trim() || trimmed,
+              postcode,
+              city: cityName,
+              lat: latVal,
+              lng: lngVal,
+              area,
+            });
+          }
+        }
+      }
+
+      setAddressSuggestions(suggestions);
+      setShowSuggestionsDropdown(suggestions.length > 0);
+    } catch {
+      // Background suggestion lookup error silently handled
+    } finally {
+      setIsSearchingSuggestions(false);
+    }
+  };
+
+  const handleSelectSuggestion = async (suggestion: AddressSuggestion) => {
+    const finalStreet = suggestion.streetDisplay || suggestion.displayName.split(",")[0]?.trim() || street;
+    const finalCity = formatPostcodeCity(suggestion.postcode, suggestion.city);
+    const latStr = String(suggestion.lat);
+    const lngStr = String(suggestion.lng);
+
+    setStreet(finalStreet);
+    setCity(finalCity);
+    setLat(latStr);
+    setLng(lngStr);
+    setHasValidated(true);
+    setAreaClassification(suggestion.area);
+    setShowSuggestionsDropdown(false);
+    setAddressSuggestions([]);
+    setAutoFillBadge(t.caretakerProfile.location.autoFillSuccess || "PLZ & Stadt automatisch ermittelt");
+
+    setStatusMessage({
+      type: "success",
+      text: `Address selected: ${finalStreet}, ${finalCity}`,
+    });
+
+    updateProfile({
+      street: finalStreet,
+      city: finalCity,
+      lat: latStr,
+      lng: lngStr,
+      areaType: suggestion.area.areaType,
+      catchmentRadiusKm: suggestion.area.catchmentRadiusKm,
+      isLocationPinned: true,
+    });
+
+    if (!hasSavedLocation) {
+      await persistLocationToDb(suggestion.lat, suggestion.lng, finalStreet, finalCity);
+    }
+  };
+
+  // Synchronizes Postcode & City and map pin from street input
+  const syncAddressFromStreetInput = async (rawInput: string) => {
+    const trimmed = rawInput.trim();
+    if (trimmed.length < 3 || isLocked) return;
+
+    // 1. Check if user typed or pasted combined street + postcode/city
+    const extracted = extractPostcodeCityFromAddressString(trimmed);
+    if (extracted && (extracted.postcode || extracted.city)) {
+      const autoCity = formatPostcodeCity(extracted.postcode, extracted.city);
+      if (autoCity) {
+        setCity(autoCity);
+        setAutoFillBadge(t.caretakerProfile.location.autoFillSuccess || "PLZ & Stadt automatisch ermittelt");
+      }
+    }
+
+    try {
+      const rawMapboxToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN?.trim();
+      const mapboxToken = rawMapboxToken?.startsWith("pk.") ? rawMapboxToken : undefined;
+
+      let foundPostcode = "";
+      let foundCity = "";
+      let foundLat: number | null = null;
+      let foundLng: number | null = null;
+      let foundArea: AreaClassificationResult | null = null;
+
+      if (mapboxToken) {
+        const mbUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
+          trimmed
+        )}.json?access_token=${mapboxToken}&language=de,en&types=address,poi,place&limit=1`;
+        const res = await fetch(mbUrl);
+        const data = await res.json();
+        if (data.features && data.features.length > 0) {
+          const feat = data.features[0];
+          const postcodeObj = feat.context?.find((c: any) => c.id.startsWith("postcode"));
+          const placeObj = feat.context?.find((c: any) => c.id.startsWith("place") || c.id.startsWith("locality"));
+          foundPostcode = postcodeObj?.text || "";
+          foundCity = placeObj?.text || "";
+          foundLng = parseFloat(feat.center[0].toFixed(6));
+          foundLat = parseFloat(feat.center[1].toFixed(6));
+        }
+      }
+
+      if (!foundPostcode || !foundCity || foundLat === null || foundLng === null) {
+        const osmUrl = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(
+          trimmed
+        )}&addressdetails=1&limit=1`;
+        const res = await fetch(osmUrl, {
+          headers: { "Accept-Language": "de,en" },
+        });
+        const data = await res.json();
+        if (Array.isArray(data) && data[0]) {
+          const item = data[0];
+          const post = item.address?.postcode || "";
+          const cName =
+            item.address?.city ||
+            item.address?.town ||
+            item.address?.village ||
+            item.address?.municipality ||
+            item.address?.county ||
+            "";
+          if (post) foundPostcode = post;
+          if (cName) foundCity = cName;
+          if (foundLat === null) foundLat = parseFloat(parseFloat(item.lat).toFixed(6));
+          if (foundLng === null) foundLng = parseFloat(parseFloat(item.lon).toFixed(6));
+          foundArea = classifyAreaFromOsm(item);
+        }
+      }
+
+      if (foundPostcode || foundCity) {
+        const autoCity = formatPostcodeCity(foundPostcode, foundCity);
+        setCity(autoCity);
+        setAutoFillBadge(t.caretakerProfile.location.autoFillSuccess || "PLZ & Stadt automatisch ermittelt");
+
+        if (foundLat !== null && foundLng !== null) {
+          const latStr = String(foundLat);
+          const lngStr = String(foundLng);
+          setLat(latStr);
+          setLng(lngStr);
+          setHasValidated(true);
+          const finalArea = foundArea || detectAreaTypeFromLocation({ street: trimmed, city: autoCity });
+          setAreaClassification(finalArea);
+
+          updateProfile({
+            street: trimmed,
+            city: autoCity,
+            lat: latStr,
+            lng: lngStr,
+            areaType: finalArea.areaType,
+            catchmentRadiusKm: finalArea.catchmentRadiusKm,
+            isLocationPinned: true,
+          });
+
+          if (!hasSavedLocation) {
+            persistLocationToDb(foundLat, foundLng, trimmed, autoCity).catch(() => { });
+          }
+        } else {
+          updateProfile({ street: trimmed, city: autoCity });
+        }
+      }
+    } catch {
+      // Background sync silently handled
+    }
+  };
+
   const handleStreetChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setStreet(val);
     updateProfile({ street: val });
+    setAutoFillBadge(null);
+
+    // Instant extraction if combined address was pasted
+    const extracted = extractPostcodeCityFromAddressString(val);
+    if (extracted && (extracted.postcode || extracted.city)) {
+      const autoCity = formatPostcodeCity(extracted.postcode, extracted.city);
+      if (autoCity) {
+        setCity(autoCity);
+        setAutoFillBadge(t.caretakerProfile.location.autoFillSuccess || "PLZ & Stadt automatisch ermittelt");
+        updateProfile({ street: extracted.streetDisplay, city: autoCity });
+      }
+    }
+
+    if (autoLookupTimerRef.current) {
+      clearTimeout(autoLookupTimerRef.current);
+    }
+
+    if (val.trim().length >= 3 && !isLocked) {
+      autoLookupTimerRef.current = setTimeout(() => {
+        fetchAddressSuggestions(val);
+        syncAddressFromStreetInput(val);
+      }, 350);
+    } else {
+      setAddressSuggestions([]);
+      setShowSuggestionsDropdown(false);
+    }
   };
+
+  const handleStreetBlur = () => {
+    // Delay hiding dropdown so clicks on suggestion buttons register
+    setTimeout(async () => {
+      setShowSuggestionsDropdown(false);
+      if (street.trim().length >= 3 && !isLocked) {
+        syncAddressFromStreetInput(street);
+      }
+    }, 250);
+  };
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (streetContainerRef.current && !streetContainerRef.current.contains(e.target as Node)) {
+        setShowSuggestionsDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
 
   const handleCityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -518,20 +843,16 @@ export function PinLocationCard() {
               >
                 {t.caretakerProfile.location.title}
               </h2>
-              <p className="text-[14px] text-[#7A6E62] mt-1.5 leading-relaxed">
-                {t.caretakerProfile.location.subtitle}
-              </p>
             </div>
           </div>
 
           {/* Status Alert Banner */}
           {statusMessage && (
             <div
-              className={`p-3.5 rounded-xl text-[13px] font-medium flex items-center gap-2 border transition-all ${
-                statusMessage.type === "success"
+              className={`p-3.5 rounded-xl text-[13px] font-medium flex items-center gap-2 border transition-all ${statusMessage.type === "success"
                   ? "bg-green-50 border-green-200 text-green-800"
                   : "bg-amber-50 border-amber-200 text-amber-800"
-              }`}
+                }`}
             >
               {statusMessage.type === "success" ? (
                 <svg className="w-4 h-4 text-green-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
@@ -560,7 +881,7 @@ export function PinLocationCard() {
           {/* Address Form */}
           <form onSubmit={handleLookup} className="space-y-4 pt-1">
             {/* Street & House Number */}
-            <div>
+            <div className="relative" ref={streetContainerRef}>
               <label
                 htmlFor="location-street"
                 className="block text-[13px] font-semibold text-[#4B3E2F] mb-1.5"
@@ -574,22 +895,85 @@ export function PinLocationCard() {
                   value={street}
                   disabled={isLocked}
                   onChange={handleStreetChange}
+                  onBlur={handleStreetBlur}
+                  onFocus={() => {
+                    if (addressSuggestions.length > 0 && !isLocked) {
+                      setShowSuggestionsDropdown(true);
+                    }
+                  }}
                   placeholder={t.caretakerProfile.location.streetPlaceholder}
-                  className={`w-full h-[48px] px-4 rounded-xl border border-[#E5DDD2] text-[15px] text-[#1E1B18] placeholder:text-[#A89E90] focus:outline-none focus:ring-2 focus:ring-[#F5A623]/40 focus:border-[#F5A623] transition-all ${
-                    isLocked ? "bg-[#F3EFE8] opacity-80 cursor-not-allowed" : "bg-[#FAF8F5]/60"
-                  }`}
+                  className={`w-full h-[48px] px-4 pr-10 rounded-xl border border-[#E5DDD2] text-[15px] text-[#1E1B18] placeholder:text-[#A89E90] focus:outline-none focus:ring-2 focus:ring-[#F5A623]/40 focus:border-[#F5A623] transition-all ${isLocked ? "bg-[#F3EFE8] opacity-80 cursor-not-allowed" : "bg-[#FAF8F5]/60"
+                    }`}
                 />
+                {isSearchingSuggestions && (
+                  <div className="absolute right-3.5 top-1/2 -translate-y-1/2">
+                    <svg className="animate-spin h-4 w-4 text-[#15803D]" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                    </svg>
+                  </div>
+                )}
               </div>
+
+              {/* Suggestions Dropdown */}
+              {showSuggestionsDropdown && addressSuggestions.length > 0 && !isLocked && (
+                <div
+                  role="listbox"
+                  className="absolute left-0 right-0 top-[calc(100%+4px)] bg-white border border-[#E5DDD2] rounded-xl shadow-xl py-1.5 z-50 max-h-56 overflow-y-auto animate-in fade-in zoom-in-95"
+                >
+                  <div className="px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-[#7A6E62] border-b border-[#F0EBE1]">
+                    {t.caretakerProfile.location.suggestionsDropdownLabel || "Matching addresses:"}
+                  </div>
+                  {addressSuggestions.map((sug, i) => (
+                    <button
+                      key={`${sug.lat}-${sug.lng}-${i}`}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        handleSelectSuggestion(sug);
+                      }}
+                      className="w-full px-3.5 py-2.5 text-left text-[13px] hover:bg-[#FAF7F2] transition-colors flex items-start gap-2.5 border-b border-[#F5EFE6] last:border-0 cursor-pointer"
+                    >
+                      <svg className="w-4 h-4 text-[#15803D] shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-[#1E1B18] truncate">{sug.streetDisplay}</p>
+                        <p className="text-[11px] text-[#7A6E62] truncate">
+                          {formatPostcodeCity(sug.postcode, sug.city) || sug.displayName}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Auto-fill indicator text */}
+              <p className="text-[11px] text-[#7A6E62] mt-1.5 flex items-center gap-1.5">
+                <span className="text-[#15803D] font-bold">⚡</span>
+                <span>{t.caretakerProfile.location.autoFillNotice}</span>
+              </p>
             </div>
 
             {/* Postcode & City */}
             <div>
-              <label
-                htmlFor="location-city"
-                className="block text-[13px] font-semibold text-[#4B3E2F] mb-1.5"
-              >
-                {t.caretakerProfile.location.postcodeCityLabel}
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label
+                  htmlFor="location-city"
+                  className="block text-[13px] font-semibold text-[#4B3E2F]"
+                >
+                  {t.caretakerProfile.location.postcodeCityLabel}
+                </label>
+                {autoFillBadge && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#15803D] bg-[#F0FDF4] px-2 py-0.5 rounded-full border border-[#BBF7D0] animate-in fade-in">
+                    <svg className="w-3 h-3 text-[#15803D]" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>{autoFillBadge}</span>
+                  </span>
+                )}
+              </div>
               <div className="relative">
                 <input
                   id="location-city"
@@ -598,9 +982,8 @@ export function PinLocationCard() {
                   disabled={isLocked}
                   onChange={handleCityChange}
                   placeholder={t.caretakerProfile.location.postcodeCityPlaceholder}
-                  className={`w-full h-[48px] px-4 rounded-xl border border-[#E5DDD2] text-[15px] text-[#1E1B18] placeholder:text-[#A89E90] focus:outline-none focus:ring-2 focus:ring-[#F5A623]/40 focus:border-[#F5A623] transition-all ${
-                    isLocked ? "bg-[#F3EFE8] opacity-80 cursor-not-allowed" : "bg-[#FAF8F5]/60"
-                  }`}
+                  className={`w-full h-[48px] px-4 rounded-xl border border-[#E5DDD2] text-[15px] text-[#1E1B18] placeholder:text-[#A89E90] focus:outline-none focus:ring-2 focus:ring-[#F5A623]/40 focus:border-[#F5A623] transition-all ${isLocked ? "bg-[#F3EFE8] opacity-80 cursor-not-allowed" : "bg-[#FAF8F5]/60"
+                    }`}
                 />
               </div>
             </div>
@@ -610,11 +993,10 @@ export function PinLocationCard() {
               <div className="p-3.5 rounded-xl border border-[#E5DDD2] bg-[#FAF8F5] flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
                   <div
-                    className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                      areaClassification.areaType === "rural"
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${areaClassification.areaType === "rural"
                         ? "bg-[#FEF3C7] text-[#92400E]"
                         : "bg-[#DCFCE7] text-[#166534]"
-                    }`}
+                      }`}
                   >
                     {areaClassification.areaType === "rural" ? (
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">

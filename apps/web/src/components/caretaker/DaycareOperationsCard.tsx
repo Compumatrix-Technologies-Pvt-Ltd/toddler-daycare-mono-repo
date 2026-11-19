@@ -7,6 +7,15 @@ import { useCaretaker, CaretakerPhoto, DEFAULT_PHOTOS } from "../../context/Care
 import { caretakerApi } from "@/utils/caretakerApi";
 import { DatePicker, TimePicker } from "@repo/ui";
 import {
+  isAlphabetOnly,
+  sanitizeAlphabetInput,
+  COUNTRY_PHONE_CONFIGS,
+  CountryPhoneConfig,
+  parsePhoneNumber,
+  validateCountryPhone,
+  isFutureOrTodayDate,
+} from "@repo/shared";
+import {
   formatPostcodeCity,
   formatStreetDisplay,
   parseAddressComponents,
@@ -102,6 +111,11 @@ export function DaycareOperationsCard() {
   const [email, setEmail] = useState(profile.email || "");
   const [website, setWebsite] = useState(profile.website || "");
   const [phone, setPhone] = useState(profile.phone || "");
+  const initialPhoneParsed = parsePhoneNumber(profile.phone || "");
+  const [selectedCountry, setSelectedCountry] = useState<CountryPhoneConfig>(initialPhoneParsed.country);
+  const [phoneNational, setPhoneNational] = useState(initialPhoneParsed.nationalNumber);
+  const [isCountryDropdownOpen, setIsCountryDropdownOpen] = useState(false);
+  const countryDropdownRef = useRef<HTMLDivElement>(null);
 
   // Additional Details
   const [mealType, setMealType] = useState<"self" | "delivered" | "">(
@@ -133,26 +147,35 @@ export function DaycareOperationsCard() {
     const errors: FieldErrors = {};
     const v = t.caretakerProfile.operations.validation;
 
-    // 1. Daycare Name (min 2 chars)
+    // 1. Daycare Name (min 2 chars, alphabet only)
     if (!daycareName.trim() || daycareName.trim().length < 2) {
       errors.daycareName =
         v?.daycareNameRequired || "Please enter the daycare name (at least 2 characters).";
+    } else if (!isAlphabetOnly(daycareName.trim())) {
+      errors.daycareName =
+        v?.daycareNameAlphabetOnly || "Daycare name can only contain letters.";
     }
 
-    // 2. Caregiver Name (min 2 chars)
+    // 2. Caregiver Name (min 2 chars, alphabet only)
     if (!caregiverName.trim() || caregiverName.trim().length < 2) {
       errors.caregiverName =
         v?.caregiverNameRequired || "Please enter the caregiver full name (at least 2 characters).";
+    } else if (!isAlphabetOnly(caregiverName.trim())) {
+      errors.caregiverName =
+        v?.caregiverNameAlphabetOnly || "Caregiver name can only contain letters.";
     }
 
-    // 3. Gender (must be selected)
-    if (!gender || (gender !== "Female" && gender !== "Male" && gender !== "Diverse")) {
+    // 3. Gender (must be selected: Female or Male)
+    if (!gender || (gender !== "Female" && gender !== "Male")) {
       errors.gender = v?.genderRequired || "Please select the caregiver gender.";
     }
 
-    // 4. Visibility window (required)
+    // 4. Visibility window (required & future date)
     if (!visibilityWindow.trim()) {
       errors.visibilityWindow = v?.visibilityWindowRequired || "Please select a visibility window.";
+    } else if (!isFutureOrTodayDate(visibilityWindow)) {
+      errors.visibilityWindow =
+        v?.visibilityWindowFuture || "Visibility window must be a future date (from today onwards).";
     }
 
     // 5. Operating hours (from & to required, to > from)
@@ -189,10 +212,16 @@ export function DaycareOperationsCard() {
       }
     }
 
-    // 9. Phone (required, min 6 digits)
-    const digitsOnly = phone.replace(/\D/g, "");
-    if (!phone.trim() || digitsOnly.length < 6) {
-      errors.phone = v?.phoneRequired || "Please enter a valid phone number (at least 6 digits).";
+    // 9. Phone (required, country-based validation)
+    if (!phoneNational.trim()) {
+      errors.phone = v?.phoneRequired || "Please enter a valid phone number.";
+    } else {
+      const phoneCheck = validateCountryPhone(phoneNational, selectedCountry);
+      if (!phoneCheck.isValid) {
+        errors.phone =
+          v?.phoneCountryInvalid ||
+          `Please enter a valid phone number for ${selectedCountry.nameEn} (e.g. ${selectedCountry.dialCode} ${selectedCountry.placeholder}).`;
+      }
     }
 
     // 10. Meal Type (required)
@@ -281,7 +310,12 @@ export function DaycareOperationsCard() {
     if (profile.childAge !== undefined) setChildAge(profile.childAge);
     if (profile.email !== undefined) setEmail(profile.email);
     if (profile.website !== undefined) setWebsite(profile.website);
-    if (profile.phone !== undefined) setPhone(profile.phone);
+    if (profile.phone !== undefined) {
+      setPhone(profile.phone);
+      const parsed = parsePhoneNumber(profile.phone);
+      setSelectedCountry(parsed.country);
+      setPhoneNational(parsed.nationalNumber);
+    }
     if (profile.mealType !== undefined) setMealType(profile.mealType as "self" | "delivered" | "");
     if (profile.petStatus !== undefined) setPetStatus(profile.petStatus as "none" | "pets" | "");
     if (profile.photos) setPhotosList(profile.photos);
@@ -330,7 +364,12 @@ export function DaycareOperationsCard() {
         if (data.operations?.maxCapacity) setMaxCapacity(`${data.operations.maxCapacity} children`);
         if (data.contact?.email) setEmail(data.contact.email);
         if (data.contact?.website) setWebsite(data.contact.website);
-        if (data.contact?.phone) setPhone(data.contact.phone);
+        if (data.contact?.phone) {
+          setPhone(data.contact.phone);
+          const parsed = parsePhoneNumber(data.contact.phone);
+          setSelectedCountry(parsed.country);
+          setPhoneNational(parsed.nationalNumber);
+        }
         if (data.additionalDetails?.meals) {
           setMealType(data.additionalDetails.meals === "self-cooked" ? "self" : "delivered");
         }
@@ -630,6 +669,12 @@ export function DaycareOperationsCard() {
       ) {
         setIsChildAgeOpen(false);
       }
+      if (
+        countryDropdownRef.current &&
+        !countryDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsCountryDropdownOpen(false);
+      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => {
@@ -705,7 +750,7 @@ export function DaycareOperationsCard() {
                   value={daycareName}
                   placeholder={t.caretakerProfile.operations.daycareNamePlaceholder}
                   onChange={(e) => {
-                    const val = e.target.value;
+                    const val = sanitizeAlphabetInput(e.target.value);
                     setDaycareName(val);
                     clearError("daycareName");
                     handleFieldChange("daycareName", val);
@@ -737,7 +782,7 @@ export function DaycareOperationsCard() {
                   value={caregiverName}
                   placeholder={t.caretakerProfile.operations.caregiverNamePlaceholder}
                   onChange={(e) => {
-                    const val = e.target.value;
+                    const val = sanitizeAlphabetInput(e.target.value);
                     setCaregiverName(val);
                     clearError("caregiverName");
                     handleFieldChange("caregiverName", val);
@@ -792,9 +837,7 @@ export function DaycareOperationsCard() {
                       ? t.caretakerProfile.operations.genderFemale
                       : gender === "Male"
                         ? t.caretakerProfile.operations.genderMale
-                        : gender === "Diverse"
-                          ? t.caretakerProfile.operations.genderDiverse
-                          : t.caretakerProfile.operations.genderSelectPlaceholder}
+                        : t.caretakerProfile.operations.genderSelectPlaceholder}
                   </span>
                   <svg
                     className={`w-4 h-4 text-[#7A6E62] transition-transform duration-200 shrink-0 ${isGenderOpen ? "rotate-180" : ""
@@ -886,30 +929,6 @@ export function DaycareOperationsCard() {
                         </svg>
                       )}
                     </button>
-
-                    {/* Diverse Option */}
-                    <button
-                      type="button"
-                      role="option"
-                      aria-selected={gender === "Diverse"}
-                      onClick={() => {
-                        setGender("Diverse");
-                        clearError("gender");
-                        handleFieldChange("caregiverGender", "Diverse");
-                        setIsGenderOpen(false);
-                      }}
-                      className={`w-full px-4 py-2.5 text-left text-[14px] flex items-center justify-between transition-colors cursor-pointer ${gender === "Diverse"
-                        ? "bg-[#FAF7F2] text-[#A12D3A] font-bold"
-                        : "text-[#1E1B18] hover:bg-[#FAF8F5]"
-                        }`}
-                    >
-                      <span>{t.caretakerProfile.operations.genderDiverse}</span>
-                      {gender === "Diverse" && (
-                        <svg className="w-4 h-4 text-[#A12D3A]" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                      )}
-                    </button>
                   </div>
                 )}
               </div>
@@ -929,6 +948,7 @@ export function DaycareOperationsCard() {
                 <div className="w-full sm:max-w-md">
                   <DatePicker
                     value={visibilityWindow || null}
+                    minDate={new Date()}
                     format="dd,mmm,yyyy"
                     onChange={(_d, str) => {
                       setVisibilityWindow(str);
@@ -1239,27 +1259,98 @@ export function DaycareOperationsCard() {
                 )}
               </div>
 
-              {/* Phone number */}
+              {/* Phone number with Country selector */}
               <div>
                 <label className="block text-[13px] font-semibold text-[#4B3E2F] mb-1.5">
                   {t.caretakerProfile.operations.phoneNumber} <span className="text-[#DC2626]">*</span>
                 </label>
-                <input
-                  type="tel"
-                  value={phone}
-                  placeholder={t.caretakerProfile.operations.phonePlaceholder}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setPhone(val);
-                    clearError("phone");
-                    handleFieldChange("phone", val);
-                  }}
-                  className={`w-full h-[46px] px-4 rounded-xl border text-[15px] text-[#1E1B18] placeholder:text-[#9E9284] transition-all focus:outline-none ${
-                    fieldErrors.phone
-                      ? "border-[#DC2626] bg-[#FEF2F2]/30 focus:border-[#DC2626] focus:ring-2 focus:ring-[#DC2626]/20"
-                      : "border-[#E5DDD2] bg-[#FAF8F5]/60 focus:border-[#F5A623] focus:ring-2 focus:ring-[#F5A623]/40"
-                  }`}
-                />
+                <div className="flex items-stretch gap-2">
+                  {/* Country selector dropdown */}
+                  <div className="relative shrink-0" ref={countryDropdownRef}>
+                    <button
+                      type="button"
+                      onClick={() => setIsCountryDropdownOpen(!isCountryDropdownOpen)}
+                      aria-label={t.caretakerProfile.operations.phoneCountryLabel}
+                      className="h-[46px] px-3 rounded-xl border border-[#E5DDD2] bg-[#FAF8F5]/60 hover:bg-[#FAF8F5] text-[14px] font-medium text-[#1E1B18] flex items-center gap-1.5 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#F5A623]/40"
+                    >
+                      <span className="text-[17px] leading-none">{selectedCountry.flag}</span>
+                      <span className="font-semibold text-[13px]">{selectedCountry.dialCode}</span>
+                      <svg
+                        className={`w-3.5 h-3.5 text-[#7A6E62] transition-transform duration-200 ${
+                          isCountryDropdownOpen ? "rotate-180" : ""
+                        }`}
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+
+                    {/* Country dropdown menu */}
+                    {isCountryDropdownOpen && (
+                      <div
+                        role="listbox"
+                        className="absolute left-0 top-[calc(100%+6px)] w-64 max-h-60 overflow-y-auto bg-white border border-[#E5DDD2] rounded-xl shadow-xl py-1.5 z-50 animate-in fade-in zoom-in-95"
+                      >
+                        {COUNTRY_PHONE_CONFIGS.map((cfg) => {
+                          const isSelected = cfg.code === selectedCountry.code;
+                          return (
+                            <button
+                              key={cfg.code}
+                              type="button"
+                              role="option"
+                              aria-selected={isSelected}
+                              onClick={() => {
+                                setSelectedCountry(cfg);
+                                setIsCountryDropdownOpen(false);
+                                clearError("phone");
+                                const fullPhone = phoneNational.trim()
+                                  ? `${cfg.dialCode} ${phoneNational.trim()}`
+                                  : "";
+                                setPhone(fullPhone);
+                                handleFieldChange("phone", fullPhone);
+                              }}
+                              className={`w-full px-3 py-2 text-left text-[13px] flex items-center justify-between transition-colors cursor-pointer ${
+                                isSelected ? "bg-[#FAF7F2] text-[#A12D3A] font-bold" : "text-[#1E1B18] hover:bg-[#FAF8F5]"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 truncate">
+                                <span className="text-[16px] leading-none shrink-0">{cfg.flag}</span>
+                                <span className="truncate">{language === "de" ? cfg.nameDe : cfg.nameEn}</span>
+                              </div>
+                              <span className="text-[#7A6E62] text-[12px] font-mono shrink-0 ml-2">{cfg.dialCode}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Phone National Input */}
+                  <div className="relative flex-1 min-w-0">
+                    <input
+                      type="tel"
+                      value={phoneNational}
+                      placeholder={selectedCountry.placeholder}
+                      onChange={(e) => {
+                        const cleaned = e.target.value.replace(/[^\d\s\-]/g, "");
+                        setPhoneNational(cleaned);
+                        clearError("phone");
+                        const fullPhone = cleaned.trim() ? `${selectedCountry.dialCode} ${cleaned.trim()}` : "";
+                        setPhone(fullPhone);
+                        handleFieldChange("phone", fullPhone);
+                      }}
+                      className={`w-full h-[46px] px-4 rounded-xl border text-[15px] text-[#1E1B18] placeholder:text-[#9E9284] transition-all focus:outline-none ${
+                        fieldErrors.phone
+                          ? "border-[#DC2626] bg-[#FEF2F2]/30 focus:border-[#DC2626] focus:ring-2 focus:ring-[#DC2626]/20"
+                          : "border-[#E5DDD2] bg-[#FAF8F5]/60 focus:border-[#F5A623] focus:ring-2 focus:ring-[#F5A623]/40"
+                      }`}
+                    />
+                  </div>
+                </div>
+
                 {fieldErrors.phone && (
                   <p className="text-[12px] text-[#DC2626] font-medium mt-1.5 flex items-center gap-1.5 animate-in fade-in">
                     <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">

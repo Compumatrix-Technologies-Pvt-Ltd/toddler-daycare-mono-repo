@@ -3,8 +3,10 @@ import {
   recordSearchHistory,
   getNearbySearchHistoryForCaretaker,
   getAllSearchHistoryAdmin,
+  cancelAndDeleteSearchHistory,
 } from "../../services/caretaker/searchHistoryService.js";
 import { runCleanupJob } from "../../services/cron/searchCleanupCron.js";
+import { emitSearchHistoryUpdated } from "../../config/socket.js";
 
 /**
  * POST /api/v1/parent/search-history
@@ -148,6 +150,68 @@ export async function triggerSearchCleanup(req: Request, res: Response): Promise
     res.status(500).json({
       success: false,
       message: err.message || "Failed to run search cleanup.",
+    });
+  }
+}
+
+/**
+ * DELETE, POST & GET /api/v1/search/cancel
+ * Cancel and delete 30-day parent search history demand from database.
+ */
+export async function cancelSearchHistory(req: Request, res: Response): Promise<void> {
+  try {
+    const referenceId = (
+      req.body?.referenceId ||
+      req.query?.ref ||
+      req.query?.referenceId ||
+      req.params?.id ||
+      ""
+    ) as string;
+    const email = (req.body?.email || req.query?.email || "") as string;
+    const inquiryId = (req.body?.inquiryId || req.query?.inquiryId || "") as string;
+
+    if (!referenceId && !email && !inquiryId) {
+      res.status(400).json({
+        success: false,
+        message: "Reference ID or email is required to cancel search history.",
+      });
+      return;
+    }
+
+    const result = await cancelAndDeleteSearchHistory({
+      referenceId: referenceId.trim() || undefined,
+      email: email.trim() || undefined,
+      inquiryId: inquiryId.trim() || undefined,
+    });
+
+    emitSearchHistoryUpdated({
+      referenceId: result.referenceId || referenceId,
+      email,
+      action: "deleted",
+    });
+
+    // If accessed via a browser GET request (e.g. email link fallback), redirect to web confirmation page
+    if (req.method === "GET" && req.accepts("html")) {
+      const webBaseUrl =
+        process.env.WEB_URL || process.env.FRONTEND_URL || "http://localhost:3000";
+      res.redirect(
+        `${webBaseUrl}/cancel-search?ref=${encodeURIComponent(
+          result.referenceId || referenceId
+        )}&status=deleted`
+      );
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Parent search history and 30-day map visibility successfully deleted from database.",
+      data: result,
+    });
+  } catch (err: any) {
+    console.error("[SearchHistoryController] cancelSearchHistory error:", err);
+    res.status(500).json({
+      success: false,
+      message: err.message || "Failed to cancel and delete parent search history.",
     });
   }
 }

@@ -1,5 +1,11 @@
 import { Request, Response } from 'express';
-import { registerService, loginService } from '@/services/caretaker/caretaker';
+import {
+    registerService,
+    loginService,
+    forgotPasswordService,
+    verifyResetCodeService,
+    resetPasswordService,
+} from '@/services/caretaker/caretaker';
 import Caretaker from "@/modules/caretaker/auth";
 
 //Register controller
@@ -72,6 +78,60 @@ export const getProfile = async (req: Request, res: Response) => {
         return res.status(401).json({
             success: false,
             message: "Invalid or expired token",
+        });
+    }
+};
+
+// Forgot Password controller
+export const forgotPassword = async (req: Request, res: Response) => {
+    try {
+        const { email } = req.body || {};
+        const result = await forgotPasswordService(email);
+        return res.status(200).json({
+            success: true,
+            message: result.message,
+            data: result,
+        });
+    } catch (error: any) {
+        return res.status(400).json({
+            success: false,
+            message: error.message || "Failed to process forgot password request",
+        });
+    }
+};
+
+// Verify 6-digit Code controller
+export const verifyResetCode = async (req: Request, res: Response) => {
+    try {
+        const { email, code } = req.body || {};
+        const result = await verifyResetCodeService(email, code);
+        return res.status(200).json({
+            success: true,
+            message: result.message,
+            data: result,
+        });
+    } catch (error: any) {
+        return res.status(400).json({
+            success: false,
+            message: error.message || "Invalid or expired verification code",
+        });
+    }
+};
+
+// Reset Password controller
+export const resetPassword = async (req: Request, res: Response) => {
+    try {
+        const { email, code, newPassword } = req.body || {};
+        const result = await resetPasswordService(email, code, newPassword);
+        return res.status(200).json({
+            success: true,
+            message: result.message,
+            data: result,
+        });
+    } catch (error: any) {
+        return res.status(400).json({
+            success: false,
+            message: error.message || "Failed to reset password",
         });
     }
 };

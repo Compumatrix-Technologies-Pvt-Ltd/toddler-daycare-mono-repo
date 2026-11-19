@@ -15,7 +15,24 @@ import {
   CloseIcon,
   ClockIcon,
   CheckCircleIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ChevronsLeftIcon,
+  ChevronsRightIcon,
 } from "../icons/AdminIcons";
+
+function getPageNumbers(currentPage: number, totalPages: number) {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, i) => i + 1);
+  }
+  if (currentPage <= 4) {
+    return [1, 2, 3, 4, 5, "...", totalPages];
+  }
+  if (currentPage >= totalPages - 3) {
+    return [1, "...", totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+  }
+  return [1, "...", currentPage - 1, currentPage, currentPage + 1, "...", totalPages];
+}
 
 export function InquiriesView() {
   const { t } = useLanguage();
@@ -26,12 +43,16 @@ export function InquiriesView() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedInquiry, setSelectedInquiry] = useState<AdminInquiry | null>(null);
+  const [inquiriesPage, setInquiriesPage] = useState(1);
+  const [inquiriesPageSize, setInquiriesPageSize] = useState(10);
 
   // Search Demands State
   const [searchDemands, setSearchDemands] = useState<AdminSearchDemand[]>([]);
   const [loadingDemands, setLoadingDemands] = useState(false);
   const [demandsSearchQuery, setDemandsSearchQuery] = useState("");
   const [demandsStatusFilter, setDemandsStatusFilter] = useState<"all" | "active" | "expired">("all");
+  const [demandsPage, setDemandsPage] = useState(1);
+  const [demandsPageSize, setDemandsPageSize] = useState(10);
   const [demandsMeta, setDemandsMeta] = useState({
     total: 0,
     activeCount: 0,
@@ -39,6 +60,15 @@ export function InquiriesView() {
   });
   const [runningCleanup, setRunningCleanup] = useState(false);
   const [cleanupMessage, setCleanupMessage] = useState<string | null>(null);
+
+  // Reset pagination on search / filter changes
+  useEffect(() => {
+    setInquiriesPage(1);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    setDemandsPage(1);
+  }, [demandsSearchQuery, demandsStatusFilter]);
 
   const inqT = t.admin.inquiries;
   const histT = t.admin.searchHistory || {
@@ -148,11 +178,34 @@ export function InquiriesView() {
   const stats = useMemo(() => {
     return {
       total: inquiries.length,
-      pending: inquiries.filter((i) => i.status === "pending").length,
-      contacted: inquiries.filter((i) => i.status === "contacted").length,
-      accepted: inquiries.filter((i) => i.status === "accepted").length,
     };
   }, [inquiries]);
+
+  // Direct Inquiries Pagination Calculations
+  const totalInquiries = filteredInquiries.length;
+  const totalInquiryPages = Math.max(1, Math.ceil(totalInquiries / inquiriesPageSize));
+  const validInquiryPage = Math.min(Math.max(1, inquiriesPage), totalInquiryPages);
+
+  const paginatedInquiries = useMemo(() => {
+    const start = (validInquiryPage - 1) * inquiriesPageSize;
+    return filteredInquiries.slice(start, start + inquiriesPageSize);
+  }, [filteredInquiries, validInquiryPage, inquiriesPageSize]);
+
+  const startInquiryIndex = totalInquiries === 0 ? 0 : (validInquiryPage - 1) * inquiriesPageSize + 1;
+  const endInquiryIndex = Math.min(validInquiryPage * inquiriesPageSize, totalInquiries);
+
+  // Search Demands Pagination Calculations
+  const totalDemands = searchDemands.length;
+  const totalDemandPages = Math.max(1, Math.ceil(totalDemands / demandsPageSize));
+  const validDemandPage = Math.min(Math.max(1, demandsPage), totalDemandPages);
+
+  const paginatedDemands = useMemo(() => {
+    const start = (validDemandPage - 1) * demandsPageSize;
+    return searchDemands.slice(start, start + demandsPageSize);
+  }, [searchDemands, validDemandPage, demandsPageSize]);
+
+  const startDemandIndex = totalDemands === 0 ? 0 : (validDemandPage - 1) * demandsPageSize + 1;
+  const endDemandIndex = Math.min(validDemandPage * demandsPageSize, totalDemands);
 
 
   return (
@@ -239,57 +292,19 @@ export function InquiriesView() {
       {activeTab === "inquiries" && (
         <>
           {/* KPI Stats Overview */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-            <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-[#E5DDD2] shadow-2xs">
+          <div className="bg-white p-4 rounded-xl border border-[#E5DDD2] shadow-2xs flex items-center justify-between">
+            <div>
               <span className="text-[10px] sm:text-[11px] font-bold text-[#7A6E62] uppercase tracking-wider block">
                 {inqT.kpi.total}
               </span>
               <div className="text-xl sm:text-2xl font-extrabold text-[#1E1B18] mt-1 font-heading">
                 {stats.total}
               </div>
-              <span className="text-[10px] sm:text-[11px] text-[#8A7A6A] mt-0.5 block truncate">
+              <span className="text-[10px] sm:text-[11px] text-[#8A7A6A] mt-0.5 block">
                 {inqT.kpi.totalSub}
               </span>
             </div>
 
-            <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-[#E5DDD2] shadow-2xs">
-              <span className="text-[10px] sm:text-[11px] font-bold text-[#D97706] uppercase tracking-wider block flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-[#D97706] animate-pulse" />
-                <span>{inqT.kpi.pending}</span>
-              </span>
-              <div className="text-xl sm:text-2xl font-extrabold text-[#D97706] mt-1 font-heading">
-                {stats.pending}
-              </div>
-              <span className="text-[10px] sm:text-[11px] text-[#8A7A6A] mt-0.5 block truncate">
-                {inqT.kpi.pendingSub}
-              </span>
-            </div>
-
-            <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-[#E5DDD2] shadow-2xs">
-              <span className="text-[10px] sm:text-[11px] font-bold text-[#2563EB] uppercase tracking-wider block flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-[#2563EB]" />
-                <span>{inqT.kpi.contacted}</span>
-              </span>
-              <div className="text-xl sm:text-2xl font-extrabold text-[#2563EB] mt-1 font-heading">
-                {stats.contacted}
-              </div>
-              <span className="text-[10px] sm:text-[11px] text-[#8A7A6A] mt-0.5 block truncate">
-                {inqT.kpi.contactedSub}
-              </span>
-            </div>
-
-            <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-[#E5DDD2] shadow-2xs">
-              <span className="text-[10px] sm:text-[11px] font-bold text-[#16A34A] uppercase tracking-wider block flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-[#16A34A]" />
-                <span>{inqT.kpi.accepted}</span>
-              </span>
-              <div className="text-xl sm:text-2xl font-extrabold text-[#16A34A] mt-1 font-heading">
-                {stats.accepted}
-              </div>
-              <span className="text-[10px] sm:text-[11px] text-[#8A7A6A] mt-0.5 block truncate">
-                {inqT.kpi.acceptedSub}
-              </span>
-            </div>
           </div>
 
           {/* Search Toolbar */}
@@ -349,7 +364,7 @@ export function InquiriesView() {
                       </td>
                     </tr>
                   ) : (
-                    filteredInquiries.map((inq) => (
+                    paginatedInquiries.map((inq) => (
                       <tr
                         key={inq._id}
                         onClick={() => setSelectedInquiry(inq)}
@@ -407,6 +422,124 @@ export function InquiriesView() {
                 </tbody>
               </table>
             </div>
+
+            {/* Direct Inquiries Pagination Footer */}
+            {totalInquiries > 0 && (
+              <div className="p-3 sm:p-4 border-t border-[#E5DDD2] bg-[#FAF7F2] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+                {/* Left: Range & Per-page */}
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 w-full sm:w-auto">
+                  <span className="text-[#7A6E62] font-medium">
+                    {t.admin.dashboard.table.pagination.showing
+                      .replace("{start}", String(startInquiryIndex))
+                      .replace("{end}", String(endInquiryIndex))
+                      .replace("{total}", String(totalInquiries))}
+                  </span>
+
+                  <div className="flex items-center gap-1.5 pl-2 border-l border-[#E5DDD2]">
+                    <span className="text-[#7A6E62] text-[11px] whitespace-nowrap">
+                      {t.admin.dashboard.table.pagination.perPage}
+                    </span>
+                    <select
+                      value={inquiriesPageSize}
+                      onChange={(e) => {
+                        setInquiriesPageSize(Number(e.target.value));
+                        setInquiriesPage(1);
+                      }}
+                      className="h-7.5 px-2 rounded-lg border border-[#E5DDD2] bg-white text-[#1E1B18] font-semibold text-xs focus:border-[#A12D3A] focus:outline-hidden cursor-pointer shadow-2xs"
+                      aria-label={t.admin.dashboard.table.pagination.perPage}
+                    >
+                      {[5, 10, 20, 50, 100].map((size) => (
+                        <option key={size} value={size}>
+                          {size}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Right: Page Buttons */}
+                {totalInquiryPages > 1 && (
+                  <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto max-w-full py-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setInquiriesPage(1)}
+                      disabled={validInquiryPage === 1}
+                      className="p-1.5 sm:px-2 rounded-lg border border-[#E5DDD2] bg-white text-[#7A6E62] hover:text-[#1E1B18] hover:bg-[#EFE7DC] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors cursor-pointer shadow-2xs min-h-[34px] min-w-[34px] flex items-center justify-center"
+                      title={t.admin.dashboard.table.pagination.first}
+                      aria-label={t.admin.dashboard.table.pagination.first}
+                    >
+                      <ChevronsLeftIcon className="w-3.5 h-3.5" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setInquiriesPage((p) => Math.max(1, p - 1))}
+                      disabled={validInquiryPage === 1}
+                      className="px-2.5 py-1.5 rounded-lg border border-[#E5DDD2] bg-white text-[#7A6E62] hover:text-[#1E1B18] hover:bg-[#EFE7DC] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white font-semibold text-xs transition-colors cursor-pointer shadow-2xs min-h-[34px] flex items-center gap-1"
+                      aria-label={t.admin.dashboard.table.pagination.previous}
+                    >
+                      <ChevronLeftIcon className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">{t.admin.dashboard.table.pagination.previous}</span>
+                    </button>
+
+                    <div className="flex items-center gap-1">
+                      {getPageNumbers(validInquiryPage, totalInquiryPages).map((num, idx) => {
+                        if (num === "...") {
+                          return (
+                            <span
+                              key={`ellipsis-inq-${idx}`}
+                              className="w-7 sm:w-8 h-8 flex items-center justify-center text-[#7A6E62] font-bold select-none text-xs"
+                            >
+                              …
+                            </span>
+                          );
+                        }
+                        const pageNum = num as number;
+                        const isActive = pageNum === validInquiryPage;
+                        return (
+                          <button
+                            key={`page-inq-${pageNum}`}
+                            type="button"
+                            onClick={() => setInquiriesPage(pageNum)}
+                            className={`min-w-[32px] sm:min-w-[34px] h-8 sm:h-8.5 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-2xs flex items-center justify-center ${
+                              isActive
+                                ? "bg-[#A12D3A] text-white border border-[#A12D3A]"
+                                : "bg-white text-[#5C4C3E] border border-[#E5DDD2] hover:bg-[#FAF7F2] hover:text-[#1E1B18]"
+                            }`}
+                            aria-label={`${t.admin.dashboard.table.pagination.page} ${pageNum}`}
+                            aria-current={isActive ? "page" : undefined}
+                          >
+                            {pageNum}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setInquiriesPage((p) => Math.min(totalInquiryPages, p + 1))}
+                      disabled={validInquiryPage === totalInquiryPages}
+                      className="px-2.5 py-1.5 rounded-lg border border-[#E5DDD2] bg-white text-[#7A6E62] hover:text-[#1E1B18] hover:bg-[#EFE7DC] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white font-semibold text-xs transition-colors cursor-pointer shadow-2xs min-h-[34px] flex items-center gap-1"
+                      aria-label={t.admin.dashboard.table.pagination.next}
+                    >
+                      <span className="hidden sm:inline">{t.admin.dashboard.table.pagination.next}</span>
+                      <ChevronRightIcon className="w-3.5 h-3.5" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setInquiriesPage(totalInquiryPages)}
+                      disabled={validInquiryPage === totalInquiryPages}
+                      className="p-1.5 sm:px-2 rounded-lg border border-[#E5DDD2] bg-white text-[#7A6E62] hover:text-[#1E1B18] hover:bg-[#EFE7DC] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors cursor-pointer shadow-2xs min-h-[34px] min-w-[34px] flex items-center justify-center"
+                      title={t.admin.dashboard.table.pagination.last}
+                      aria-label={t.admin.dashboard.table.pagination.last}
+                    >
+                      <ChevronsRightIcon className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </>
       )}
@@ -517,20 +650,19 @@ export function InquiriesView() {
                     <th className="py-3 px-4">{histT.colChildTiming || "Child & Timing"}</th>
                     <th className="py-3 px-4">{histT.colPreferences || "Preferences"}</th>
                     <th className="py-3 px-4">{histT.col30DayStatus || "30-Day Status"}</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#F0EBE1]">
                   {loadingDemands ? (
                     <tr>
-                      <td colSpan={6} className="py-12 text-center text-[#7A6E62]">
+                      <td colSpan={5} className="py-12 text-center text-[#7A6E62]">
                         <div className="w-6 h-6 border-2 border-[#A12D3A] border-t-transparent rounded-full animate-spin mx-auto mb-2" />
                         <span>Loading parent search demands...</span>
                       </td>
                     </tr>
-                  ) : searchDemands.length === 0 ? (
+                  ) : totalDemands === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-12 text-center text-[#7A6E62]">
+                      <td colSpan={5} className="py-12 text-center text-[#7A6E62]">
                         <div className="w-12 h-12 rounded-xl bg-[#FAF7F2] border border-[#E5DDD2] flex items-center justify-center mx-auto text-[#A12D3A] mb-2">
                           <InboxIcon className="w-6 h-6" />
                         </div>
@@ -538,7 +670,7 @@ export function InquiriesView() {
                       </td>
                     </tr>
                   ) : (
-                    searchDemands.map((demand) => (
+                    paginatedDemands.map((demand) => (
                       <tr key={demand._id} className="hover:bg-[#FAF7F2]/60 transition-colors">
                         <td className="py-3 px-4">
                           <div className="font-bold text-[#1E1B18] flex items-center gap-1.5">
@@ -598,33 +730,130 @@ export function InquiriesView() {
                             Added: {new Date(demand.createdAt).toLocaleDateString()}
                           </div>
                         </td>
-
-                        <td className="py-3 px-4 text-right whitespace-nowrap">
-                          <div className="inline-flex items-center gap-1.5">
-                            <a
-                              href={`tel:${demand.phone}`}
-                              className="px-2.5 py-1 rounded-lg border border-[#E5DDD2] bg-white hover:bg-[#FAF7F2] text-[11px] font-bold text-[#16A34A] transition-colors"
-                              title="Call Parent"
-                            >
-                              Call
-                            </a>
-                            <a
-                              href={`mailto:${demand.email}?subject=Betreuungsanfrage%20Toddler&body=Hallo%20${encodeURIComponent(
-                                demand.parentName
-                              )},%0A%0Abezugnehmend%20auf%20Ihre%20Suchanfrage...`}
-                              className="px-2.5 py-1 rounded-lg border border-[#E5DDD2] bg-white hover:bg-[#FAF7F2] text-[11px] font-bold text-[#A12D3A] transition-colors"
-                              title="Email Parent"
-                            >
-                              Email
-                            </a>
-                          </div>
-                        </td>
                       </tr>
                     ))
                   )}
                 </tbody>
               </table>
             </div>
+
+            {/* Search Demands Pagination Footer */}
+            {totalDemands > 0 && (
+              <div className="p-3 sm:p-4 border-t border-[#E5DDD2] bg-[#FAF7F2] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+                {/* Left: Range & Per-page */}
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 w-full sm:w-auto">
+                  <span className="text-[#7A6E62] font-medium">
+                    {t.admin.dashboard.table.pagination.showing
+                      .replace("{start}", String(startDemandIndex))
+                      .replace("{end}", String(endDemandIndex))
+                      .replace("{total}", String(totalDemands))}
+                  </span>
+
+                  <div className="flex items-center gap-1.5 pl-2 border-l border-[#E5DDD2]">
+                    <span className="text-[#7A6E62] text-[11px] whitespace-nowrap">
+                      {t.admin.dashboard.table.pagination.perPage}
+                    </span>
+                    <select
+                      value={demandsPageSize}
+                      onChange={(e) => {
+                        setDemandsPageSize(Number(e.target.value));
+                        setDemandsPage(1);
+                      }}
+                      className="h-7.5 px-2 rounded-lg border border-[#E5DDD2] bg-white text-[#1E1B18] font-semibold text-xs focus:border-[#A12D3A] focus:outline-hidden cursor-pointer shadow-2xs"
+                      aria-label={t.admin.dashboard.table.pagination.perPage}
+                    >
+                      {[5, 10, 20, 50, 100].map((size) => (
+                        <option key={size} value={size}>
+                          {size}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Right: Page Buttons */}
+                {totalDemandPages > 1 && (
+                  <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto max-w-full py-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setDemandsPage(1)}
+                      disabled={validDemandPage === 1}
+                      className="p-1.5 sm:px-2 rounded-lg border border-[#E5DDD2] bg-white text-[#7A6E62] hover:text-[#1E1B18] hover:bg-[#EFE7DC] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors cursor-pointer shadow-2xs min-h-[34px] min-w-[34px] flex items-center justify-center"
+                      title={t.admin.dashboard.table.pagination.first}
+                      aria-label={t.admin.dashboard.table.pagination.first}
+                    >
+                      <ChevronsLeftIcon className="w-3.5 h-3.5" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setDemandsPage((p) => Math.max(1, p - 1))}
+                      disabled={validDemandPage === 1}
+                      className="px-2.5 py-1.5 rounded-lg border border-[#E5DDD2] bg-white text-[#7A6E62] hover:text-[#1E1B18] hover:bg-[#EFE7DC] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white font-semibold text-xs transition-colors cursor-pointer shadow-2xs min-h-[34px] flex items-center gap-1"
+                      aria-label={t.admin.dashboard.table.pagination.previous}
+                    >
+                      <ChevronLeftIcon className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">{t.admin.dashboard.table.pagination.previous}</span>
+                    </button>
+
+                    <div className="flex items-center gap-1">
+                      {getPageNumbers(validDemandPage, totalDemandPages).map((num, idx) => {
+                        if (num === "...") {
+                          return (
+                            <span
+                              key={`ellipsis-dem-${idx}`}
+                              className="w-7 sm:w-8 h-8 flex items-center justify-center text-[#7A6E62] font-bold select-none text-xs"
+                            >
+                              …
+                            </span>
+                          );
+                        }
+                        const pageNum = num as number;
+                        const isActive = pageNum === validDemandPage;
+                        return (
+                          <button
+                            key={`page-dem-${pageNum}`}
+                            type="button"
+                            onClick={() => setDemandsPage(pageNum)}
+                            className={`min-w-[32px] sm:min-w-[34px] h-8 sm:h-8.5 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-2xs flex items-center justify-center ${
+                              isActive
+                                ? "bg-[#A12D3A] text-white border border-[#A12D3A]"
+                                : "bg-white text-[#5C4C3E] border border-[#E5DDD2] hover:bg-[#FAF7F2] hover:text-[#1E1B18]"
+                            }`}
+                            aria-label={`${t.admin.dashboard.table.pagination.page} ${pageNum}`}
+                            aria-current={isActive ? "page" : undefined}
+                          >
+                            {pageNum}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setDemandsPage((p) => Math.min(totalDemandPages, p + 1))}
+                      disabled={validDemandPage === totalDemandPages}
+                      className="px-2.5 py-1.5 rounded-lg border border-[#E5DDD2] bg-white text-[#7A6E62] hover:text-[#1E1B18] hover:bg-[#EFE7DC] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white font-semibold text-xs transition-colors cursor-pointer shadow-2xs min-h-[34px] flex items-center gap-1"
+                      aria-label={t.admin.dashboard.table.pagination.next}
+                    >
+                      <span className="hidden sm:inline">{t.admin.dashboard.table.pagination.next}</span>
+                      <ChevronRightIcon className="w-3.5 h-3.5" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setDemandsPage(totalDemandPages)}
+                      disabled={validDemandPage === totalDemandPages}
+                      className="p-1.5 sm:px-2 rounded-lg border border-[#E5DDD2] bg-white text-[#7A6E62] hover:text-[#1E1B18] hover:bg-[#EFE7DC] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors cursor-pointer shadow-2xs min-h-[34px] min-w-[34px] flex items-center justify-center"
+                      title={t.admin.dashboard.table.pagination.last}
+                      aria-label={t.admin.dashboard.table.pagination.last}
+                    >
+                      <ChevronsRightIcon className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </>
       )}
@@ -722,33 +951,14 @@ export function InquiriesView() {
             </div>
 
             {/* Modal Actions */}
-            <div className="pt-3 border-t border-[#F0E8DC] flex flex-wrap items-center justify-between gap-3 p-4">
+            <div className="pt-3 border-t border-[#F0E8DC] flex items-center justify-end gap-3 p-4 bg-[#FAF7F2]">
               <button
                 type="button"
                 onClick={() => setSelectedInquiry(null)}
-                className="px-4 py-2 rounded-xl border border-[#E5DDD2] bg-white hover:bg-[#FAF7F2] text-xs font-bold text-[#5C4C3E] cursor-pointer"
+                className="px-4 py-2 rounded-xl border border-[#E5DDD2] bg-white hover:bg-[#FAF7F2] text-xs font-bold text-[#5C4C3E] cursor-pointer min-h-[38px]"
               >
                 {inqT.modal.close}
               </button>
-
-              <div className="flex items-center gap-2">
-                <a
-                  href={`tel:${selectedInquiry.phone}`}
-                  className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-2xs"
-                >
-                  {inqT.modal.callParent}
-                </a>
-                <a
-                  href={`mailto:${selectedInquiry.email}?subject=Betreuungsanfrage%20${selectedInquiry.referenceId}&body=Hallo%20${encodeURIComponent(
-                    selectedInquiry.parentName
-                  )},%0A%0Abezugnehmend%20auf%20Ihre%20Anfrage%20f%C3%BCr%20${encodeURIComponent(
-                    selectedInquiry.childName
-                  )}...`}
-                  className="px-3.5 py-2 rounded-xl bg-[#A12D3A] hover:bg-[#88222E] text-white text-xs font-bold shadow-2xs"
-                >
-                  {inqT.modal.emailParent}
-                </a>
-              </div>
             </div>
           </div>
         </div>

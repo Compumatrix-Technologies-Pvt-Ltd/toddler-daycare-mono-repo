@@ -262,3 +262,77 @@ export function filterBookingsByDateRange<T extends BookingClassificationInput>(
     return true;
   });
 }
+
+/**
+ * Calculates a child's age string from their Date of Birth.
+ * Supports flexible inputs: Date, ISO string, German date, "15 Feb, 2025", "DOB: 15 Feb, 2025", etc.
+ *
+ * @param dob Date of birth
+ * @param locale "de" | "en"
+ * @param referenceDate Reference date (defaults to today)
+ * @returns Human-readable age string, e.g. "1 Jahr, 9 Monate" or "1 year, 9 months"
+ */
+export function calculateChildAge(
+  dob?: Date | string | null,
+  locale: "de" | "en" = "de",
+  referenceDate: Date = new Date()
+): string {
+  if (!dob) return "";
+
+  let birthDate: Date | null = null;
+  if (dob instanceof Date) {
+    birthDate = isNaN(dob.getTime()) ? null : dob;
+  } else if (typeof dob === "string") {
+    const cleaned = dob.replace(/^(DOB|Geb\.?):?\s*/i, "").trim();
+    birthDate = parseFlexibleBookingDate(cleaned, false);
+  }
+
+  if (!birthDate) return typeof dob === "string" ? dob : "";
+
+  const today = referenceDate;
+  if (birthDate > today) {
+    return locale === "de" ? "Noch nicht geboren" : "Not yet born";
+  }
+
+  let years = today.getFullYear() - birthDate.getFullYear();
+  let months = today.getMonth() - birthDate.getMonth();
+  let days = today.getDate() - birthDate.getDate();
+
+  if (days < 0) {
+    months -= 1;
+  }
+  if (months < 0) {
+    years -= 1;
+    months += 12;
+  }
+
+  const isDe = locale === "de";
+
+  if (years === 0 && months === 0) {
+    const diffTime = Math.abs(today.getTime() - birthDate.getTime());
+    const totalDays = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
+    if (totalDays < 7) {
+      if (totalDays <= 1) return isDe ? "1 Tag alt" : "1 day old";
+      return isDe ? `${totalDays} Tage alt` : `${totalDays} days old`;
+    }
+    const weeks = Math.floor(totalDays / 7);
+    if (weeks <= 1) return isDe ? "1 Woche alt" : "1 week old";
+    return isDe ? `${weeks} Wochen alt` : `${weeks} weeks old`;
+  }
+
+  if (years === 0) {
+    if (months === 1) return isDe ? "1 Monat" : "1 month";
+    return isDe ? `${months} Monate` : `${months} months`;
+  }
+
+  if (years === 1) {
+    if (months === 0) return isDe ? "1 Jahr" : "1 year";
+    if (months === 1) return isDe ? "1 Jahr, 1 Monat" : "1 year, 1 month";
+    return isDe ? `1 Jahr, ${months} Monate` : `1 year, ${months} months`;
+  }
+
+  // years >= 2
+  if (months === 0) return isDe ? `${years} Jahre` : `${years} years`;
+  if (months === 1) return isDe ? `${years} Jahre, 1 Monat` : `${years} years, 1 month`;
+  return isDe ? `${years} Jahre, ${months} Monate` : `${years} years, ${months} months`;
+}

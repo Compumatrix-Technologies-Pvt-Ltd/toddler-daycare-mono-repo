@@ -48,7 +48,7 @@ export function BulkInquiryModal({
     router.push(
       `/confirm-enquiry?ref=REQ-2026-8492&contacted=${encodeURIComponent(
         contactedParam
-      )}`
+      )}&consent=${consent ? "true" : "false"}`
     );
   };
 

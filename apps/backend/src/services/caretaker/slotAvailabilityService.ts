@@ -63,13 +63,13 @@ export function parseFlexibleDate(dateStr?: string | Date | null): { date: Date;
     };
   }
 
-  // 2) DD, MMM, YYYY e.g. "18, Nov, 2026" or "01, Feb, 2027"
-  const commaMatch = str.match(/^(\d{1,2})\s*,\s*([a-zA-ZäöüÄÖÜ]+)\s*,\s*(\d{4})/);
-  if (commaMatch) {
-    const d = parseInt(commaMatch[1], 10);
-    const monthKey = commaMatch[2].toLowerCase();
+  // 2) DD MMM, YYYY or DD, MMM, YYYY e.g. "18 Nov, 2026", "18, Nov, 2026", "01 Feb, 2027"
+  const dayMonthYearMatch = str.match(/^(\d{1,2})[\s,]+([a-zA-ZäöüÄÖÜ]+)[\s,]+(\d{4})/);
+  if (dayMonthYearMatch) {
+    const d = parseInt(dayMonthYearMatch[1], 10);
+    const monthKey = dayMonthYearMatch[2].toLowerCase();
     const m = MONTH_INDEX_MAP[monthKey] || MONTH_INDEX_MAP[monthKey.slice(0, 3)] || 1;
-    const y = parseInt(commaMatch[3], 10);
+    const y = parseInt(dayMonthYearMatch[3], 10);
     return {
       date: new Date(y, m - 1, d),
       year: y,

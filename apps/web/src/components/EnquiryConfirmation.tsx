@@ -9,6 +9,7 @@ interface EnquiryConfirmationProps {
   referenceId?: string;
   caretakersContacted?: string;
   mapVisibility?: string;
+  showMapVisibility?: boolean;
 }
 
 export function EnquiryConfirmation({
@@ -17,6 +18,7 @@ export function EnquiryConfirmation({
   referenceId,
   caretakersContacted,
   mapVisibility,
+  showMapVisibility = true,
 }: EnquiryConfirmationProps) {
   const { t } = useLanguage();
 
@@ -82,18 +84,22 @@ export function EnquiryConfirmation({
             </span>
           </div>
 
-          {/* Divider 2 */}
-          <div className="border-t border-[#D5D5DD] w-full" />
+          {/* Row 3: 30-Day Map Visibility - Only shown when user checked the consent checkbox */}
+          {showMapVisibility && (
+            <>
+              {/* Divider 2 */}
+              <div className="border-t border-[#D5D5DD] w-full" />
 
-          {/* Row 3: 30-Day Map Visibility */}
-          <div className="flex items-center justify-between py-1.5 px-1 gap-2">
-            <span className="font-medium text-[#8C7C6D] shrink-0">
-              {t.confirmEnquiry.mapVisibilityLabel}
-            </span>
-            <span className="font-bold text-[#1B1C1C] text-right">
-              {visibility}
-            </span>
-          </div>
+              <div className="flex items-center justify-between py-1.5 px-1 gap-2 animate-in fade-in duration-150">
+                <span className="font-medium text-[#8C7C6D] shrink-0">
+                  {t.confirmEnquiry.mapVisibilityLabel}
+                </span>
+                <span className="font-bold text-[#1B1C1C] text-right">
+                  {visibility}
+                </span>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Actions: Button & Link */}

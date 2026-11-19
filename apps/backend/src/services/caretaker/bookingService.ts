@@ -5,6 +5,7 @@ import { CreateBookingInput, IBooking } from "@/types/caretaker/booking.js";
 import { emitInquiryUpdated, emitDaycareUpdated } from "@/config/socket.js";
 import { validateBookingCapacity } from "./slotAvailabilityService.js";
 import { parseFlexibleBookingDate } from "@repo/shared";
+import { emailService } from "@/services/email/emailService.js";
 
 function parseBookingDate(dateStr?: string, isEndOfPeriod: boolean = false): Date | null {
   return parseFlexibleBookingDate(dateStr, isEndOfPeriod);
@@ -121,6 +122,35 @@ export const createBookingService = async (
     caretakerId,
     action: "updated",
   });
+
+  // Dispatch booking confirmation email to parent
+  if (saved.parentContact?.email) {
+    try {
+      let resolvedDaycareName = "Kindertagespflege";
+      if (daycareId) {
+        const dc = await Daycare.findById(daycareId);
+        if (dc?.name) resolvedDaycareName = dc.name;
+      }
+      emailService
+        .sendBookingConfirmationToParent({
+          toEmail: saved.parentContact.email,
+          parentName: saved.parentContact.parents,
+          childName: saved.childName,
+          daycareName: resolvedDaycareName,
+          placementStart: saved.placementStart,
+          kindergartenTransition: saved.kindergartenTransition,
+          dailyHours: saved.dailyHours,
+          preferences: saved.preferences,
+          referenceId: saved.referenceId,
+          phone: saved.parentContact.phone,
+        })
+        .catch((err) => {
+          console.error("[BookingService] Error dispatching booking confirmation email:", err);
+        });
+    } catch (err) {
+      console.warn("[BookingService] Could not send booking confirmation email:", err);
+    }
+  }
 
   return saved;
 };

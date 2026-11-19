@@ -7,6 +7,7 @@ import {
   updateInquiryStatusService,
 } from "../../services/inquiry/inquiryService.js";
 import { emitInquiryUpdated } from "../../config/socket.js";
+import { emailService } from "../../services/email/emailService.js";
 
 export const createInquiry = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -82,7 +83,7 @@ export const createInquiry = async (req: Request, res: Response): Promise<void> 
         : (caretakerId ? [String(caretakerId).trim()] : []),
       daycareIds: Array.isArray(daycareIds) ? daycareIds : [],
       daycareNames: Array.isArray(daycareNames) ? daycareNames : [],
-      consentMapVisibility: consentMapVisibility !== false,
+      consentMapVisibility: consentMapVisibility === true,
       searchLocation,
       currentLocation,
       searchFilters,
@@ -170,7 +171,7 @@ export const getInquiries = async (req: Request, res: Response): Promise<void> =
 export const updateInquiryStatus = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { status } = req.body || {};
+    const { status, reason } = req.body || {};
 
     if (!status || !["pending", "reviewed", "contacted", "accepted", "declined", "booked"].includes(status)) {
       res.status(400).json({
@@ -196,6 +197,28 @@ export const updateInquiryStatus = async (req: Request, res: Response): Promise<
       status: (updated as any).status || status,
       action: "status_changed",
     });
+
+    // If inquiry was declined / cancelled, dispatch notification email to parent with reason
+    if (status === "declined" && (updated as any).email) {
+      try {
+        const daycareName =
+          (updated as any).daycareNames?.[0] || "Kindertagespflege";
+        emailService
+          .sendInquiryCancellationToParent({
+            toEmail: (updated as any).email,
+            parentName: (updated as any).parentName,
+            childName: (updated as any).childName || "Ihr Kind",
+            daycareName,
+            referenceId: (updated as any).referenceId || String((updated as any)._id),
+            reason: reason || "Derzeit leider keine freien Kapazitäten verfügbar.",
+          })
+          .catch((err) => {
+            console.error("[InquiryController] Error sending inquiry cancellation email:", err);
+          });
+      } catch (err) {
+        console.warn("[InquiryController] Could not send inquiry cancellation email:", err);
+      }
+    }
 
     res.status(200).json({
       data: updated,

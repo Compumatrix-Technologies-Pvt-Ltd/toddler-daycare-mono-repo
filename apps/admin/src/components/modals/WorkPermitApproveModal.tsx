@@ -25,7 +25,6 @@ export function WorkPermitApproveModal({
   const [registrationDate, setRegistrationDate] = useState("");
   const [expirationDate, setExpirationDate] = useState("");
   const [issuingAuthority, setIssuingAuthority] = useState("");
-  const [authorizedCapacity, setAuthorizedCapacity] = useState<string>("");
   const [adminNotes, setAdminNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -57,13 +56,6 @@ export function WorkPermitApproveModal({
     setRegistrationDate(application.registrationDate ? application.registrationDate.trim() : "");
     setExpirationDate(application.expirationDate ? application.expirationDate.trim() : "");
     setIssuingAuthority(application.issuingAuthority ? application.issuingAuthority.trim() : "");
-    setAuthorizedCapacity(
-      application.authorizedCapacity !== undefined && application.authorizedCapacity !== null
-        ? String(application.authorizedCapacity)
-        : application.capacity !== undefined && application.capacity !== null
-          ? String(application.capacity)
-          : ""
-    );
     setAdminNotes(application.adminNotes ? application.adminNotes.trim() : "");
     setError(null);
     setIsSubmitting(false);
@@ -146,8 +138,12 @@ export function WorkPermitApproveModal({
         issuingAuthority: issuingAuthority.trim(),
         adminNotes: adminNotes.trim(),
       };
-      if (authorizedCapacity && !isNaN(Number(authorizedCapacity))) {
-        payload.authorizedCapacity = Number(authorizedCapacity);
+      const cap = application.authorizedCapacity ?? application.capacity;
+      if (cap !== undefined && cap !== null && !isNaN(Number(cap))) {
+        payload.authorizedCapacity = Number(cap);
+      }
+      if (application.childAge) {
+        payload.childAge = application.childAge;
       }
       await onConfirmApprove(application.id, payload);
       onClose();
@@ -432,44 +428,74 @@ export function WorkPermitApproveModal({
                     </div>
                   </div>
 
-                  {/* Issuing Authority & Authorized Capacity */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="sm:col-span-2 space-y-1">
-                      <label
-                        htmlFor="permit-authority"
-                        className="block text-[11px] font-bold uppercase tracking-wider text-[#5C4C3E]"
-                      >
-                        {copy.issuingAuthority}
-                      </label>
-                      <input
-                        id="permit-authority"
-                        type="text"
-                        value={issuingAuthority}
-                        onChange={(e) => setIssuingAuthority(e.target.value)}
-                        placeholder={copy.issuingAuthorityPlaceholder}
-                        className="w-full h-[42px] px-3.5 rounded-xl border border-[#E5DDD2] bg-white text-xs sm:text-sm text-[#1E1B18] placeholder-[#9E9080] focus:border-[#A12D3A] focus:ring-2 focus:ring-[#A12D3A]/15 focus:outline-hidden"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label
-                        htmlFor="permit-capacity"
-                        className="block text-[11px] font-bold uppercase tracking-wider text-[#5C4C3E]"
-                      >
-                        {copy.authorizedCapacity}
-                      </label>
-                      <input
-                        id="permit-capacity"
-                        type="number"
-                        min={1}
-                        max={20}
-                        value={authorizedCapacity}
-                        onChange={(e) => setAuthorizedCapacity(e.target.value)}
-                        className="w-full h-[42px] px-3.5 rounded-xl border border-[#E5DDD2] bg-white text-xs sm:text-sm font-semibold text-[#1E1B18] focus:border-[#A12D3A] focus:ring-2 focus:ring-[#A12D3A]/15 focus:outline-hidden"
-                      />
-                    </div>
+                  {/* Issuing Authority */}
+                  <div className="space-y-1">
+                    <label
+                      htmlFor="permit-authority"
+                      className="block text-[11px] font-bold uppercase tracking-wider text-[#5C4C3E]"
+                    >
+                      {copy.issuingAuthority}
+                    </label>
+                    <input
+                      id="permit-authority"
+                      type="text"
+                      value={issuingAuthority}
+                      onChange={(e) => setIssuingAuthority(e.target.value)}
+                      placeholder={copy.issuingAuthorityPlaceholder}
+                      className="w-full h-[42px] px-3.5 rounded-xl border border-[#E5DDD2] bg-white text-xs sm:text-sm text-[#1E1B18] placeholder-[#9E9080] focus:border-[#A12D3A] focus:ring-2 focus:ring-[#A12D3A]/15 focus:outline-hidden"
+                    />
                   </div>
 
+                  {/* Daycare Specifications: Authorized Capacity & Accepted Child Age (Read-only) */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Authorized Capacity (Children) - Read-only */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label
+                          id="label-permit-capacity"
+                          className="block text-[11px] font-bold uppercase tracking-wider text-[#5C4C3E]"
+                        >
+                          {copy.authorizedCapacity}
+                        </label>
+                      </div>
+                      <div
+                        role="region"
+                        aria-labelledby="label-permit-capacity"
+                        className="w-full h-[42px] px-3.5 rounded-xl border border-[#E5DDD2] bg-[#FAF7F2] flex items-center justify-between text-xs sm:text-sm font-bold text-[#1E1B18] select-none cursor-default"
+                      >
+                        <span className="flex items-center gap-2">
+                          <svg className="w-4 h-4 text-[#15803D] shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                          </svg>
+                          <span>{application.authorizedCapacity ?? application.capacity ?? 0} {t.admin.dashboard.table.children}</span>
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Accepted Child Age - Read-only */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label
+                          id="label-permit-child-age"
+                          className="block text-[11px] font-bold uppercase tracking-wider text-[#5C4C3E]"
+                        >
+                          {copy.childAge}
+                        </label>
+                      </div>
+                      <div
+                        role="region"
+                        aria-labelledby="label-permit-child-age"
+                        className="w-full h-[42px] px-3.5 rounded-xl border border-[#E5DDD2] bg-[#FAF7F2] flex items-center justify-between text-xs sm:text-sm font-bold text-[#1E1B18] select-none cursor-default"
+                      >
+                        <span className="flex items-center gap-2 truncate">
+                          <svg className="w-4 h-4 text-[#2563EB] shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span className="truncate">{application.childAge || "0 – 3 years"}</span>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
                   {/* Verification Notes */}
                   <div className="space-y-1">
                     <label

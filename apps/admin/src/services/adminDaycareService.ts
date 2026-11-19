@@ -1,5 +1,5 @@
 import axios from "axios";
-import { DaycareApplication, WorkPermitDetails } from "../types/admin";
+import { DaycareApplication, DaycareApplicationPhoto, WorkPermitDetails } from "../types/admin";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1";
 
@@ -65,6 +65,19 @@ export function mapMongoDaycareToApplication(raw: any): DaycareApplication {
   const areaType: "urban" | "rural" = isRural ? "rural" : "urban";
   const catchmentRadiusKm = Number(loc.catchmentRadiusKm) || (areaType === "rural" ? 10 : 3);
 
+  const rawPhotos: any[] = Array.isArray(raw.photos) ? raw.photos : [];
+  const photos: DaycareApplicationPhoto[] = rawPhotos
+    .filter((p: any) => p && (typeof p === "string" || p.url))
+    .map((p: any, idx: number) => {
+      const url = typeof p === "string" ? p : p.url;
+      return {
+        id: p._id?.toString() || p.id || `photo-${idx}`,
+        url: resolveAssetUrl(url),
+        label: p.label || "",
+        publicId: p.publicId || "",
+      };
+    });
+
   return {
     id: raw._id?.toString() || raw.id || "",
     caretakerName: raw.caregiverName || raw.caretakerName || "Registered Caregiver",
@@ -90,6 +103,20 @@ export function mapMongoDaycareToApplication(raw: any): DaycareApplication {
     approvedAt: raw.workPermit?.approvedAt || "",
     areaType,
     catchmentRadiusKm,
+    // Caretaker profile fields
+    caregiverGender: raw.caregiverGender || raw.operations?.caregiverGender || "",
+    operatingHours: raw.operations?.operatingHours || "",
+    visibilityWindow: raw.operations?.visibilityWindow || "",
+    website: raw.contact?.website || "",
+    meals: raw.additionalDetails?.meals || "",
+    pets: raw.additionalDetails?.pets || "",
+    street: loc.street || "",
+    houseNumber: loc.houseNumber || "",
+    postcode: loc.postcode || "",
+    city: loc.city || "",
+    latitude: typeof loc.latitude === "number" ? loc.latitude : undefined,
+    longitude: typeof loc.longitude === "number" ? loc.longitude : undefined,
+    photos,
   };
 }
 

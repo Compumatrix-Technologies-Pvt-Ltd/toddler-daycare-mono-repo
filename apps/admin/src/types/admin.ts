@@ -62,6 +62,13 @@ export interface WorkPermitDetails {
   adminNotes?: string;
 }
 
+export interface DaycareApplicationPhoto {
+  id?: string;
+  url: string;
+  label?: string;
+  publicId?: string;
+}
+
 export interface DaycareApplication {
   id: string;
   caretakerName: string;
@@ -87,6 +94,20 @@ export interface DaycareApplication {
   approvedAt?: string;
   areaType?: "urban" | "rural";
   catchmentRadiusKm?: number;
+  // Caretaker profile filled fields
+  caregiverGender?: "male" | "female" | "other" | string;
+  operatingHours?: string;
+  visibilityWindow?: string;
+  website?: string;
+  meals?: "self-cooked" | "delivered" | string;
+  pets?: "have-pets" | "no-pets" | string;
+  street?: string;
+  houseNumber?: string;
+  postcode?: string;
+  city?: string;
+  latitude?: number;
+  longitude?: number;
+  photos?: DaycareApplicationPhoto[];
 }
 
 export interface AdminMetric {

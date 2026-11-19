@@ -4,6 +4,13 @@ import React, { useState } from "react";
 import { useLanguage } from "../../../i18n/LanguageContext";
 import { BookingItem, InquiryStatus } from "../../../types/caretakerDashboard";
 import { DatePicker, TimePicker } from "@repo/ui";
+import { parseFlexibleBookingDate, calculateChildAge } from "@repo/shared";
+
+interface BookingPreferencesState {
+  gender: "female" | "male" | "";
+  pets: "have_pets" | "no_pets" | "";
+  food: "self_cooked" | "delivered" | "";
+}
 
 interface BookingDetailsPanelProps {
   item: BookingItem | null;
@@ -11,8 +18,35 @@ interface BookingDetailsPanelProps {
   onOpenManageSlot: (item: BookingItem) => void;
   onOpenContactParents: (item: BookingItem) => void;
   onMarkAsBooked?: (item: BookingItem) => void;
-  onUpdateInquiryStatus?: (id: string, status: InquiryStatus) => void;
+  onUpdateInquiryStatus?: (id: string, status: InquiryStatus, reason?: string) => void;
   onUpdateItem?: (updated: BookingItem) => void;
+}
+
+const MONTH_NAMES_EN = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const MONTH_NAMES_DE = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
+
+function formatToDdMmmYyyy(dateStr?: string | null, locale: "de" | "en" = "de"): string {
+  if (!dateStr) return "";
+  const d = parseFlexibleBookingDate(dateStr, false);
+  if (!d) return dateStr;
+  const day = String(d.getDate()).padStart(2, "0");
+  const monthName = locale === "de" ? MONTH_NAMES_DE[d.getMonth()] : MONTH_NAMES_EN[d.getMonth()];
+  const year = d.getFullYear();
+  return `${day} ${monthName}, ${year}`;
+}
+
+function isDefaultInquiryPlaceholder(name?: string | null): boolean {
+  if (!name) return true;
+  const trimmed = name.trim();
+  return (
+    !trimmed ||
+    /^Anfrage(\s+\d+)?$/i.test(trimmed) ||
+    /^Inquiry(\s+\d+)?$/i.test(trimmed) ||
+    trimmed === "Child" ||
+    trimmed === "Kind" ||
+    trimmed === "1 Kind" ||
+    trimmed.startsWith("Familie ")
+  );
 }
 
 export function BookingDetailsPanel({
@@ -28,54 +62,115 @@ export function BookingDetailsPanel({
   const d = t.caretakerDashboard.details;
 
   // Helper parsers for Care Hours and Preferences
-  const parseCareHours = (raw?: string): { from: string; to: string } => {
-    if (!raw || typeof raw !== "string") return { from: "08:00", to: "15:00" };
+  const parseCareHours = (raw?: string, isInq?: boolean): { from: string; to: string } => {
+    if (isInq) return { from: "", to: "" };
+    if (!raw || typeof raw !== "string") return { from: "", to: "" };
     const match = /(\d{1,2}:\d{2})\s*(?:–|-|to)\s*(\d{1,2}:\d{2})/i.exec(raw);
     if (match && match[1] && match[2]) {
       const from = match[1].length === 4 ? `0${match[1]}` : match[1];
       const to = match[2].length === 4 ? `0${match[2]}` : match[2];
       return { from, to };
     }
-    return { from: "08:00", to: "15:00" };
+    return { from: "", to: "" };
   };
 
-  const parsePreferences = (raw?: string): { female: boolean; selfCooked: boolean; petsOk: boolean } => {
-    if (!raw || typeof raw !== "string") return { female: false, selfCooked: false, petsOk: false };
+  const parsePreferences = (raw?: string): BookingPreferencesState => {
+    if (!raw || typeof raw !== "string") {
+      return { gender: "", pets: "", food: "" };
+    }
     const lower = raw.toLowerCase();
-    return {
-      female: lower.includes("female") || lower.includes("weiblich") || lower.includes("woman"),
-      selfCooked: lower.includes("cook") || lower.includes("koch") || lower.includes("fresh") || lower.includes("selbst"),
-      petsOk: lower.includes("pet") || lower.includes("tier") || lower.includes("dog") || lower.includes("cat"),
-    };
+
+    let gender: "female" | "male" | "" = "";
+    if (lower.includes("female") || lower.includes("weiblich") || lower.includes("girl") || lower.includes("mädchen")) {
+      gender = "female";
+    } else if (lower.includes("male") || lower.includes("männlich") || lower.includes("junge") || lower.includes("boy")) {
+      gender = "male";
+    }
+
+    let pets: "have_pets" | "no_pets" | "" = "";
+    if (
+      lower.includes("no pet") ||
+      lower.includes("no_pet") ||
+      lower.includes("not pet") ||
+      lower.includes("keine tier") ||
+      lower.includes("keine haustier") ||
+      lower.includes("ohne tier")
+    ) {
+      pets = "no_pets";
+    } else if (
+      lower.includes("have pet") ||
+      lower.includes("pets ok") ||
+      lower.includes("pet") ||
+      lower.includes("tier") ||
+      lower.includes("dog") ||
+      lower.includes("cat") ||
+      lower.includes("hund") ||
+      lower.includes("katze")
+    ) {
+      pets = "have_pets";
+    }
+
+    let food: "self_cooked" | "delivered" | "" = "";
+    if (
+      lower.includes("deliver") ||
+      lower.includes("catering") ||
+      lower.includes("geliefert") ||
+      lower.includes("lieferung") ||
+      lower.includes("brought")
+    ) {
+      food = "delivered";
+    } else if (
+      lower.includes("self") ||
+      lower.includes("cook") ||
+      lower.includes("koch") ||
+      lower.includes("selbst") ||
+      lower.includes("fresh") ||
+      lower.includes("frisch")
+    ) {
+      food = "self_cooked";
+    }
+
+    return { gender, pets, food };
   };
 
   const formatPreferencesString = (
-    prefs: { female: boolean; selfCooked: boolean; petsOk: boolean },
+    prefs: BookingPreferencesState,
     lang: "de" | "en"
   ): string => {
     const parts: string[] = [];
-    if (prefs.female) parts.push(lang === "de" ? "Weiblich" : "Female");
-    if (prefs.selfCooked) parts.push(lang === "de" ? "Selbstgekocht" : "Self-cooked");
-    if (prefs.petsOk) parts.push(lang === "de" ? "Haustiere OK" : "Pets OK");
+    if (prefs.gender === "female") parts.push(lang === "de" ? "Weiblich" : "Female");
+    if (prefs.gender === "male") parts.push(lang === "de" ? "Männlich" : "Male");
+    if (prefs.pets === "have_pets") parts.push(lang === "de" ? "Haustiere vorhanden" : "Have pets");
+    if (prefs.pets === "no_pets") parts.push(lang === "de" ? "Keine Haustiere" : "No pets");
+    if (prefs.food === "self_cooked") parts.push(lang === "de" ? "Selbstgekocht" : "Self-cooked");
+    if (prefs.food === "delivered") parts.push(lang === "de" ? "Geliefert / Catering" : "Delivered / Catering");
     return parts.join(" • ");
+  };
+
+  const resolveInitialChildName = (bookingItem: BookingItem | null) => {
+    if (!bookingItem) return "";
+    if (bookingItem.category === "inquiry" && isDefaultInquiryPlaceholder(bookingItem.childName)) {
+      return "";
+    }
+    return bookingItem.childName || "";
   };
 
   const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
-  const [interactiveChildName, setInteractiveChildName] = useState(item?.childName || "");
+  const [interactiveChildName, setInteractiveChildName] = useState(() => resolveInitialChildName(item));
   const [interactiveDob, setInteractiveDob] = useState(item?.dob || "");
   const [interactiveDesiredStart, setInteractiveDesiredStart] = useState(item?.desiredStart || item?.placementStart || "");
   const [interactiveTransition, setInteractiveTransition] = useState(item?.estTransition || item?.kindergartenTransition || "");
 
-  const initialHours = parseCareHours(item?.dailyHours);
+  const initialHours = parseCareHours(item?.dailyHours, item?.category === "inquiry");
   const [careHoursFrom, setCareHoursFrom] = useState(initialHours.from);
   const [careHoursTo, setCareHoursTo] = useState(initialHours.to);
-  const [interactiveHours, setInteractiveHours] = useState(item?.dailyHours || "");
+  const [interactiveHours, setInteractiveHours] = useState(item?.category === "inquiry" ? "" : (item?.dailyHours || ""));
 
   const initialPrefs = parsePreferences(item?.preferences);
-  const [prefFemale, setPrefFemale] = useState(initialPrefs.female);
-  const [prefSelfCooked, setPrefSelfCooked] = useState(initialPrefs.selfCooked);
-  const [prefPetsOk, setPrefPetsOk] = useState(initialPrefs.petsOk);
+  const [prefGender, setPrefGender] = useState<"female" | "male" | "">(initialPrefs.gender);
+  const [prefPets, setPrefPets] = useState<"have_pets" | "no_pets" | "">(initialPrefs.pets);
+  const [prefFood, setPrefFood] = useState<"self_cooked" | "delivered" | "">(initialPrefs.food);
   const [interactivePreferences, setInteractivePreferences] = useState(item?.preferences || "");
 
   const [interactiveParents, setInteractiveParents] = useState(item?.parentContact?.parents || "");
@@ -86,22 +181,28 @@ export function BookingDetailsPanel({
   const [noteSavedAlert, setNoteSavedAlert] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
+  // Cancel Inquiry with Reason state
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [selectedPresetReason, setSelectedPresetReason] = useState("");
+  const [isCancelling, setIsCancelling] = useState(false);
+
   // Sync internal state when item changes
   React.useEffect(() => {
-    setInteractiveChildName(item?.childName || "");
+    setInteractiveChildName(resolveInitialChildName(item));
     setInteractiveDob(item?.dob || "");
     setInteractiveDesiredStart(item?.desiredStart || item?.placementStart || "");
     setInteractiveTransition(item?.estTransition || item?.kindergartenTransition || "");
 
-    const hours = parseCareHours(item?.dailyHours);
+    const hours = parseCareHours(item?.dailyHours, item?.category === "inquiry");
     setCareHoursFrom(hours.from);
     setCareHoursTo(hours.to);
-    setInteractiveHours(item?.dailyHours || "");
+    setInteractiveHours(item?.category === "inquiry" ? "" : (item?.dailyHours || ""));
 
     const prefs = parsePreferences(item?.preferences);
-    setPrefFemale(prefs.female);
-    setPrefSelfCooked(prefs.selfCooked);
-    setPrefPetsOk(prefs.petsOk);
+    setPrefGender(prefs.gender);
+    setPrefPets(prefs.pets);
+    setPrefFood(prefs.food);
     setInteractivePreferences(item?.preferences || "");
 
     setInteractiveParents(item?.parentContact?.parents || "");
@@ -112,6 +213,10 @@ export function BookingDetailsPanel({
     setIsEditingNote(false);
     setNoteSavedAlert(false);
     setValidationErrors({});
+    setIsCancelModalOpen(false);
+    setCancelReason("");
+    setSelectedPresetReason("");
+    setIsCancelling(false);
   }, [item?.id]);
 
   // Dynamic & functional match percentage (guaranteed responsive and never 0%)
@@ -122,6 +227,17 @@ export function BookingDetailsPanel({
     if (item?.locationDistance && !item.locationDistance.includes(">")) score += 10;
     return Math.min(95, Math.max(65, score));
   }, [interactiveDesiredStart, interactiveHours, item?.locationDistance]);
+
+  const rawBirth = item?.dob || item?.childAge || item?.childAgeDe;
+  const calculatedChildAge = React.useMemo(() => {
+    return calculateChildAge(rawBirth, language);
+  }, [rawBirth, language]);
+
+  const dobDisplay = React.useMemo(() => {
+    if (!rawBirth) return "";
+    const cleaned = String(rawBirth).replace(/^(DOB|Geb\.?):?\s*/i, "").trim();
+    return formatToDdMmmYyyy(cleaned, language) || cleaned;
+  }, [rawBirth, language]);
 
   const handleSaveNote = () => {
     if (!item) return;
@@ -140,7 +256,14 @@ export function BookingDetailsPanel({
     if (!item) return;
     const errors: Record<string, string> = {};
 
-    const finalName = (interactiveChildName || item.childName || "").trim();
+    const enteredChildName = (interactiveChildName || "").trim();
+    const finalName =
+      enteredChildName && !isDefaultInquiryPlaceholder(enteredChildName)
+        ? enteredChildName
+        : (item.category !== "inquiry" && item.childName && !isDefaultInquiryPlaceholder(item.childName)
+          ? item.childName.trim()
+          : "");
+
     if (!finalName) {
       errors.childName = language === "de" ? "Name des Kindes ist erforderlich." : "Child name is required.";
     }
@@ -181,8 +304,8 @@ export function BookingDetailsPanel({
       ...item,
       childName: finalName,
       dob: interactiveDob.trim(),
-      childAge: `DOB: ${interactiveDob.trim()}`,
-      childAgeDe: `Geb.: ${interactiveDob.trim()}`,
+      childAge: calculateChildAge(interactiveDob.trim(), "en"),
+      childAgeDe: calculateChildAge(interactiveDob.trim(), "de"),
       desiredStart: interactiveDesiredStart.trim() || item.placementStart,
       desiredStartDe: interactiveDesiredStart.trim() || item.placementStart,
       placementStart: interactiveDesiredStart.trim() || item.placementStart,
@@ -279,13 +402,20 @@ export function BookingDetailsPanel({
                   onChange={(e) => {
                     const val = e.target.value;
                     setInteractiveChildName(val);
+                    if (val.trim()) {
+                      setValidationErrors((prev) => {
+                        const n = { ...prev };
+                        delete n.childName;
+                        return n;
+                      });
+                    }
                     onUpdateItem?.({ ...item, childName: val });
                   }}
                   onBlur={() => setIsEditingName(false)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") setIsEditingName(false);
                   }}
-                  placeholder={isInquiry ? (language === "de" ? "Anfrage 1" : "Inquiry 1") : "Name"}
+                  placeholder={language === "de" ? "Name des Kindes eingeben" : "Enter child name"}
                   className="text-base font-bold text-[#101828] bg-[#F2F4F7] px-2 py-0.5 rounded-lg border border-[#D0D5DD] focus:outline-none focus:border-[#A12D3A] focus:bg-white w-full"
                   autoFocus
                 />
@@ -307,7 +437,15 @@ export function BookingDetailsPanel({
                 title={language === "de" ? "Klicken zum Bearbeiten" : "Click to edit"}
               >
                 <h2 className="text-lg font-bold text-[#101828] tracking-tight truncate">
-                  {interactiveChildName || (isInquiry ? (language === "de" ? "Anfrage 1" : "Inquiry 1") : item.childName)}
+                  {interactiveChildName && !isDefaultInquiryPlaceholder(interactiveChildName) ? (
+                    interactiveChildName
+                  ) : !isInquiry && item.childName && !isDefaultInquiryPlaceholder(item.childName) ? (
+                    item.childName
+                  ) : (
+                    <span className="text-[#98A2B3] font-normal italic">
+                      {language === "de" ? "Name des Kindes eingeben" : "Enter child name"}
+                    </span>
+                  )}
                 </h2>
                 <button
                   type="button"
@@ -325,6 +463,12 @@ export function BookingDetailsPanel({
               </div>
             )}
           </div>
+
+          {validationErrors.childName && (
+            <span className="text-[11px] text-red-600 font-semibold block pt-0.5">
+              {validationErrors.childName}
+            </span>
+          )}
 
           {/* Status Badge Dropdown for Inquiries (Figma node 580:1941) */}
           {isInquiry ? (
@@ -434,23 +578,30 @@ export function BookingDetailsPanel({
                 {validationErrors.dob && (
                   <span className="text-[10px] text-red-600 font-semibold">{validationErrors.dob}</span>
                 )}
+                {interactiveDob && calculateChildAge(interactiveDob, language) && (
+                  <span className="text-[10px] text-[#15803D] font-semibold mt-0.5">
+                    {calculateChildAge(interactiveDob, language)}
+                  </span>
+                )}
               </div>
               <div className={`w-44 rounded-lg ${validationErrors.dob ? "ring-2 ring-red-400 bg-red-50/20" : ""}`}>
                 <DatePicker
                   value={interactiveDob || null}
-                  format="dd,mmm,yyyy"
+                  format="dd mmm,yyyy"
                   onChange={(_d, str) => {
                     setInteractiveDob(str);
                     if (str) setValidationErrors((prev) => { const n = { ...prev }; delete n.dob; return n; });
+                    const ageEn = calculateChildAge(str, "en");
+                    const ageDe = calculateChildAge(str, "de");
                     onUpdateItem?.({
                       ...item,
                       dob: str,
-                      childAge: str ? `DOB: ${str}` : "",
-                      childAgeDe: str ? `Geb.: ${str}` : "",
+                      childAge: ageEn,
+                      childAgeDe: ageDe,
                     });
                   }}
                   locale={language}
-                  placeholder={language === "de" ? "z.B. 15, Mai, 2024" : "e.g. 15, May, 2024"}
+                  placeholder={language === "de" ? "z.B. 15 Mai, 2024" : "e.g. 15 May, 2024"}
                   maxDate={new Date()}
                 />
               </div>
@@ -469,10 +620,18 @@ export function BookingDetailsPanel({
               <div className={`w-44 rounded-lg ${validationErrors.desiredStart ? "ring-2 ring-red-400 bg-red-50/20" : ""}`}>
                 <DatePicker
                   value={interactiveDesiredStart || null}
-                  format="mmm,yyyy"
+                  format="dd mmm,yyyy"
+                  minDate={new Date()}
                   onChange={(_d, str) => {
                     setInteractiveDesiredStart(str);
                     if (str) setValidationErrors((prev) => { const n = { ...prev }; delete n.desiredStart; return n; });
+                    if (interactiveTransition) {
+                      const startD = parseFlexibleBookingDate(str, false);
+                      const transD = parseFlexibleBookingDate(interactiveTransition, false);
+                      if (startD && transD && transD < startD) {
+                        setInteractiveTransition("");
+                      }
+                    }
                     onUpdateItem?.({
                       ...item,
                       desiredStart: str,
@@ -482,7 +641,7 @@ export function BookingDetailsPanel({
                     });
                   }}
                   locale={language}
-                  placeholder={language === "de" ? "z.B. Jan, 2028" : "e.g. Jan, 2028"}
+                  placeholder={language === "de" ? "z.B. 01 Jan, 2028" : "e.g. 01 Jan, 2028"}
                 />
               </div>
             </div>
@@ -500,7 +659,8 @@ export function BookingDetailsPanel({
               <div className={`w-44 rounded-lg ${validationErrors.estTransition ? "ring-2 ring-red-400 bg-red-50/20" : ""}`}>
                 <DatePicker
                   value={interactiveTransition || null}
-                  format="mmm,yyyy"
+                  format="dd mmm,yyyy"
+                  minDate={parseFlexibleBookingDate(interactiveDesiredStart, false) || new Date()}
                   onChange={(_d, str) => {
                     setInteractiveTransition(str);
                     if (str) setValidationErrors((prev) => { const n = { ...prev }; delete n.estTransition; return n; });
@@ -513,7 +673,7 @@ export function BookingDetailsPanel({
                     });
                   }}
                   locale={language}
-                  placeholder={language === "de" ? "z.B. Aug, 2029" : "e.g. Aug, 2029"}
+                  placeholder={language === "de" ? "z.B. 31 Jul, 2029" : "e.g. 31 Jul, 2029"}
                 />
               </div>
             </div>
@@ -589,20 +749,23 @@ export function BookingDetailsPanel({
               </div>
             </div>
 
-            {/* 5. Preferences (Checkboxes) */}
-            <div className="flex flex-col gap-1.5 py-1">
+            {/* 5. Preferences (Selection for Gender, Pets, and Meals) */}
+            <div className="flex flex-col gap-2 py-1">
               <span className="font-semibold text-[#667085] tracking-wide uppercase text-[11px]">
                 {d.preferences}
               </span>
-              <div className="flex items-center gap-3 flex-wrap">
-                <label className="inline-flex items-center gap-1.5 text-xs text-[#344054] cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={prefFemale}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {/* 5a. Gender Selection: Male / Female */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-bold text-[#667085] uppercase tracking-wider">
+                    {language === "de" ? "Geschlecht" : "Gender"}
+                  </label>
+                  <select
+                    value={prefGender}
                     onChange={(e) => {
-                      const checked = e.target.checked;
-                      setPrefFemale(checked);
-                      const updated = { female: checked, selfCooked: prefSelfCooked, petsOk: prefPetsOk };
+                      const nextGender = e.target.value as "female" | "male" | "";
+                      setPrefGender(nextGender);
+                      const updated = { gender: nextGender, pets: prefPets, food: prefFood };
                       const enFormatted = formatPreferencesString(updated, "en");
                       const deFormatted = formatPreferencesString(updated, "de");
                       setInteractivePreferences(language === "de" ? deFormatted : enFormatted);
@@ -612,19 +775,25 @@ export function BookingDetailsPanel({
                         preferencesDe: deFormatted,
                       });
                     }}
-                    className="w-3.5 h-3.5 rounded text-[#A12D3A] focus:ring-[#A12D3A] border-[#D0D5DD] cursor-pointer"
-                  />
-                  <span className="font-medium">{d.preferenceFemale || (language === "de" ? "Weiblich" : "Female")}</span>
-                </label>
+                    className="w-full h-[36px] px-2 text-xs font-medium text-[#101828] bg-[#F9FAFB] hover:bg-white rounded-lg border border-[#D0D5DD] focus:outline-none focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] transition-all cursor-pointer"
+                  >
+                    <option value="">{language === "de" ? "— Beliebig —" : "— Any —"}</option>
+                    <option value="male">{language === "de" ? "Männlich (Junge)" : "Male"}</option>
+                    <option value="female">{language === "de" ? "Weiblich (Mädchen)" : "Female"}</option>
+                  </select>
+                </div>
 
-                <label className="inline-flex items-center gap-1.5 text-xs text-[#344054] cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={prefSelfCooked}
+                {/* 5b. Pets Selection: Have pets / No pets */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-bold text-[#667085] uppercase tracking-wider">
+                    {language === "de" ? "Haustiere" : "Pets"}
+                  </label>
+                  <select
+                    value={prefPets}
                     onChange={(e) => {
-                      const checked = e.target.checked;
-                      setPrefSelfCooked(checked);
-                      const updated = { female: prefFemale, selfCooked: checked, petsOk: prefPetsOk };
+                      const nextPets = e.target.value as "have_pets" | "no_pets" | "";
+                      setPrefPets(nextPets);
+                      const updated = { gender: prefGender, pets: nextPets, food: prefFood };
                       const enFormatted = formatPreferencesString(updated, "en");
                       const deFormatted = formatPreferencesString(updated, "de");
                       setInteractivePreferences(language === "de" ? deFormatted : enFormatted);
@@ -634,19 +803,25 @@ export function BookingDetailsPanel({
                         preferencesDe: deFormatted,
                       });
                     }}
-                    className="w-3.5 h-3.5 rounded text-[#A12D3A] focus:ring-[#A12D3A] border-[#D0D5DD] cursor-pointer"
-                  />
-                  <span className="font-medium">{d.preferenceSelfCooked || (language === "de" ? "Selbstgekocht" : "Self-cooked")}</span>
-                </label>
+                    className="w-full h-[36px] px-2 text-xs font-medium text-[#101828] bg-[#F9FAFB] hover:bg-white rounded-lg border border-[#D0D5DD] focus:outline-none focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] transition-all cursor-pointer"
+                  >
+                    <option value="">{language === "de" ? "— Beliebig —" : "— Any —"}</option>
+                    <option value="have_pets">{language === "de" ? "Haustiere vorhanden" : "Have pets"}</option>
+                    <option value="no_pets">{language === "de" ? "Keine Haustiere" : "No pets"}</option>
+                  </select>
+                </div>
 
-                <label className="inline-flex items-center gap-1.5 text-xs text-[#344054] cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={prefPetsOk}
+                {/* 5c. Food Selection: Selfcooked / Delivered */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-bold text-[#667085] uppercase tracking-wider">
+                    {language === "de" ? "Verpflegung" : "Meals"}
+                  </label>
+                  <select
+                    value={prefFood}
                     onChange={(e) => {
-                      const checked = e.target.checked;
-                      setPrefPetsOk(checked);
-                      const updated = { female: prefFemale, selfCooked: prefSelfCooked, petsOk: checked };
+                      const nextFood = e.target.value as "self_cooked" | "delivered" | "";
+                      setPrefFood(nextFood);
+                      const updated = { gender: prefGender, pets: prefPets, food: nextFood };
                       const enFormatted = formatPreferencesString(updated, "en");
                       const deFormatted = formatPreferencesString(updated, "de");
                       setInteractivePreferences(language === "de" ? deFormatted : enFormatted);
@@ -656,10 +831,13 @@ export function BookingDetailsPanel({
                         preferencesDe: deFormatted,
                       });
                     }}
-                    className="w-3.5 h-3.5 rounded text-[#A12D3A] focus:ring-[#A12D3A] border-[#D0D5DD] cursor-pointer"
-                  />
-                  <span className="font-medium">{d.preferencePetsOk || (language === "de" ? "Haustiere OK" : "Pets OK")}</span>
-                </label>
+                    className="w-full h-[36px] px-2 text-xs font-medium text-[#101828] bg-[#F9FAFB] hover:bg-white rounded-lg border border-[#D0D5DD] focus:outline-none focus:ring-2 focus:ring-[#A12D3A]/20 focus:border-[#A12D3A] transition-all cursor-pointer"
+                  >
+                    <option value="">{language === "de" ? "— Beliebig —" : "— Any —"}</option>
+                    <option value="self_cooked">{language === "de" ? "Selbstgekocht" : "Self-cooked"}</option>
+                    <option value="delivered">{language === "de" ? "Geliefert / Catering" : "Delivered / Catering"}</option>
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -764,38 +942,11 @@ export function BookingDetailsPanel({
 
               {/* Parent Quote Note & Editable Caretaker Note */}
               <div className="pt-2 border-t border-[#EAECF0] space-y-1.5">
-                <div className="flex items-center justify-between text-[11px] font-semibold text-[#667085]">
-                  <span>{language === "de" ? "NOTIZ / ELTERNWUNSCH" : "PARENT NOTE & PREFERENCES"}</span>
-                  <button
-                    type="button"
-                    onClick={() => setIsEditingNote(!isEditingNote)}
-                    className="text-[10px] text-[#A12D3A] hover:underline font-bold cursor-pointer"
-                  >
-                    {isEditingNote ? (language === "de" ? "Abbrechen" : "Cancel") : (language === "de" ? "Bearbeiten" : "Edit")}
-                  </button>
+
+                <div className="text-xs text-[#344054] leading-relaxed bg-white p-2.5 rounded-lg border border-[#EAECF0]">
+                  {noteContent}
                 </div>
 
-                {isEditingNote ? (
-                  <div className="space-y-2">
-                    <textarea
-                      value={noteContent}
-                      onChange={(e) => setNoteContent(e.target.value)}
-                      rows={3}
-                      className="w-full text-xs p-2 rounded-lg border border-[#D0D5DD] bg-white text-[#101828] focus:outline-hidden focus:border-[#A12D3A]"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleSaveNote}
-                      className="px-3 py-1.5 rounded-lg bg-[#0F172A] hover:bg-[#1E293B] text-white text-xs font-semibold cursor-pointer shadow-2xs"
-                    >
-                      {d.saveNotes}
-                    </button>
-                  </div>
-                ) : (
-                  <div className="text-xs text-[#344054] leading-relaxed bg-white p-2.5 rounded-lg border border-[#EAECF0]">
-                    {noteContent || (language === "de" ? item.parentQuoteDe || d.parentQuote : item.parentQuote || d.parentQuote)}
-                  </div>
-                )}
 
                 {noteSavedAlert && (
                   <div className="text-[11px] font-bold text-[#15803D] animate-in fade-in flex items-center gap-1">
@@ -814,11 +965,21 @@ export function BookingDetailsPanel({
         <>
           {/* Properties Section */}
           <div className="space-y-2 sm:space-y-2.5 pt-1">
+            {/* Child Age (Calculated from Date of Birth) */}
             <div className="flex items-center justify-between text-xs py-1">
               <span className="font-semibold text-[#667085] tracking-wide uppercase text-[11px]">
                 {d.childAge}
               </span>
-              <span className="font-medium text-[#101828] text-[12px]">{childAgeDisplay}</span>
+              <div className="flex flex-col items-end text-right">
+                <span className="font-medium text-[#101828] text-[12px]">
+                  {calculatedChildAge || childAgeDisplay}
+                </span>
+                {dobDisplay && dobDisplay !== calculatedChildAge && (
+                  <span className="text-[10px] text-[#667085]">
+                    {language === "de" ? `Geb.: ${dobDisplay}` : `DOB: ${dobDisplay}`}
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Start Date */}
@@ -827,7 +988,7 @@ export function BookingDetailsPanel({
                 {d.placementStart}
               </span>
               <div className="flex items-center gap-2 bg-[#F2F4F7] px-2.5 py-1.5 rounded-lg text-xs font-medium text-[#101828]">
-                <span>{placementStartDisplay}</span>
+                <span>{formatToDdMmmYyyy(placementStartDisplay, language) || placementStartDisplay}</span>
                 <svg className="w-3.5 h-3.5 text-[#667085]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
                   <line x1="16" y1="2" x2="16" y2="6" />
@@ -843,7 +1004,7 @@ export function BookingDetailsPanel({
                 {d.kindergartenTransition}
               </span>
               <div className="flex items-center gap-2 bg-[#F2F4F7] px-2.5 py-1.5 rounded-lg text-xs font-medium text-[#101828]">
-                <span>{kindergartenTransitionDisplay}</span>
+                <span>{formatToDdMmmYyyy(kindergartenTransitionDisplay, language) || kindergartenTransitionDisplay}</span>
                 <svg className="w-3.5 h-3.5 text-[#667085]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
                   <line x1="16" y1="2" x2="16" y2="6" />
@@ -942,6 +1103,19 @@ export function BookingDetailsPanel({
               </svg>
               <span>{d.contactParents}</span>
             </button>
+
+            {/* Cancel / Decline Inquiry Button with Reason Popup */}
+            <button
+              type="button"
+              onClick={() => setIsCancelModalOpen(true)}
+              className="w-full sm:w-auto h-[38px] px-3 rounded-lg bg-white border border-[#FDA29B] hover:bg-[#FEF3F2] text-[#B42318] text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer shrink-0"
+              title={language === "de" ? "Anfrage stornieren / ablehnen" : "Cancel / decline inquiry"}
+            >
+              <svg className="w-3.5 h-3.5 text-[#D92D20]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              <span>{language === "de" ? "Stornieren" : "Cancel"}</span>
+            </button>
           </>
         ) : (
           <>
@@ -966,6 +1140,177 @@ export function BookingDetailsPanel({
           </>
         )}
       </div>
+
+      {/* Cancel Inquiry with Reason Modal / Popup */}
+      {isCancelModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in"
+          onClick={() => !isCancelling && setIsCancelModalOpen(false)}
+        >
+          <div
+            className="relative bg-white rounded-2xl shadow-2xl border border-[#EAECF0] w-full max-w-[500px] p-5 sm:p-6 text-[#101828] space-y-4 animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-start justify-between gap-3 pb-3 border-b border-[#EAECF0]">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-full bg-[#FEF3F2] text-[#D92D20] flex items-center justify-center shrink-0">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-[#101828]">
+                    {language === "de" ? "Anfrage stornieren / ablehnen" : "Cancel / Decline Inquiry"}
+                  </h3>
+                  <p className="text-xs text-[#667085]">
+                    {language === "de"
+                      ? "Die Eltern erhalten eine automatische E-Mail mit dem Absagegrund."
+                      : "Parents will receive an automated email with the cancellation reason."}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => !isCancelling && setIsCancelModalOpen(false)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-[#667085] hover:text-[#101828] hover:bg-[#F2F4F7] transition-colors cursor-pointer shrink-0"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Inquired Child info pill */}
+            <div className="bg-[#FAF7F2] rounded-xl border border-[#E5DDD2] p-3 text-xs flex items-center justify-between">
+              <div>
+                <span className="text-[#7A6E62] font-semibold">{language === "de" ? "Kind / Anfrage:" : "Child / Inquiry:"} </span>
+                <span className="font-bold text-[#1E1B18]">{item?.childName || "Anfrage"}</span>
+              </div>
+              <div className="text-[#7A6E62] text-[11px] font-mono">
+                {item?.parentContact?.email}
+              </div>
+            </div>
+
+            {/* Preset reasons chips */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-[#344054] uppercase tracking-wide">
+                {language === "de" ? "Häufige Gründe wählen:" : "Choose a preset reason:"}
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  {
+                    de: "Keine freien Plätze verfügbar",
+                    en: "No available spots at this time",
+                  },
+                  {
+                    de: "Altersgruppe passt derzeit leider nicht",
+                    en: "Age group not fitting current cohort",
+                  },
+                  {
+                    de: "Gewünschte Betreuungszeiten nicht möglich",
+                    en: "Requested care hours cannot be accommodated",
+                  },
+                  {
+                    de: "Betreuungsbeginn liegt außerhalb unserer Planung",
+                    en: "Start date is outside our scheduling horizon",
+                  },
+                ].map((preset, idx) => {
+                  const label = language === "de" ? preset.de : preset.en;
+                  const isSelected = selectedPresetReason === label;
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        setSelectedPresetReason(label);
+                        setCancelReason(label);
+                      }}
+                      className={`text-xs px-2.5 py-1.5 rounded-lg border transition-all text-left cursor-pointer ${
+                        isSelected
+                          ? "bg-[#FEF3F2] border-[#FECDCA] text-[#B42318] font-bold"
+                          : "bg-white border-[#D0D5DD] text-[#344054] hover:bg-[#F9FAFB]"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Custom reason textarea */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-[#344054] uppercase tracking-wide">
+                {language === "de" ? "Grund an die Eltern (E-Mail-Text):" : "Reason to parents (email text):"}
+              </label>
+              <textarea
+                rows={3}
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder={
+                  language === "de"
+                    ? "z.B. Leider haben wir im gewünschten Zeitraum keine freien Kapazitäten mehr..."
+                    : "e.g. Unfortunately, we have no available capacity during the requested period..."
+                }
+                className="w-full text-xs text-[#101828] bg-white border border-[#D0D5DD] rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-[#D92D20]/20 focus:border-[#D92D20] transition-all resize-none placeholder-[#98A2B3]"
+              />
+            </div>
+
+            {/* Actions */}
+            <div className="pt-2 flex items-center justify-end gap-2.5 border-t border-[#EAECF0]">
+              <button
+                type="button"
+                disabled={isCancelling}
+                onClick={() => setIsCancelModalOpen(false)}
+                className="px-4 py-2 rounded-lg border border-[#D0D5DD] text-xs font-semibold text-[#344054] hover:bg-[#F2F4F7] transition-all cursor-pointer disabled:opacity-50 min-h-[38px]"
+              >
+                {language === "de" ? "Abbrechen" : "Keep Inquiry"}
+              </button>
+              <button
+                type="button"
+                disabled={isCancelling}
+                onClick={async () => {
+                  if (!item) return;
+                  setIsCancelling(true);
+                  try {
+                    const finalReason =
+                      cancelReason.trim() ||
+                      selectedPresetReason ||
+                      (language === "de"
+                        ? "Derzeit leider keine freien Kapazitäten verfügbar."
+                        : "Unfortunately no spots available at this time.");
+                    await onUpdateInquiryStatus?.(item.id, "Declined", finalReason);
+                    setIsCancelModalOpen(false);
+                    onClose?.();
+                  } catch (err) {
+                    console.error("Failed to cancel inquiry:", err);
+                  } finally {
+                    setIsCancelling(false);
+                  }
+                }}
+                className="px-4 py-2 rounded-lg bg-[#D92D20] hover:bg-[#B42318] text-white text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-75 min-h-[38px]"
+              >
+                {isCancelling ? (
+                  <>
+                    <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>{language === "de" ? "Wird storniert..." : "Cancelling..."}</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    <span>{language === "de" ? "Anfrage stornieren & E-Mail senden" : "Decline & Send Email"}</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </aside>
   );
 }

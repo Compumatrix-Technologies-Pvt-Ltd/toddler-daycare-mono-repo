@@ -10,6 +10,7 @@ import { ManageSlotModal } from "../../../components/caretaker/dashboard/ManageS
 import { ContactParentsModal } from "../../../components/caretaker/dashboard/ContactParentsModal";
 import { ExportModal } from "../../../components/caretaker/dashboard/ExportModal";
 import { useLanguage } from "../../../i18n/LanguageContext";
+import { useRouter } from "next/navigation";
 import { useCaretaker } from "../../../context/CaretakerContext";
 import { caretakerApi } from "../../../utils/caretakerApi";
 import { fetchInquiries, updateInquiryStatus } from "../../../utils/inquery";
@@ -20,6 +21,7 @@ import {
   parseFlexibleBookingDate,
   classifyOverlappingBookings,
   filterBookingsByDateRange,
+  calculateChildAge,
 } from "@repo/shared";
 
 const MONTH_SHORT_NAMES = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
@@ -96,7 +98,7 @@ function mapDashboardStatusToBackend(status: InquiryStatus): string {
     case "Booked":
       return "booked";
     case "Declined":
-      return "rejected";
+      return "declined";
     default:
       return "pending";
   }
@@ -132,23 +134,39 @@ function mapInquiryToBookingItem(
   lang: "de" | "en" = "de",
   months: GanttMonth[] = DEFAULT_GANTT_TIMELINE.months
 ): BookingItem {
+  const isAnInquiry = category === "inquiry";
+
+  const cleanDesiredStart =
+    inq.desiredStart && inq.desiredStart !== "Flexibel / Nach Absprache"
+      ? inq.desiredStart
+      : "";
+
   const startIdx = resolveStartMonthIndex(inq.desiredStart, months);
   const endIdx = Math.min(months.length > 0 ? months.length - 1 : 21, startIdx + 10);
   const startLabel = inq.desiredStart || months[startIdx]?.fullLabel || "";
   const endLabel = months[endIdx]?.fullLabel || "";
-  const periodLabel = endLabel ? `${startLabel} – ${endLabel}` : startLabel;
-  const isAnInquiry = category === "inquiry";
+
+  let periodLabel: string;
+  if (isAnInquiry) {
+    if (cleanDesiredStart) {
+      periodLabel = cleanDesiredStart;
+    } else {
+      const now = new Date();
+      const monthNames =
+        lang === "de"
+          ? ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"]
+          : ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      periodLabel = `${monthNames[now.getMonth()]}, ${now.getFullYear()}`;
+    }
+  } else {
+    periodLabel = endLabel ? `${startLabel} – ${endLabel}` : startLabel;
+  }
 
   const prefParts = [
     inq.preferences?.gender,
     inq.preferences?.food,
     inq.preferences?.pets,
   ].filter(Boolean);
-
-  const cleanDesiredStart =
-    inq.desiredStart && inq.desiredStart !== "Flexibel / Nach Absprache"
-      ? inq.desiredStart
-      : "";
 
   // Dynamic distance computation from parent inquiry's location & daycare location
   const radius = daycareLocation?.catchmentRadiusKm || fallbackCatchmentRadius || 3;
@@ -228,8 +246,8 @@ function mapInquiryToBookingItem(
   return {
     id: String(inq._id || inq.id || inq.referenceId || ""),
     childName: resolvedChildName,
-    childAge: inq.childBirthday ? `DOB: ${inq.childBirthday}` : "",
-    childAgeDe: inq.childBirthday ? `Geb.: ${inq.childBirthday}` : "",
+    childAge: inq.childBirthday ? calculateChildAge(inq.childBirthday, "en") : "",
+    childAgeDe: inq.childBirthday ? calculateChildAge(inq.childBirthday, "de") : "",
     placementStart: isAnInquiry ? cleanDesiredStart : startLabel,
     placementStartDe: isAnInquiry ? cleanDesiredStart : startLabel,
     kindergartenTransition: isAnInquiry ? (inq.estTransition || "") : endLabel,
@@ -332,8 +350,8 @@ function mapDbBookingToBookingItem(
     id: String(b._id || b.id || b.referenceId),
     inquiryId: b.inquiryId ? String(b.inquiryId) : undefined,
     childName: b.childName,
-    childAge: b.childDob ? `DOB: ${b.childDob}` : "",
-    childAgeDe: b.childDob ? `Geb.: ${b.childDob}` : "",
+    childAge: b.childDob ? calculateChildAge(b.childDob, "en") : "",
+    childAgeDe: b.childDob ? calculateChildAge(b.childDob, "de") : "",
     placementStart: b.placementStart,
     placementStartDe: b.placementStart,
     kindergartenTransition: b.kindergartenTransition,
@@ -366,7 +384,8 @@ function mapDbBookingToBookingItem(
 
 export default function CaretakerDashboardPage() {
   const { t, language } = useLanguage();
-  const { profile } = useCaretaker();
+  const router = useRouter();
+  const { profile, completionPercentage, approvalStatus, checkLoginRedirect } = useCaretaker();
   const vs = t.caretakerDashboard.viewSwitch;
   const tb = t.caretakerDashboard.toolbar;
   const dt = t.caretakerDashboard.details;
@@ -868,12 +887,18 @@ export default function CaretakerDashboardPage() {
     }, 6000);
   };
 
-  // Update status of an inquiry (New -> Reviewing -> Invited -> Accepted -> Booked)
-  const handleUpdateInquiryStatus = async (id: string, status: InquiryStatus) => {
+  // Update status of an inquiry (New -> Reviewing -> Invited -> Accepted -> Booked -> Declined)
+  const handleUpdateInquiryStatus = async (id: string, status: InquiryStatus, reason?: string) => {
     if (id && !id.startsWith("manual-")) {
-      await updateInquiryStatus(id, mapDashboardStatusToBackend(status)).catch(() => {});
+      await updateInquiryStatus(id, mapDashboardStatusToBackend(status), reason).catch(() => {});
     }
-    if (status === "Accepted" || status === "Booked") {
+    if (status === "Declined") {
+      setFittingInquiries((prev) => prev.filter((item) => item.id !== id));
+      if (selectedItem?.id === id) {
+        setSelectedItem(null);
+      }
+      await loadDashboardData();
+    } else if (status === "Accepted" || status === "Booked") {
       const targetItem = fittingInquiries.find((item) => item.id === id);
       if (targetItem) {
         await handleMarkAsBooked(targetItem);
@@ -904,6 +929,20 @@ export default function CaretakerDashboardPage() {
   };
 
   const allBookings = [...currentBookings, ...futureBookings, ...fittingInquiries];
+
+  // Guard: caretakers without a fully completed & approved profile cannot access the dashboard
+  React.useEffect(() => {
+    const redirect = checkLoginRedirect();
+    if (redirect.shouldRedirectToProfile) {
+      const reasonParam =
+        redirect.reason === "incomplete"
+          ? "incomplete"
+          : redirect.reason === "awaiting_approval"
+            ? "awaiting_approval"
+            : "incomplete";
+      router.replace(`/caretaker/profile?from=dashboard&reason=${reasonParam}`);
+    }
+  }, [completionPercentage, approvalStatus, router]);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#FAF7F2] text-[#1E1B18] overflow-x-clip">

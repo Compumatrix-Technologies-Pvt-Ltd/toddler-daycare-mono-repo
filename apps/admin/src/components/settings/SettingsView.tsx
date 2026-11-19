@@ -1,7 +1,7 @@
 import { useState, useEffect, type FormEvent } from "react";
 import { AdminRole, PlatformSettings } from "../../types/admin";
 import { useLanguage } from "../../context/LanguageContext";
-import { CheckCircleIcon, ShieldCheckIcon, CloseIcon } from "../icons/AdminIcons";
+import { ShieldCheckIcon } from "../icons/AdminIcons";
 
 interface SettingsViewProps {
   initialSettings: PlatformSettings;
@@ -16,7 +16,6 @@ export function SettingsView({
 }: SettingsViewProps) {
   const { t } = useLanguage();
   const [settings, setSettings] = useState<PlatformSettings>(initialSettings);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   useEffect(() => {
     setSettings(initialSettings);
@@ -25,8 +24,6 @@ export function SettingsView({
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     onSave(settings);
-    setToastMessage(t.admin.settings.savedToast);
-    setTimeout(() => setToastMessage(null), 3500);
   };
 
   return (
@@ -60,24 +57,6 @@ export function SettingsView({
           <span>
             Standard Admin Mode: Viewing system parameters in read-only audit mode. Saving changes requires Super Admin credentials.
           </span>
-        </div>
-      )}
-
-      {/* Toast Alert */}
-      {toastMessage && (
-        <div className="p-3.5 rounded-xl bg-[#F0FDF4] border border-[#BBF7D0] text-[#15803D] text-xs sm:text-sm font-semibold flex items-center justify-between shadow-2xs animate-in fade-in">
-          <div className="flex items-center gap-2">
-            <CheckCircleIcon className="w-4 h-4 text-[#16A34A] shrink-0" />
-            <span>{toastMessage}</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setToastMessage(null)}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-[#15803D] hover:bg-[#DCFCE7] cursor-pointer"
-            aria-label="Dismiss toast"
-          >
-            <CloseIcon className="w-4 h-4 text-[#15803D]" />
-          </button>
         </div>
       )}
 

@@ -1,9 +1,13 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import {
   ClockIcon,
   SearchIcon,
   CheckCircleIcon,
   AlertCircleIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ChevronsLeftIcon,
+  ChevronsRightIcon,
 } from "../icons/AdminIcons";
 import { DaycareApplication } from "../../types/admin";
 import { useLanguage } from "../../context/LanguageContext";
@@ -12,6 +16,7 @@ interface DaycaresTableSectionProps {
   applications: DaycareApplication[];
   isLoading?: boolean;
   mode?: "recent" | "full";
+  initialPageSize?: number;
   onViewAll?: (() => void) | undefined;
   onRequestApprove: (application: DaycareApplication) => void;
   onRequestReject?: ((application: DaycareApplication) => void) | undefined;
@@ -23,6 +28,7 @@ export function DaycaresTableSection({
   applications,
   isLoading = false,
   mode = "full",
+  initialPageSize = 10,
   onViewAll,
   onRequestApprove,
   onRequestReject,
@@ -32,7 +38,14 @@ export function DaycaresTableSection({
   const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<"all" | "pending" | "approved" | "rejected">("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(initialPageSize);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Reset to page 1 whenever active tab or search query changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, searchQuery]);
 
   useEffect(() => {
     if (mode !== "full") return;
@@ -54,20 +67,53 @@ export function DaycaresTableSection({
   const approvedCount = applications.filter((a) => a.status === "approved").length;
   const rejectedCount = applications.filter((a) => a.status === "rejected").length;
 
-  const displayedApplications =
-    mode === "recent"
-      ? applications.slice(0, 5)
-      : applications.filter((app) => {
-          const matchesTab = activeTab === "all" || app.status === activeTab;
-          const q = searchQuery.toLowerCase();
-          const matchesSearch =
-            app.caretakerName.toLowerCase().includes(q) ||
-            app.daycareName.toLowerCase().includes(q) ||
-            (Boolean(app.permitId) && app.permitId !== "—" && Boolean(app.permitId?.toLowerCase().includes(q))) ||
-            app.location.toLowerCase().includes(q) ||
-            app.district.toLowerCase().includes(q);
-          return matchesTab && matchesSearch;
-        });
+  const filteredApplications = useMemo(() => {
+    if (mode === "recent") {
+      return applications.slice(0, 5);
+    }
+    const q = searchQuery.trim().toLowerCase();
+    return applications.filter((app) => {
+      const matchesTab = activeTab === "all" || app.status === activeTab;
+      if (!matchesTab) return false;
+      if (!q) return true;
+      return (
+        app.caretakerName.toLowerCase().includes(q) ||
+        app.daycareName.toLowerCase().includes(q) ||
+        (Boolean(app.permitId) && app.permitId !== "—" && Boolean(app.permitId?.toLowerCase().includes(q))) ||
+        app.location.toLowerCase().includes(q) ||
+        app.district.toLowerCase().includes(q)
+      );
+    });
+  }, [applications, mode, activeTab, searchQuery]);
+
+  const totalItems = filteredApplications.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const validCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+
+  const displayedApplications = useMemo(() => {
+    if (mode === "recent") {
+      return filteredApplications;
+    }
+    const startIndex = (validCurrentPage - 1) * pageSize;
+    return filteredApplications.slice(startIndex, startIndex + pageSize);
+  }, [filteredApplications, mode, validCurrentPage, pageSize]);
+
+  const startIndex = totalItems === 0 ? 0 : (validCurrentPage - 1) * pageSize + 1;
+  const endIndex = Math.min(validCurrentPage * pageSize, totalItems);
+
+  // Generate pagination page numbers
+  const getPageNumbers = () => {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    if (validCurrentPage <= 4) {
+      return [1, 2, 3, 4, 5, "...", totalPages];
+    }
+    if (validCurrentPage >= totalPages - 3) {
+      return [1, "...", totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+    }
+    return [1, "...", validCurrentPage - 1, validCurrentPage, validCurrentPage + 1, "...", totalPages];
+  };
 
   return (
     <div className="bg-white rounded-2xl border border-[#E5DDD2] shadow-sm overflow-hidden flex flex-col">
@@ -192,7 +238,6 @@ export function DaycaresTableSection({
               <th className="py-2.5 px-4 whitespace-nowrap">{t.admin.dashboard.table.colCaretaker}</th>
               <th className="py-2.5 px-4 whitespace-nowrap">{t.admin.dashboard.table.colPermit}</th>
               <th className="py-2.5 px-4 whitespace-nowrap">{t.admin.dashboard.table.colDistrict}</th>
-              <th className="py-2.5 px-4 whitespace-nowrap">{t.admin.dashboard.table.colArea}</th>
               <th className="py-2.5 px-4 whitespace-nowrap">{t.admin.dashboard.table.colCapacity}</th>
               <th className="py-2.5 px-4 whitespace-nowrap">{t.admin.dashboard.table.colSubmitted}</th>
               <th className="py-2.5 px-4 whitespace-nowrap">{t.admin.dashboard.table.colStatus}</th>
@@ -202,7 +247,7 @@ export function DaycaresTableSection({
           <tbody className="divide-y divide-[#E5DDD2]">
             {isLoading ? (
               <tr>
-                <td colSpan={8} className="py-12 text-center text-[#7A6E62]">
+                <td colSpan={7} className="py-12 text-center text-[#7A6E62]">
                   <div className="flex items-center justify-center gap-2.5">
                     <div className="w-5 h-5 border-2 border-[#A12D3A] border-t-transparent rounded-full animate-spin" />
                     <span className="font-medium text-xs">
@@ -213,7 +258,7 @@ export function DaycaresTableSection({
               </tr>
             ) : displayedApplications.length === 0 ? (
               <tr>
-                <td colSpan={8} className="py-8 text-center text-[#7A6E62]">
+                <td colSpan={7} className="py-8 text-center text-[#7A6E62]">
                   {t.admin.dashboard.table.noResults}
                 </td>
               </tr>
@@ -249,25 +294,6 @@ export function DaycaresTableSection({
                   <td className="py-3 px-4 text-[#5C4C3E] max-w-[200px]">
                     <div className="font-semibold text-[#1E1B18] truncate">{app.district}</div>
                     <div className="truncate text-[11px] text-[#7A6E62]">{app.location}</div>
-                  </td>
-
-                  <td className="py-3 px-4 whitespace-nowrap">
-                    <span
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${
-                        app.areaType === "rural"
-                          ? "bg-[#FEF3C7] text-[#92400E] border border-[#FDE68A]"
-                          : "bg-[#DCFCE7] text-[#166534] border border-[#BBF7D0]"
-                      }`}
-                    >
-                      <span
-                        className={`w-1.5 h-1.5 rounded-full ${
-                          app.areaType === "rural" ? "bg-[#D97706]" : "bg-[#16A34A]"
-                        }`}
-                      />
-                      {app.areaType === "rural"
-                        ? t.admin.dashboard.table.ruralBadge.replace("{radius}", String(app.catchmentRadiusKm || 10))
-                        : t.admin.dashboard.table.urbanBadge.replace("{radius}", String(app.catchmentRadiusKm || 3))}
-                    </span>
                   </td>
 
                   <td className="py-3 px-4 text-[#1E1B18] font-semibold whitespace-nowrap">
@@ -382,6 +408,129 @@ export function DaycaresTableSection({
           </tbody>
         </table>
       </div>
+
+      {/* Pagination Footer (only in "full" mode when applications exist) */}
+      {mode === "full" && totalItems > 0 && (
+        <div className="p-3 sm:p-4 border-t border-[#E5DDD2] bg-[#FAF7F2] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+          {/* Left: Summary & Page Size Selector */}
+          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 w-full sm:w-auto">
+            <span className="text-[#7A6E62] font-medium">
+              {t.admin.dashboard.table.pagination.showing
+                .replace("{start}", String(startIndex))
+                .replace("{end}", String(endIndex))
+                .replace("{total}", String(totalItems))}
+            </span>
+
+            <div className="flex items-center gap-1.5 pl-2 border-l border-[#E5DDD2]">
+              <span className="text-[#7A6E62] text-[11px] whitespace-nowrap">
+                {t.admin.dashboard.table.pagination.perPage}
+              </span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="h-7.5 px-2 rounded-lg border border-[#E5DDD2] bg-white text-[#1E1B18] font-semibold text-xs focus:border-[#A12D3A] focus:outline-hidden cursor-pointer shadow-2xs"
+                aria-label={t.admin.dashboard.table.pagination.perPage}
+              >
+                {[5, 10, 20, 50, 100].map((size) => (
+                  <option key={size} value={size}>
+                    {size}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Right: Navigation Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto max-w-full py-0.5">
+              {/* First Page */}
+              <button
+                type="button"
+                onClick={() => setCurrentPage(1)}
+                disabled={validCurrentPage === 1}
+                className="p-1.5 sm:px-2 rounded-lg border border-[#E5DDD2] bg-white text-[#7A6E62] hover:text-[#1E1B18] hover:bg-[#EFE7DC] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors cursor-pointer shadow-2xs min-h-[34px] min-w-[34px] flex items-center justify-center"
+                title={t.admin.dashboard.table.pagination.first}
+                aria-label={t.admin.dashboard.table.pagination.first}
+              >
+                <ChevronsLeftIcon className="w-3.5 h-3.5" />
+              </button>
+
+              {/* Previous Page */}
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={validCurrentPage === 1}
+                className="px-2.5 py-1.5 rounded-lg border border-[#E5DDD2] bg-white text-[#7A6E62] hover:text-[#1E1B18] hover:bg-[#EFE7DC] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white font-semibold text-xs transition-colors cursor-pointer shadow-2xs min-h-[34px] flex items-center gap-1"
+                aria-label={t.admin.dashboard.table.pagination.previous}
+              >
+                <ChevronLeftIcon className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">{t.admin.dashboard.table.pagination.previous}</span>
+              </button>
+
+              {/* Page Number Buttons */}
+              <div className="flex items-center gap-1">
+                {getPageNumbers().map((num, idx) => {
+                  if (num === "...") {
+                    return (
+                      <span
+                        key={`ellipsis-${idx}`}
+                        className="w-7 sm:w-8 h-8 flex items-center justify-center text-[#7A6E62] font-bold select-none text-xs"
+                      >
+                        …
+                      </span>
+                    );
+                  }
+                  const pageNum = num as number;
+                  const isActive = pageNum === validCurrentPage;
+                  return (
+                    <button
+                      key={`page-${pageNum}`}
+                      type="button"
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={`min-w-[32px] sm:min-w-[34px] h-8 sm:h-8.5 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-2xs flex items-center justify-center ${
+                        isActive
+                          ? "bg-[#A12D3A] text-white border border-[#A12D3A]"
+                          : "bg-white text-[#5C4C3E] border border-[#E5DDD2] hover:bg-[#FAF7F2] hover:text-[#1E1B18]"
+                      }`}
+                      aria-label={`${t.admin.dashboard.table.pagination.page} ${pageNum}`}
+                      aria-current={isActive ? "page" : undefined}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Next Page */}
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={validCurrentPage === totalPages}
+                className="px-2.5 py-1.5 rounded-lg border border-[#E5DDD2] bg-white text-[#7A6E62] hover:text-[#1E1B18] hover:bg-[#EFE7DC] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white font-semibold text-xs transition-colors cursor-pointer shadow-2xs min-h-[34px] flex items-center gap-1"
+                aria-label={t.admin.dashboard.table.pagination.next}
+              >
+                <span className="hidden sm:inline">{t.admin.dashboard.table.pagination.next}</span>
+                <ChevronRightIcon className="w-3.5 h-3.5" />
+              </button>
+
+              {/* Last Page */}
+              <button
+                type="button"
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={validCurrentPage === totalPages}
+                className="p-1.5 sm:px-2 rounded-lg border border-[#E5DDD2] bg-white text-[#7A6E62] hover:text-[#1E1B18] hover:bg-[#EFE7DC] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors cursor-pointer shadow-2xs min-h-[34px] min-w-[34px] flex items-center justify-center"
+                title={t.admin.dashboard.table.pagination.last}
+                aria-label={t.admin.dashboard.table.pagination.last}
+              >
+                <ChevronsRightIcon className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

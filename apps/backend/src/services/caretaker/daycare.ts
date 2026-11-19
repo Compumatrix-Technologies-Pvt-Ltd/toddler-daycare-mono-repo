@@ -4,6 +4,7 @@ import path from "path";
 import { Types } from "mongoose";
 import fs from "fs/promises";
 import "@/types/caretaker/caretaker";
+import { getSettingsService } from "@/services/admin/settings";
 import {
     calculateUpcomingAvailableDates,
     parseFlexibleDate,
@@ -48,11 +49,15 @@ const resolveLocationArea = async (loc: any) => {
     let areaType = loc.areaType;
     let catchmentRadiusKm = Number(loc.catchmentRadiusKm);
 
+    const settings = await getSettingsService().catch(() => null);
+    const urbanRadius = Number(settings?.urbanCatchmentRadiusKm) || Number(settings?.defaultCatchmentRadiusKm) || 3.0;
+    const ruralRadius = Number(settings?.ruralCatchmentRadiusKm) || 10.0;
+
     if (areaType === "urban" || areaType === "rural") {
         return {
             ...loc,
             areaType,
-            catchmentRadiusKm: catchmentRadiusKm || (areaType === "rural" ? 10 : 3),
+            catchmentRadiusKm: catchmentRadiusKm || (areaType === "rural" ? ruralRadius : urbanRadius),
         };
     }
 
@@ -186,7 +191,7 @@ const resolveLocationArea = async (loc: any) => {
         areaType = isRural ? "rural" : "urban";
     }
 
-    catchmentRadiusKm = catchmentRadiusKm || (areaType === "rural" ? 10 : 3);
+    catchmentRadiusKm = catchmentRadiusKm || (areaType === "rural" ? ruralRadius : urbanRadius);
 
     return {
         ...loc,

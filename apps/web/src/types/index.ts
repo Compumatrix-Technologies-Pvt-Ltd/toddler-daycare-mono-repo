@@ -51,6 +51,7 @@ export interface Kita {
   gender?: "female" | "male" | "other" | string;
   website?: string;
   phone?: string;
+  email?: string;
   openingFrom?: string;
   openingUntil?: string;
   areaType?: "urban" | "rural";

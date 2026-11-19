@@ -386,20 +386,22 @@ export function ContactMessagesView({ onUnreadCountChange }: ContactMessagesView
                             <ReplyIcon className="w-4 h-4" />
                           </button>
 
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleStatusChange(
-                                msg._id,
-                                msg.status === "read" ? "unread" : "read"
-                              )
-                            }
-                            title={msg.status === "read" ? cT.markAsUnread : cT.markAsRead}
-                            disabled={actionLoadingId === msg._id}
-                            className="w-8 h-8 rounded-lg border border-[#E5DDD2] bg-white hover:bg-[#FAF7F2] text-[#B45309] flex items-center justify-center transition-colors cursor-pointer"
-                          >
-                            <CheckIcon className="w-4 h-4" />
-                          </button>
+                          {msg.status !== "replied" && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleStatusChange(
+                                  msg._id,
+                                  msg.status === "read" ? "unread" : "read"
+                                )
+                              }
+                              title={msg.status === "read" ? cT.markAsUnread : cT.markAsRead}
+                              disabled={actionLoadingId === msg._id}
+                              className="w-8 h-8 rounded-lg border border-[#E5DDD2] bg-white hover:bg-[#FAF7F2] text-[#B45309] flex items-center justify-center transition-colors cursor-pointer"
+                            >
+                              <CheckIcon className="w-4 h-4" />
+                            </button>
+                          )}
 
                           <button
                             type="button"
@@ -470,19 +472,21 @@ export function ContactMessagesView({ onUnreadCountChange }: ContactMessagesView
                       >
                         <ReplyIcon className="w-5 h-5" />
                       </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleStatusChange(
-                            msg._id,
-                            msg.status === "read" ? "unread" : "read"
-                          )
-                        }
-                        className="min-h-[44px] min-w-[44px] flex items-center justify-center text-[#B45309] hover:text-[#92400E]"
-                        aria-label={msg.status === "read" ? cT.markAsUnread : cT.markAsRead}
-                      >
-                        <CheckIcon className="w-5 h-5" />
-                      </button>
+                      {msg.status !== "replied" && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleStatusChange(
+                              msg._id,
+                              msg.status === "read" ? "unread" : "read"
+                            )
+                          }
+                          className="min-h-[44px] min-w-[44px] flex items-center justify-center text-[#B45309] hover:text-[#92400E]"
+                          aria-label={msg.status === "read" ? cT.markAsUnread : cT.markAsRead}
+                        >
+                          <CheckIcon className="w-5 h-5" />
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => handleDelete(msg._id)}
@@ -588,26 +592,35 @@ export function ContactMessagesView({ onUnreadCountChange }: ContactMessagesView
             {/* Modal Footer with Actions */}
             <div className="p-4 sm:p-5 border-t border-[#F0EBE1] bg-[#FAF8F5]/80 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() =>
-                    handleStatusChange(
-                      selectedMessage._id,
-                      selectedMessage.status === "read" ? "unread" : "read"
-                    )
-                  }
-                  className="px-3.5 py-2 min-h-[44px] rounded-xl border border-[#E5DDD2] bg-white hover:bg-[#F3ECE2] text-xs font-semibold text-[#423223] transition-colors cursor-pointer"
-                >
-                  {selectedMessage.status === "read" ? cT.markAsUnread : cT.markAsRead}
-                </button>
+                {selectedMessage.status === "replied" ? (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-700">
+                    <CheckIcon className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>{cT.statusReplied}</span>
+                  </div>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleStatusChange(
+                          selectedMessage._id,
+                          selectedMessage.status === "read" ? "unread" : "read"
+                        )
+                      }
+                      className="px-3.5 py-2 min-h-[44px] rounded-xl border border-[#E5DDD2] bg-white hover:bg-[#F3ECE2] text-xs font-semibold text-[#423223] transition-colors cursor-pointer"
+                    >
+                      {selectedMessage.status === "read" ? cT.markAsUnread : cT.markAsRead}
+                    </button>
 
-                <button
-                  type="button"
-                  onClick={() => handleStatusChange(selectedMessage._id, "replied")}
-                  className="px-3.5 py-2 min-h-[44px] rounded-xl border border-[#BBF7D0] bg-[#F0FDF4] hover:bg-[#DCFCE7] text-xs font-semibold text-[#15803D] transition-colors cursor-pointer"
-                >
-                  {cT.markAsReplied}
-                </button>
+                    <button
+                      type="button"
+                      onClick={() => handleStatusChange(selectedMessage._id, "replied")}
+                      className="px-3.5 py-2 min-h-[44px] rounded-xl border border-[#BBF7D0] bg-[#F0FDF4] hover:bg-[#DCFCE7] text-xs font-semibold text-[#15803D] transition-colors cursor-pointer"
+                    >
+                      {cT.markAsReplied}
+                    </button>
+                  </>
+                )}
               </div>
 
               <div className="flex items-center gap-2">

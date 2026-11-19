@@ -187,7 +187,7 @@ export function EnquiryModal({
       router.push(
         `/confirm-enquiry?ref=${encodeURIComponent(referenceId)}&contacted=${encodeURIComponent(
           contactedParam
-        )}&child=${encodeURIComponent(parentName.trim() || "1 Kind")}`
+        )}&child=${encodeURIComponent(parentName.trim() || "1 Kind")}&consent=${consent ? "true" : "false"}`
       );
     } catch (err: any) {
       console.error("[EnquiryModal] Submission error:", err);
@@ -240,15 +240,14 @@ export function EnquiryModal({
 
         {/* Scope Selector Pills */}
         <div className="flex flex-wrap sm:flex-nowrap justify-center gap-2 sm:gap-2.5 mb-5">
-          {/* Option 1: To This Provider Only */}
+          {/* Option 1: To */}
           <button
             type="button"
             onClick={() => setScope("single")}
-            className={`py-2 px-3.5 sm:px-4 rounded-full text-xs sm:text-sm transition-all min-h-[38px] flex items-center justify-center gap-1.5 cursor-pointer ${
-              scope === "single"
+            className={`py-2 px-3.5 sm:px-4 rounded-full text-xs sm:text-sm transition-all min-h-[38px] flex items-center justify-center gap-1.5 cursor-pointer ${scope === "single"
                 ? "bg-[#A12D3A]/10 border-2 border-[#A12D3A] text-[#A12D3A] font-bold shadow-2xs"
                 : "bg-[#FAF7F2] border border-[#E5DDD2] text-[#6B5E51] hover:text-[#1E1B18] font-medium"
-            }`}
+              }`}
           >
             <span>{t.modals.enquiryForm.tabs.single}</span>
             {activeKitaName && (
@@ -260,11 +259,10 @@ export function EnquiryModal({
           <button
             type="button"
             onClick={() => setScope("allMap")}
-            className={`py-2 px-3.5 sm:px-4 rounded-full text-xs sm:text-sm transition-all min-h-[38px] flex items-center justify-center gap-1.5 cursor-pointer ${
-              scope === "allMap"
+            className={`py-2 px-3.5 sm:px-4 rounded-full text-xs sm:text-sm transition-all min-h-[38px] flex items-center justify-center gap-1.5 cursor-pointer ${scope === "allMap"
                 ? "bg-[#A12D3A]/10 border-2 border-[#A12D3A] text-[#A12D3A] font-bold shadow-2xs"
                 : "bg-[#FAF7F2] border border-[#E5DDD2] text-[#6B5E51] hover:text-[#1E1B18] font-medium"
-            }`}
+              }`}
           >
             <span>{t.modals.enquiryForm.tabs.allMap}</span>
             <span className="opacity-80 font-normal">({totalMapCount})</span>
@@ -274,11 +272,10 @@ export function EnquiryModal({
           <button
             type="button"
             onClick={() => setScope("favorites")}
-            className={`py-2 px-3.5 sm:px-4 rounded-full text-xs sm:text-sm transition-all min-h-[38px] flex items-center justify-center gap-1.5 cursor-pointer ${
-              scope === "favorites"
+            className={`py-2 px-3.5 sm:px-4 rounded-full text-xs sm:text-sm transition-all min-h-[38px] flex items-center justify-center gap-1.5 cursor-pointer ${scope === "favorites"
                 ? "bg-[#A12D3A]/10 border-2 border-[#A12D3A] text-[#A12D3A] font-bold shadow-2xs"
                 : "bg-[#FAF7F2] border border-[#E5DDD2] text-[#6B5E51] hover:text-[#1E1B18] font-medium"
-            }`}
+              }`}
           >
             <span>{t.modals.enquiryForm.tabs.favorites}</span>
             <span className="opacity-80 font-normal">({favoritesCount})</span>
@@ -376,11 +373,10 @@ export function EnquiryModal({
                   className="sr-only"
                 />
                 <div
-                  className={`w-5 h-5 rounded-md flex items-center justify-center transition-colors ${
-                    consent
+                  className={`w-5 h-5 rounded-md flex items-center justify-center transition-colors ${consent
                       ? "bg-[#A12D3A] text-white shadow-2xs"
                       : "border border-[#D5C9B8] bg-white hover:border-[#A12D3A]"
-                  }`}
+                    }`}
                 >
                   {consent && (
                     <svg
@@ -405,9 +401,8 @@ export function EnquiryModal({
                 >
                   <span>{t.modals.enquiryForm.learnMoreLink}</span>
                   <svg
-                    className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                      showLearnMore ? "rotate-180" : ""
-                    }`}
+                    className={`w-3.5 h-3.5 transition-transform duration-200 ${showLearnMore ? "rotate-180" : ""
+                      }`}
                     fill="none"
                     stroke="currentColor"
                     strokeWidth="2.5"
